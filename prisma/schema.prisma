@@ -1,0 +1,144 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Worlds reference table
+model World {
+  id         Int         @id @default(autoincrement())
+  name       String      @unique @db.VarChar(100)
+  pvpType    String?     @map("pvp_type") @db.VarChar(50)
+  isActive   Boolean     @default(true) @map("is_active")
+  createdAt  DateTime    @default(now()) @map("created_at")
+  characters Character[]
+
+  @@map("worlds")
+}
+
+// Characters (canonical record)
+model Character {
+  id                  Int                  @id @default(autoincrement())
+  name                String               @db.VarChar(255)
+  worldId             Int                  @map("world_id")
+  vocation            String?              @db.VarChar(50)
+  guildName           String?              @map("guild_name") @db.VarChar(255)
+  firstSeen           DateTime             @default(now()) @map("first_seen")
+  lastUpdated         DateTime             @default(now()) @updatedAt @map("last_updated")
+  world               World                @relation(fields: [worldId], references: [id])
+  characterSnapshots  CharacterSnapshot[]
+
+  @@unique([name, worldId])
+  @@index([worldId])
+  @@index([name])
+  @@map("characters")
+}
+
+// Daily character snapshots
+model CharacterSnapshot {
+  id            Int      @id @default(autoincrement())
+  characterId   Int      @map("character_id")
+  capturedDate  DateTime @map("captured_date") @db.Date
+  level         Int?
+  experience    BigInt?
+  magicLevel    Int?     @map("magic_level")
+  fist          Int?
+  club          Int?
+  sword         Int?
+  axe           Int?
+  distance      Int?
+  shielding     Int?
+  fishing       Int?
+  expRank       Int?     @map("exp_rank")
+  mlRank        Int?     @map("ml_rank")
+  expGained     BigInt?  @map("exp_gained")
+  levelsGained  Int?     @map("levels_gained")
+  createdAt     DateTime @default(now()) @map("created_at")
+  character     Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@unique([characterId, capturedDate])
+  @@index([characterId])
+  @@index([capturedDate])
+  @@map("character_snapshots")
+}
+
+// Auctions (current + historical)
+model Auction {
+  id              Int        @id @default(autoincrement())
+  externalId      String?    @unique @map("external_id") @db.VarChar(100)
+  characterName   String     @map("character_name") @db.VarChar(255)
+  vocation        String?    @db.VarChar(50)
+  level           Int?
+  world           String?    @db.VarChar(100)
+  magicLevel      Int?       @map("magic_level")
+  skills          Json?      @db.JsonB
+  charmPoints     Int?       @map("charm_points")
+  charms          Json?      @db.JsonB
+  preySlots       Int?       @map("prey_slots")
+  huntingSlots    Int?       @map("hunting_slots")
+  imbuementSlots  Int?       @map("imbuement_slots")
+  outfitsCount    Int?       @map("outfits_count")
+  mountsCount     Int?       @map("mounts_count")
+  startingBid     Int?       @map("starting_bid")
+  currentBid      Int?       @map("current_bid")
+  buyoutPrice     Int?       @map("buyout_price")
+  status          String     @default("active") @db.VarChar(20)
+  soldPrice       Int?       @map("sold_price")
+  listedAt        DateTime?  @map("listed_at")
+  endsAt          DateTime?  @map("ends_at")
+  soldAt          DateTime?  @map("sold_at")
+  dealScore       Decimal?   @map("deal_score") @db.Decimal
+  estimatedValue  Int?       @map("estimated_value")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @default(now()) @updatedAt @map("updated_at")
+  watchlistItems  Watchlist[]
+
+  @@index([status])
+  @@index([vocation])
+  @@index([level])
+  @@index([world])
+  @@index([endsAt])
+  @@map("auctions")
+}
+
+// Precomputed market statistics
+model MarketStats {
+  id               Int      @id @default(autoincrement())
+  vocation         String   @db.VarChar(50)
+  levelMin         Int      @map("level_min")
+  levelMax         Int      @map("level_max")
+  avgPrice         Decimal? @map("avg_price") @db.Decimal
+  medianPrice      Decimal? @map("median_price") @db.Decimal
+  minPrice         Int?     @map("min_price")
+  maxPrice         Int?     @map("max_price")
+  pricePerLevel    Decimal? @map("price_per_level") @db.Decimal
+  pricePerMl       Decimal? @map("price_per_ml") @db.Decimal
+  charmPointValue  Decimal? @map("charm_point_value") @db.Decimal
+  sampleSize       Int?     @map("sample_size")
+  calculatedAt     DateTime @default(now()) @map("calculated_at")
+
+  @@unique([vocation, levelMin, levelMax])
+  @@index([vocation])
+  @@map("market_stats")
+}
+
+// User watchlist (for Phase 4)
+model Watchlist {
+  id              Int      @id @default(autoincrement())
+  userId          String?  @map("user_id") @db.Uuid
+  characterName   String?  @map("character_name") @db.VarChar(255)
+  auctionId       Int?     @map("auction_id")
+  notifyOnChange  Boolean  @default(false) @map("notify_on_change")
+  createdAt       DateTime @default(now()) @map("created_at")
+  auction         Auction? @relation(fields: [auctionId], references: [id])
+
+  @@index([userId])
+  @@index([auctionId])
+  @@map("watchlist")
+}

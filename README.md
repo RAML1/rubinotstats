@@ -1,36 +1,106 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Rubinotstats
 
-## Getting Started
+A character tracking and auction analysis platform for the Brazilian MMORPG Rubinum Online.
 
-First, run the development server:
+## Overview
 
+Rubinotstats is a comprehensive tool designed to help players track their characters, monitor market trends, and analyze auction data within the Rubinum Online economy.
+
+## Setup Instructions
+
+### Prerequisites
+
+- Node.js 18+
+- pnpm (recommended) or npm/yarn
+
+### Installation
+
+1. Clone the repository:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone <repository-url>
+cd rubinotstats
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Install dependencies:
+```bash
+pnpm install
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. Set up environment variables:
+```bash
+cp .env.example .env.local
+# Edit .env.local with your configuration
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+4. Initialize the database:
+```bash
+pnpm prisma migrate dev
+```
 
-## Learn More
+## Available Scripts
 
-To learn more about Next.js, take a look at the following resources:
+### Development
+```bash
+pnpm dev
+```
+Runs the development server at `http://localhost:3000`. The app automatically reloads on file changes.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Production Build
+```bash
+pnpm build
+```
+Creates an optimized production build.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Start Production Server
+```bash
+pnpm start
+```
+Starts the production server.
 
-## Deploy on Vercel
+### Linting
+```bash
+pnpm lint
+```
+Runs ESLint to check code quality.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Database Management
+```bash
+pnpm prisma migrate dev   # Run migrations
+pnpm prisma studio       # Open Prisma Studio GUI
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Tech Stack
+
+- **Framework**: Next.js 14 with App Router
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS v4
+- **Database**: PostgreSQL with Prisma ORM
+- **Charts**: Recharts
+- **Data Validation**: Zod
+- **Web Scraping**: Cheerio
+- **Icons**: Lucide React
+- **Code Quality**: ESLint + Prettier
+- **UI Utilities**: clsx, tailwind-merge, class-variance-authority
+
+## Project Structure
+
+```
+src/
+├── app/           # Next.js App Router pages and layouts
+├── components/    # Reusable React components
+├── lib/           # Utility functions and helpers
+├── hooks/         # Custom React hooks
+└── types/         # TypeScript type definitions
+```
+
+## Contributing
+
+When contributing to this project, please follow these guidelines:
+- Use TypeScript for type safety
+- Follow the ESLint and Prettier configuration
+- Write descriptive commit messages
+- Test changes locally with `pnpm dev` before submitting
+
+## License
+
+Proprietary - All rights reserved
