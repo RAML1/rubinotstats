@@ -76,15 +76,48 @@ model Auction {
   vocation        String?    @db.VarChar(50)
   level           Int?
   world           String?    @db.VarChar(100)
+
+  // Skills (the value drivers!)
   magicLevel      Int?       @map("magic_level")
-  skills          Json?      @db.JsonB
-  charmPoints     Int?       @map("charm_points")
-  charms          Json?      @db.JsonB
+  fist            Int?
+  club            Int?
+  sword           Int?
+  axe             Int?
+  distance        Int?
+  shielding       Int?
+  fishing         Int?
+  skills          Json?      @db.JsonB  // Backup/legacy field
+
+  // Charm system
+  availableCharmPoints  Int?  @map("available_charm_points")
+  spentCharmPoints      Int?  @map("spent_charm_points")
+  charms                Json? @db.JsonB
+
+  // Account features
   preySlots       Int?       @map("prey_slots")
+  preyWildcards   Int?       @map("prey_wildcards")
   huntingSlots    Int?       @map("hunting_slots")
   imbuementSlots  Int?       @map("imbuement_slots")
+
+  // Cosmetics
   outfitsCount    Int?       @map("outfits_count")
   mountsCount     Int?       @map("mounts_count")
+
+  // Hirelings
+  hirelings       Int?
+  hirelingJobs    Int?       @map("hireling_jobs")
+  hirelingOutfits Int?       @map("hireling_outfits")
+
+  // Progression
+  dailyRewardStreak  Int?    @map("daily_reward_streak")
+  exaltedDust        Int?    @map("exalted_dust")
+  exaltedDustLimit   Int?    @map("exalted_dust_limit")
+  bossPoints         Int?    @map("boss_points")
+
+  // Quest progress
+  completedQuestLines Json?  @map("completed_quest_lines") @db.JsonB
+
+  // Auction details
   startingBid     Int?       @map("starting_bid")
   currentBid      Int?       @map("current_bid")
   buyoutPrice     Int?       @map("buyout_price")
@@ -93,8 +126,12 @@ model Auction {
   listedAt        DateTime?  @map("listed_at")
   endsAt          DateTime?  @map("ends_at")
   soldAt          DateTime?  @map("sold_at")
+
+  // Analysis fields (optional, for future use)
   dealScore       Decimal?   @map("deal_score") @db.Decimal
   estimatedValue  Int?       @map("estimated_value")
+
+  // Timestamps
   createdAt       DateTime   @default(now()) @map("created_at")
   updatedAt       DateTime   @default(now()) @updatedAt @map("updated_at")
   watchlistItems  Watchlist[]
@@ -104,6 +141,9 @@ model Auction {
   @@index([level])
   @@index([world])
   @@index([endsAt])
+  @@index([magicLevel])
+  @@index([distance])
+  @@index([spentCharmPoints])
   @@map("auctions")
 }
 

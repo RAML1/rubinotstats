@@ -162,3 +162,72 @@ export interface CharacterData {
   accountStatus?: string;
   lastLogin?: string;
 }
+
+/**
+ * Auction character data - the important stuff for price analysis
+ */
+export interface AuctionData {
+  // Auction metadata
+  auctionId: string;
+  status: 'active' | 'finished' | 'cancelled';
+  auctionStart: string;
+  auctionEnd: string;
+  currentBid: number;
+  winningBid?: number;
+
+  // Character basics
+  name: string;
+  level: number;
+  vocation: string;
+  world: string;
+  sex: 'Male' | 'Female';
+
+  // SKILLS - The value drivers!
+  skills: {
+    axeFighting: number;
+    clubFighting: number;
+    distanceFighting: number;
+    fishing: number;
+    fistFighting: number;
+    magicLevel: number;
+    shielding: number;
+    swordFighting: number;
+  };
+
+  // Combat stats
+  hitPoints: number;
+  mana: number;
+  capacity: number;
+  speed: number;
+
+  // Account value indicators
+  experience: string;
+  achievementPoints: number;
+  gold: number;
+
+  // Cosmetics & extras
+  outfits: number;
+  mounts: number;
+  titles: number;
+  blessings: number;
+
+  // Charm system (if visible)
+  charmPoints?: {
+    total: number;
+    spent: number;
+    available: number;
+  };
+
+  // Calculated metrics for "Good Deal" analysis
+  metrics?: {
+    coinsPerLevel: number;
+    mainSkill: string;
+    mainSkillValue: number;
+    isGoodDeal?: boolean;
+    dealScore?: number; // 0-100 score
+  };
+
+  // Scrape metadata
+  scrapedAt: string;
+  sourceUrl: string;
+}

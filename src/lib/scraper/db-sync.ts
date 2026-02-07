@@ -246,3 +246,159 @@ export async function getSnapshotsCreatedToday(): Promise<number> {
     },
   });
 }
+
+/**
+ * Upsert an auction to the database
+ * Creates new auction or updates existing one based on externalId
+ */
+export async function upsertAuction(data: {
+  externalId: string;
+  characterName: string;
+  vocation?: string | null;
+  level?: number | null;
+  world?: string | null;
+  magicLevel?: number | null;
+  fist?: number | null;
+  club?: number | null;
+  sword?: number | null;
+  axe?: number | null;
+  distance?: number | null;
+  shielding?: number | null;
+  fishing?: number | null;
+  availableCharmPoints?: number | null;
+  spentCharmPoints?: number | null;
+  charms?: object | null;
+  preySlots?: number | null;
+  preyWildcards?: number | null;
+  huntingSlots?: number | null;
+  imbuementSlots?: number | null;
+  outfitsCount?: number | null;
+  mountsCount?: number | null;
+  hirelings?: number | null;
+  hirelingJobs?: number | null;
+  hirelingOutfits?: number | null;
+  dailyRewardStreak?: number | null;
+  exaltedDust?: number | null;
+  exaltedDustLimit?: number | null;
+  bossPoints?: number | null;
+  completedQuestLines?: string[] | null;
+  startingBid?: number | null;
+  currentBid?: number | null;
+  buyoutPrice?: number | null;
+  status?: string;
+  soldPrice?: number | null;
+  listedAt?: Date | null;
+  endsAt?: Date | null;
+  soldAt?: Date | null;
+}) {
+  const auction = await prisma.auction.upsert({
+    where: {
+      externalId: data.externalId,
+    },
+    update: {
+      characterName: data.characterName,
+      vocation: data.vocation,
+      level: data.level,
+      world: data.world,
+      magicLevel: data.magicLevel,
+      fist: data.fist,
+      club: data.club,
+      sword: data.sword,
+      axe: data.axe,
+      distance: data.distance,
+      shielding: data.shielding,
+      fishing: data.fishing,
+      availableCharmPoints: data.availableCharmPoints,
+      spentCharmPoints: data.spentCharmPoints,
+      charms: data.charms ?? undefined,
+      preySlots: data.preySlots,
+      preyWildcards: data.preyWildcards,
+      huntingSlots: data.huntingSlots,
+      imbuementSlots: data.imbuementSlots,
+      outfitsCount: data.outfitsCount,
+      mountsCount: data.mountsCount,
+      hirelings: data.hirelings,
+      hirelingJobs: data.hirelingJobs,
+      hirelingOutfits: data.hirelingOutfits,
+      dailyRewardStreak: data.dailyRewardStreak,
+      exaltedDust: data.exaltedDust,
+      exaltedDustLimit: data.exaltedDustLimit,
+      bossPoints: data.bossPoints,
+      completedQuestLines: data.completedQuestLines ?? undefined,
+      startingBid: data.startingBid,
+      currentBid: data.currentBid,
+      buyoutPrice: data.buyoutPrice,
+      status: data.status || 'active',
+      soldPrice: data.soldPrice,
+      listedAt: data.listedAt,
+      endsAt: data.endsAt,
+      soldAt: data.soldAt,
+      updatedAt: new Date(),
+    },
+    create: {
+      externalId: data.externalId,
+      characterName: data.characterName,
+      vocation: data.vocation,
+      level: data.level,
+      world: data.world,
+      magicLevel: data.magicLevel,
+      fist: data.fist,
+      club: data.club,
+      sword: data.sword,
+      axe: data.axe,
+      distance: data.distance,
+      shielding: data.shielding,
+      fishing: data.fishing,
+      availableCharmPoints: data.availableCharmPoints,
+      spentCharmPoints: data.spentCharmPoints,
+      charms: data.charms ?? undefined,
+      preySlots: data.preySlots,
+      preyWildcards: data.preyWildcards,
+      huntingSlots: data.huntingSlots,
+      imbuementSlots: data.imbuementSlots,
+      outfitsCount: data.outfitsCount,
+      mountsCount: data.mountsCount,
+      hirelings: data.hirelings,
+      hirelingJobs: data.hirelingJobs,
+      hirelingOutfits: data.hirelingOutfits,
+      dailyRewardStreak: data.dailyRewardStreak,
+      exaltedDust: data.exaltedDust,
+      exaltedDustLimit: data.exaltedDustLimit,
+      bossPoints: data.bossPoints,
+      completedQuestLines: data.completedQuestLines ?? undefined,
+      startingBid: data.startingBid,
+      currentBid: data.currentBid,
+      buyoutPrice: data.buyoutPrice,
+      status: data.status || 'active',
+      soldPrice: data.soldPrice,
+      listedAt: data.listedAt,
+      endsAt: data.endsAt,
+      soldAt: data.soldAt,
+    },
+  });
+
+  return auction;
+}
+
+/**
+ * Get total auctions in database
+ */
+export async function getTotalAuctions(): Promise<number> {
+  return await prisma.auction.count();
+}
+
+/**
+ * Get auctions count by status
+ */
+export async function getAuctionsByStatus(): Promise<Record<string, number>> {
+  const results = await prisma.auction.groupBy({
+    by: ['status'],
+    _count: true,
+  });
+
+  const counts: Record<string, number> = {};
+  for (const r of results) {
+    counts[r.status] = r._count;
+  }
+  return counts;
+}

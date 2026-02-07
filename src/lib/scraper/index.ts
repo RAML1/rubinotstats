@@ -16,6 +16,16 @@ export {
   extractCharacterNames,
 } from './characters';
 export {
+  parseAuctionPage,
+  parseAuctionForDb,
+  parseAuctionList,
+  scrapeAuction,
+  scrapeAuctions,
+  scrapeAuctionList,
+  scrapeAllCurrentAuctions,
+  type AuctionDbData,
+} from './auctions';
+export {
   fetchAndParse,
   retryWithBackoff,
   extractNumber,
@@ -32,6 +42,9 @@ export {
   hasScrapedToday,
   getTotalCharactersTracked,
   getSnapshotsCreatedToday,
+  upsertAuction,
+  getTotalAuctions,
+  getAuctionsByStatus,
 } from './db-sync';
 export { runDailyHighscoresScraper } from './jobs/daily-highscores';
 
@@ -45,4 +58,5 @@ export type {
   CookieStorage,
   HighscoreEntry,
   CharacterData,
+  AuctionData,
 } from './types';
