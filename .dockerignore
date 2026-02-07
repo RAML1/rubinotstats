@@ -1,0 +1,76 @@
+# Dependencies
+node_modules
+npm-debug.log
+yarn-error.log
+pnpm-debug.log
+.pnpm-store
+
+# Next.js
+.next
+out
+dist
+build
+
+# Development files
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.local
+
+# Testing
+coverage
+.nyc_output
+
+# IDEs
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# CI/CD
+.github
+.gitlab-ci.yml
+
+# Documentation
+*.md
+!README.md
+docs
+
+# Logs
+logs
+*.log
+
+# Scraper data
+.scraper-data
+
+# TypeScript
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+
+# Misc
+.env.example
+.prettierrc
+.prettierignore
+.eslintrc
+.eslintignore
+
+# Database
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Playwright
+playwright-report
+test-results
