@@ -42,3 +42,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# scraper
+/.browser-data/
+/data/
+/scripts/*-dump.html
+/scripts/discover*.ts
+/scripts/test-*.ts

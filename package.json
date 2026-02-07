@@ -11,7 +11,8 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:seed": "tsx prisma/seed.ts",
+    "scrape": "tsx scripts/scrape.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
@@ -45,6 +46,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "playwright": "^1.58.2",
     "prettier": "^3.2.0",
     "tailwindcss": "^4",
     "tsx": "^4.19.2",
