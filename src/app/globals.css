@@ -1,48 +1,32 @@
 @import "tailwindcss";
 
 :root {
-  --background: 0 0% 100%;
-  --foreground: 0 0% 3.6%;
-  --card: 0 0% 100%;
-  --card-foreground: 0 0% 3.6%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 0 0% 3.6%;
-  --primary: 0 0% 9%;
-  --primary-foreground: 0 0% 98.5%;
-  --secondary: 0 0% 96.1%;
-  --secondary-foreground: 0 0% 9%;
-  --muted: 0 0% 96.1%;
-  --muted-foreground: 0 0% 39.2%;
-  --accent: 0 0% 96.1%;
-  --accent-foreground: 0 0% 9%;
-  --destructive: 0 84.2% 60.2%;
+  /* Dark theme by default — matching the mockup's deep navy look */
+  --background: 222 47% 6%;
+  --foreground: 210 40% 96%;
+  --card: 222 47% 9%;
+  --card-foreground: 210 40% 96%;
+  --popover: 222 47% 9%;
+  --popover-foreground: 210 40% 96%;
+  --primary: 270 70% 60%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 222 40% 14%;
+  --secondary-foreground: 210 40% 96%;
+  --muted: 222 40% 14%;
+  --muted-foreground: 215 20% 55%;
+  --accent: 222 40% 14%;
+  --accent-foreground: 210 40% 96%;
+  --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
-  --border: 0 0% 89.8%;
-  --input: 0 0% 89.8%;
-  --ring: 0 0% 63.9%;
+  --border: 222 30% 16%;
+  --input: 222 30% 16%;
+  --ring: 270 70% 60%;
   --radius: 0.5rem;
-}
-
-.dark {
-  --background: 0 0% 3.6%;
-  --foreground: 0 0% 98.5%;
-  --card: 0 0% 10%;
-  --card-foreground: 0 0% 98.5%;
-  --popover: 0 0% 10%;
-  --popover-foreground: 0 0% 98.5%;
-  --primary: 0 0% 98.2%;
-  --primary-foreground: 0 0% 9%;
-  --secondary: 0 0% 14.9%;
-  --secondary-foreground: 0 0% 98.5%;
-  --muted: 0 0% 14.9%;
-  --muted-foreground: 0 0% 63.9%;
-  --accent: 0 0% 14.9%;
-  --accent-foreground: 0 0% 98.5%;
-  --destructive: 0 72.2% 50.6%;
-  --destructive-foreground: 0 0% 100%;
-  --border: 0 0% 14.9%;
-  --input: 0 0% 14.9%;
-  --ring: 0 0% 83.1%;
+  --chart-green: 160 84% 39%;
+  --chart-orange: 38 92% 50%;
+  --chart-red: 0 84% 60%;
+  --chart-blue: 217 91% 60%;
+  --chart-purple: 270 70% 60%;
 }
 
 * {
