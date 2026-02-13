@@ -10,12 +10,15 @@
  */
 import * as fs from 'fs';
 import * as path from 'path';
+import { PrismaClient } from '@prisma/client';
 import { getBrowserContext, closeBrowser } from '../src/lib/scraper/browser';
 import {
   scrapeAuctionHistory,
   scrapeSingleAuction,
   type ScrapedAuction,
 } from '../src/lib/scraper/auctions';
+
+const prisma = new PrismaClient();
 
 // ── CLI arg parsing ────────────────────────────────────────────────────
 
@@ -32,7 +35,9 @@ const hasFlag = (flag: string) => args.includes(flag);
 const scrapeAll = hasFlag('--auctions');
 const singleId = getArg('--auction');
 const headless = hasFlag('--headless');
+const skipDb = hasFlag('--no-db');
 const maxPages = getArg('--pages') ? parseInt(getArg('--pages')!, 10) : undefined;
+const maxAuctions = getArg('--count') ? parseInt(getArg('--count')!, 10) : undefined;
 
 if (!scrapeAll && !singleId) {
   console.log(`
@@ -42,8 +47,10 @@ RubinOT Sold Auction Scraper
 Usage:
   pnpm scrape --auctions              Scrape ALL sold auction history (last 30 days)
   pnpm scrape --auctions --pages 5    Scrape first 5 pages only
+  pnpm scrape --auctions --count 20   Scrape exactly 20 new auctions
   pnpm scrape --auction <id>          Scrape a single auction by ID
   pnpm scrape --headless              Run headless (add to any command above)
+  pnpm scrape --no-db                 Skip saving to database
 
 Output:
   data/auctions-YYYY-MM-DD.json          All sold auctions
@@ -51,16 +58,79 @@ Output:
 
 Notes:
   - Only sold auctions (Winning Bid) are saved; unsold are skipped
-  - Visits each auction detail page to get ALL 8 skills
-  - Rate limited to 2s between requests
-  - Uses non-headless browser by default to bypass Cloudflare
+  - Already-scraped auctions (by externalId) are skipped automatically
+  - Visits each auction detail page to get ALL stats
+  - Rate limited with randomized 1-4s delays between requests
+  - Uses Brave browser (non-headless) to bypass Cloudflare
+  - Saves each auction to DB incrementally (safe to interrupt)
 
 Examples:
   pnpm scrape --auctions
+  pnpm scrape --auctions --count 20
   pnpm scrape --auctions --pages 10
   pnpm scrape --auction 140700
 `);
   process.exit(0);
+}
+
+// ── Database ────────────────────────────────────────────────────────────
+
+let dbSavedCount = 0;
+
+async function upsertAuction(a: ScrapedAuction): Promise<void> {
+  const data = {
+    characterName: a.characterName,
+    level: a.level,
+    vocation: a.vocation,
+    gender: a.gender,
+    world: a.world,
+    auctionStart: a.auctionStart,
+    auctionEnd: a.auctionEnd,
+    soldPrice: a.soldPrice,
+    coinsPerLevel: a.coinsPerLevel,
+    magicLevel: a.magicLevel,
+    fist: a.fist,
+    club: a.club,
+    sword: a.sword,
+    axe: a.axe,
+    distance: a.distance,
+    shielding: a.shielding,
+    fishing: a.fishing,
+    hitPoints: a.hitPoints,
+    mana: a.mana,
+    capacity: a.capacity,
+    speed: a.speed,
+    experience: a.experience,
+    creationDate: a.creationDate,
+    achievementPoints: a.achievementPoints,
+    mountsCount: a.mountsCount,
+    outfitsCount: a.outfitsCount,
+    titlesCount: a.titlesCount,
+    linkedTasks: a.linkedTasks,
+    dailyRewardStreak: a.dailyRewardStreak,
+    charmExpansion: a.charmExpansion,
+    charmPoints: a.charmPoints,
+    unusedCharmPoints: a.unusedCharmPoints,
+    spentCharmPoints: a.spentCharmPoints,
+    preySlots: a.preySlots,
+    preyWildcards: a.preyWildcards,
+    huntingTaskPoints: a.huntingTaskPoints,
+    hirelings: a.hirelings,
+    hirelingJobs: a.hirelingJobs,
+    storeItemsCount: a.storeItemsCount,
+    bossPoints: a.bossPoints,
+    blessingsCount: a.blessingsCount,
+    exaltedDust: a.exaltedDust,
+    gold: a.gold,
+    bestiary: a.bestiary,
+    url: a.url,
+  };
+  await prisma.auction.upsert({
+    where: { externalId: a.externalId },
+    update: data,
+    create: { externalId: a.externalId, ...data },
+  });
+  dbSavedCount++;
 }
 
 // ── Main ───────────────────────────────────────────────────────────────
@@ -89,8 +159,28 @@ async function main() {
       fs.writeFileSync(outFile, JSON.stringify(auction, null, 2), 'utf-8');
       console.log(`\nSaved to ${outFile}`);
       printAuctionTable(auction);
+
+      if (!skipDb) {
+        await upsertAuction(auction);
+        console.log(`\nSaved 1 auction to database`);
+      }
     } else {
-      const auctions = await scrapeAuctionHistory(page, { maxPages });
+      // Load already-scraped auction IDs to skip
+      const existing = await prisma.auction.findMany({ select: { externalId: true } });
+      const skipExternalIds = new Set(existing.map((e) => e.externalId));
+      if (skipExternalIds.size > 0) {
+        console.log(`Found ${skipExternalIds.size} existing auctions in DB, will skip`);
+      }
+
+      const onAuction = skipDb ? undefined : async (a: ScrapedAuction) => {
+        await upsertAuction(a);
+      };
+      const auctions = await scrapeAuctionHistory(page, {
+        maxPages,
+        maxAuctions,
+        skipExternalIds,
+        onAuction,
+      });
       const outFile = path.join(dataDir, `auctions-${today}.json`);
 
       const output = {
@@ -103,6 +193,7 @@ async function main() {
 
       fs.writeFileSync(outFile, JSON.stringify(output, null, 2), 'utf-8');
       console.log(`\nSaved ${auctions.length} sold auctions to ${outFile}`);
+      console.log(`${dbSavedCount} auctions saved to database (incrementally)`);
 
       // Print first 3 as tables
       const preview = auctions.slice(0, 3);
@@ -113,6 +204,7 @@ async function main() {
       printSummary(auctions);
     }
   } finally {
+    await prisma.$disconnect();
     await closeBrowser();
   }
 }
@@ -224,5 +316,5 @@ ${Object.entries(worldCounts)
 
 main().catch((err) => {
   console.error('Scraper failed:', err);
-  closeBrowser().finally(() => process.exit(1));
+  prisma.$disconnect().then(() => closeBrowser()).finally(() => process.exit(1));
 });

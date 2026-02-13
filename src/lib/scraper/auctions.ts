@@ -336,106 +336,158 @@ export function getTotalPages(html: string): number {
 
 export interface ScrapeOptions {
   maxPages?: number;
+  maxAuctions?: number;
+  skipExternalIds?: Set<string>;
+  onAuction?: (auction: ScrapedAuction) => Promise<void>;
 }
 
 /**
- * Scrape sold auction history. For each sold auction, visits the detail
- * page to get all 8 skills.
+ * Scrape sold auction history. Processes page-by-page: for each list page,
+ * immediately scrapes detail pages for new auctions before moving to the
+ * next list page. Stops once maxAuctions new auctions have been scraped.
  */
 export async function scrapeAuctionHistory(
   page: Page,
   opts: ScrapeOptions = {},
 ): Promise<ScrapedAuction[]> {
   const baseUrl = `${RUBINOT_URLS.base}${RUBINOT_URLS.pastAuctions}`;
+  const fullAuctions: ScrapedAuction[] = [];
+  let scraped = 0;
+  let skippedTotal = 0;
 
-  // Pass 1: collect sold auctions from list pages
+  // Fetch first page to get total page count
   console.log(`Fetching page 1: ${baseUrl}`);
   await navigateWithCloudflare(page, baseUrl);
-  await page.waitForTimeout(2000);
+  await page.waitForTimeout(1200 + Math.floor(Math.random() * 1800));
 
   const firstPageHtml = await page.content();
   const totalPages = opts.maxPages
     ? Math.min(getTotalPages(firstPageHtml), opts.maxPages)
     : getTotalPages(firstPageHtml);
-  const listAuctions = parseAuctionListPage(firstPageHtml);
 
-  console.log(`Page 1: ${listAuctions.length} sold auctions, ${totalPages} pages to scrape`);
+  // Process first page
+  const firstPageAuctions = parseAuctionListPage(firstPageHtml);
+  const newOnFirst = opts.skipExternalIds
+    ? firstPageAuctions.filter((a) => !opts.skipExternalIds!.has(a.externalId))
+    : firstPageAuctions;
+  const skippedFirst = firstPageAuctions.length - newOnFirst.length;
+  skippedTotal += skippedFirst;
 
+  console.log(`Page 1: ${firstPageAuctions.length} sold auctions (${newOnFirst.length} new, ${skippedFirst} skipped), ${totalPages} total pages`);
+
+  // Scrape details for new auctions on page 1
+  for (const a of newOnFirst) {
+    if (opts.maxAuctions && scraped >= opts.maxAuctions) break;
+    scraped++;
+    await rateLimit();
+    const detailUrl = `${RUBINOT_URLS.base}/?currentcharactertrades/${a.externalId}`;
+    const target = opts.maxAuctions ?? '?';
+    console.log(`  [${scraped}/${target}] ${a.characterName} (${detailUrl})`);
+
+    const auction = await scrapeAuctionDetail(page, a, detailUrl);
+    if (opts.onAuction) await opts.onAuction(auction);
+    fullAuctions.push(auction);
+  }
+
+  // Process remaining pages
   for (let p = 2; p <= totalPages; p++) {
+    if (opts.maxAuctions && scraped >= opts.maxAuctions) break;
+
     await rateLimit();
     const pageUrl = `${RUBINOT_URLS.base}/?subtopic=pastcharactertrades&currentpage=${p}`;
-    console.log(`Fetching page ${p}/${totalPages}...`);
+    console.log(`\nFetching page ${p}/${totalPages}...`);
+
     try {
       await navigateWithCloudflare(page, pageUrl);
-      await page.waitForTimeout(1500);
+      await page.waitForTimeout(800 + Math.floor(Math.random() * 1200));
       const html = await page.content();
       const pageAuctions = parseAuctionListPage(html);
-      listAuctions.push(...pageAuctions);
-      console.log(`  Page ${p}: ${pageAuctions.length} sold (total: ${listAuctions.length})`);
+      const newOnPage = opts.skipExternalIds
+        ? pageAuctions.filter((a) => !opts.skipExternalIds!.has(a.externalId))
+        : pageAuctions;
+      const skippedOnPage = pageAuctions.length - newOnPage.length;
+      skippedTotal += skippedOnPage;
+
+      console.log(`  Page ${p}: ${pageAuctions.length} sold (${newOnPage.length} new, ${skippedOnPage} skipped)`);
+
+      // Immediately scrape details for new auctions on this page
+      for (const a of newOnPage) {
+        if (opts.maxAuctions && scraped >= opts.maxAuctions) break;
+        scraped++;
+        await rateLimit();
+        const detailUrl = `${RUBINOT_URLS.base}/?currentcharactertrades/${a.externalId}`;
+        const target = opts.maxAuctions ?? '?';
+        console.log(`  [${scraped}/${target}] ${a.characterName} (${detailUrl})`);
+
+        const auction = await scrapeAuctionDetail(page, a, detailUrl);
+        if (opts.onAuction) await opts.onAuction(auction);
+        fullAuctions.push(auction);
+      }
     } catch (err) {
       console.error(`  Failed page ${p}:`, err);
     }
   }
 
-  // Pass 2: visit each auction detail page for full skills
-  console.log(`\nFetching skills for ${listAuctions.length} auctions...`);
-  const fullAuctions: ScrapedAuction[] = [];
-
-  for (let i = 0; i < listAuctions.length; i++) {
-    const a = listAuctions[i];
-    await rateLimit();
-    const detailUrl = `${RUBINOT_URLS.base}/?currentcharactertrades/${a.externalId}`;
-    console.log(`  [${i + 1}/${listAuctions.length}] ${a.characterName} (${detailUrl})`);
-
-    let detail: DetailPageData = {
-      magicLevel: null, fist: null, club: null, sword: null,
-      axe: null, distance: null, shielding: null, fishing: null,
-      hitPoints: null, mana: null, capacity: null, speed: null,
-      experience: null, creationDate: null, achievementPoints: null,
-      mountsCount: null, outfitsCount: null, titlesCount: null,
-      linkedTasks: null, charmExpansion: null, spentCharmPoints: null,
-      preySlots: null, preyWildcards: null, huntingTaskPoints: null,
-      hirelings: null, hirelingJobs: null, storeItemsCount: null,
-      blessingsCount: null, dailyRewardStreak: null,
-    };
-
-    try {
-      await navigateWithCloudflare(page, detailUrl);
-      await page.waitForTimeout(1500);
-      const detailHtml = await page.content();
-      detail = parseDetailPage(detailHtml);
-    } catch (err) {
-      console.error(`    Failed to fetch details for ${a.characterName}:`, err);
-    }
-
-    const coinsPerLevel =
-      a.soldPrice && a.level && a.level > 0
-        ? Math.round((a.soldPrice / a.level) * 100) / 100
-        : null;
-
-    fullAuctions.push({
-      externalId: a.externalId,
-      characterName: a.characterName,
-      level: a.level,
-      vocation: a.vocation,
-      gender: a.gender,
-      world: a.world,
-      auctionStart: a.auctionStart,
-      auctionEnd: a.auctionEnd,
-      soldPrice: a.soldPrice,
-      ...detail,
-      charmPoints: a.charmPoints,
-      unusedCharmPoints: a.unusedCharmPoints,
-      bossPoints: a.bossPoints,
-      exaltedDust: a.exaltedDust,
-      gold: a.gold,
-      bestiary: a.bestiary,
-      coinsPerLevel,
-      url: detailUrl,
-    });
-  }
+  if (skippedTotal > 0) console.log(`\nSkipped ${skippedTotal} already-scraped auctions total`);
+  console.log(`Scraped ${fullAuctions.length} new auctions`);
 
   return fullAuctions;
+}
+
+/**
+ * Scrape a single auction's detail page and merge with list data.
+ */
+async function scrapeAuctionDetail(
+  page: Page,
+  a: ListAuction,
+  detailUrl: string,
+): Promise<ScrapedAuction> {
+  let detail: DetailPageData = {
+    magicLevel: null, fist: null, club: null, sword: null,
+    axe: null, distance: null, shielding: null, fishing: null,
+    hitPoints: null, mana: null, capacity: null, speed: null,
+    experience: null, creationDate: null, achievementPoints: null,
+    mountsCount: null, outfitsCount: null, titlesCount: null,
+    linkedTasks: null, charmExpansion: null, spentCharmPoints: null,
+    preySlots: null, preyWildcards: null, huntingTaskPoints: null,
+    hirelings: null, hirelingJobs: null, storeItemsCount: null,
+    blessingsCount: null, dailyRewardStreak: null,
+  };
+
+  try {
+    await navigateWithCloudflare(page, detailUrl);
+    await page.waitForTimeout(800 + Math.floor(Math.random() * 1200));
+    const detailHtml = await page.content();
+    detail = parseDetailPage(detailHtml);
+  } catch (err) {
+    console.error(`    Failed to fetch details for ${a.characterName}:`, err);
+  }
+
+  const coinsPerLevel =
+    a.soldPrice && a.level && a.level > 0
+      ? Math.round((a.soldPrice / a.level) * 100) / 100
+      : null;
+
+  return {
+    externalId: a.externalId,
+    characterName: a.characterName,
+    level: a.level,
+    vocation: a.vocation,
+    gender: a.gender,
+    world: a.world,
+    auctionStart: a.auctionStart,
+    auctionEnd: a.auctionEnd,
+    soldPrice: a.soldPrice,
+    ...detail,
+    charmPoints: a.charmPoints,
+    unusedCharmPoints: a.unusedCharmPoints,
+    bossPoints: a.bossPoints,
+    exaltedDust: a.exaltedDust,
+    gold: a.gold,
+    bestiary: a.bestiary,
+    coinsPerLevel,
+    url: detailUrl,
+  };
 }
 
 /**
@@ -448,7 +500,7 @@ export async function scrapeSingleAuction(
   const detailUrl = `${RUBINOT_URLS.base}/?currentcharactertrades/${auctionId}`;
   console.log(`Fetching auction ${auctionId}: ${detailUrl}`);
   await navigateWithCloudflare(page, detailUrl);
-  await page.waitForTimeout(2000);
+  await page.waitForTimeout(1200 + Math.floor(Math.random() * 1800));
 
   const html = await page.content();
   const $ = cheerio.load(html);

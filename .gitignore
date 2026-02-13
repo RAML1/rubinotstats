@@ -49,3 +49,7 @@ next-env.d.ts
 /scripts/*-dump.html
 /scripts/discover*.ts
 /scripts/test-*.ts
+
+# database
+*.db
+*.db-journal

@@ -30,6 +30,7 @@ export async function getBrowserContext(
 
   _context = await chromium.launchPersistentContext(USER_DATA_DIR, {
     headless,
+    executablePath: '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser',
     args: ['--disable-blink-features=AutomationControlled'],
     userAgent: USER_AGENT,
     viewport: { width: 1280, height: 800 },
@@ -52,8 +53,14 @@ export async function navigateWithCloudflare(
   // Poll until Cloudflare challenge clears
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const title = await page.title();
-    if (!title.toLowerCase().includes('just a moment')) return;
+    try {
+      const title = await page.title();
+      if (!title.toLowerCase().includes('just a moment')) return;
+    } catch {
+      // Context destroyed by navigation (Cloudflare cleared), wait and return
+      await page.waitForTimeout(1000);
+      return;
+    }
     await page.waitForTimeout(2000);
   }
 
@@ -61,10 +68,11 @@ export async function navigateWithCloudflare(
 }
 
 /**
- * Rate-limit helper — waits the configured delay between requests.
+ * Rate-limit helper — waits a random delay between 1–4s to look human.
  */
 export async function rateLimit(): Promise<void> {
-  await new Promise((r) => setTimeout(r, SCRAPER_CONFIG.delayMs));
+  const delay = 1000 + Math.floor(Math.random() * 3000);
+  await new Promise((r) => setTimeout(r, delay));
 }
 
 /**
