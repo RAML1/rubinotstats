@@ -12,7 +12,8 @@
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
-    "scrape": "tsx scripts/scrape.ts"
+    "scrape": "tsx scripts/scrape.ts",
+    "scrape:highscores": "tsx scripts/scrape-highscores.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
