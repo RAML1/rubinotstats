@@ -6,15 +6,15 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
 // Worlds reference table
 model World {
   id         Int         @id @default(autoincrement())
-  name       String      @unique
-  pvpType    String?     @map("pvp_type")
+  name       String      @unique @db.VarChar(100)
+  pvpType    String?     @map("pvp_type") @db.VarChar(50)
   isActive   Boolean     @default(true) @map("is_active")
   createdAt  DateTime    @default(now()) @map("created_at")
   characters Character[]
@@ -25,10 +25,10 @@ model World {
 // Characters (canonical record)
 model Character {
   id                  Int                  @id @default(autoincrement())
-  name                String
+  name                String               @db.VarChar(255)
   worldId             Int                  @map("world_id")
-  vocation            String?
-  guildName           String?              @map("guild_name")
+  vocation            String?              @db.VarChar(50)
+  guildName           String?              @map("guild_name") @db.VarChar(255)
   firstSeen           DateTime             @default(now()) @map("first_seen")
   lastUpdated         DateTime             @default(now()) @updatedAt @map("last_updated")
   world               World                @relation(fields: [worldId], references: [id])
@@ -44,7 +44,7 @@ model Character {
 model CharacterSnapshot {
   id            Int      @id @default(autoincrement())
   characterId   Int      @map("character_id")
-  capturedDate  DateTime @map("captured_date")
+  capturedDate  DateTime @map("captured_date") @db.Date
   level         Int?
   experience    BigInt?
   magicLevel    Int?     @map("magic_level")
@@ -71,14 +71,14 @@ model CharacterSnapshot {
 // Sold auctions from pastcharactertrades
 model Auction {
   id                 Int        @id @default(autoincrement())
-  externalId         String     @unique @map("external_id")
-  characterName      String     @map("character_name")
+  externalId         String     @unique @map("external_id") @db.VarChar(100)
+  characterName      String     @map("character_name") @db.VarChar(255)
   level              Int?
-  vocation           String?
-  gender             String?
-  world              String?
-  auctionStart       String?    @map("auction_start")
-  auctionEnd         String?    @map("auction_end")
+  vocation           String?    @db.VarChar(50)
+  gender             String?    @db.VarChar(20)
+  world              String?    @db.VarChar(100)
+  auctionStart       String?    @map("auction_start") @db.VarChar(100)
+  auctionEnd         String?    @map("auction_end") @db.VarChar(100)
   soldPrice          Int?       @map("sold_price")
   coinsPerLevel      Float?     @map("coins_per_level")
   // Skills
@@ -95,8 +95,8 @@ model Auction {
   mana               Int?
   capacity           Int?
   speed              Int?
-  experience         String?
-  creationDate       String?    @map("creation_date")
+  experience         String?    @db.VarChar(50)
+  creationDate       String?    @map("creation_date") @db.VarChar(100)
   achievementPoints  Int?       @map("achievement_points")
   mountsCount        Int?       @map("mounts_count")
   outfitsCount       Int?       @map("outfits_count")
@@ -120,10 +120,10 @@ model Auction {
   // Other
   bossPoints         Int?       @map("boss_points")
   blessingsCount     Int?       @map("blessings_count")
-  exaltedDust        String?    @map("exalted_dust")
+  exaltedDust        String?    @map("exalted_dust") @db.VarChar(50)
   gold               Int?
   bestiary           Int?
-  url                String?
+  url                String?    @db.VarChar(500)
   // Timestamps
   createdAt          DateTime   @default(now()) @map("created_at")
   updatedAt          DateTime   @default(now()) @updatedAt @map("updated_at")
@@ -139,14 +139,14 @@ model Auction {
 // Highscore entries scraped from the leaderboard
 model HighscoreEntry {
   id            Int      @id @default(autoincrement())
-  characterName String   @map("character_name")
-  world         String
-  vocation      String
+  characterName String   @map("character_name") @db.VarChar(255)
+  world         String   @db.VarChar(100)
+  vocation      String   @db.VarChar(50)
   level         Int
-  category      String
+  category      String   @db.VarChar(50)
   rank          Int
   score         BigInt
-  capturedDate  DateTime @map("captured_date")
+  capturedDate  DateTime @map("captured_date") @db.Date
   createdAt     DateTime @default(now()) @map("created_at")
 
   @@unique([characterName, world, category, capturedDate])
@@ -159,16 +159,16 @@ model HighscoreEntry {
 // Precomputed market statistics
 model MarketStats {
   id               Int      @id @default(autoincrement())
-  vocation         String
+  vocation         String   @db.VarChar(50)
   levelMin         Int      @map("level_min")
   levelMax         Int      @map("level_max")
-  avgPrice         Float?   @map("avg_price")
-  medianPrice      Float?   @map("median_price")
+  avgPrice         Decimal? @map("avg_price") @db.Decimal
+  medianPrice      Decimal? @map("median_price") @db.Decimal
   minPrice         Int?     @map("min_price")
   maxPrice         Int?     @map("max_price")
-  pricePerLevel    Float?   @map("price_per_level")
-  pricePerMl       Float?   @map("price_per_ml")
-  charmPointValue  Float?   @map("charm_point_value")
+  pricePerLevel    Decimal? @map("price_per_level") @db.Decimal
+  pricePerMl       Decimal? @map("price_per_ml") @db.Decimal
+  charmPointValue  Decimal? @map("charm_point_value") @db.Decimal
   sampleSize       Int?     @map("sample_size")
   calculatedAt     DateTime @default(now()) @map("calculated_at")
 
@@ -180,8 +180,8 @@ model MarketStats {
 // User watchlist (for Phase 4)
 model Watchlist {
   id              Int      @id @default(autoincrement())
-  userId          String?  @map("user_id")
-  characterName   String?  @map("character_name")
+  userId          String?  @map("user_id") @db.Uuid
+  characterName   String?  @map("character_name") @db.VarChar(255)
   auctionId       Int?     @map("auction_id")
   notifyOnChange  Boolean  @default(false) @map("notify_on_change")
   createdAt       DateTime @default(now()) @map("created_at")
