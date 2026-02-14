@@ -137,6 +137,28 @@ export default function ProgressionClient() {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const initialLoadDone = useRef(false);
 
+  const selectCharacter = useCallback(async (characterName: string) => {
+    trackSearch(characterName, '/progression');
+    setSelectedCharacter(characterName);
+    setSearchQuery(characterName);
+    setShowDropdown(false);
+    setLoading(true);
+
+    try {
+      const res = await fetch(`/api/progression?characterName=${encodeURIComponent(characterName)}`);
+      if (res.ok) {
+        const json: APIResponse = await res.json();
+        if (json.success) {
+          setData(json.data);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching progression data:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   // Auto-load character from URL search params (e.g. ?character=Super+Bonk+Lee)
   useEffect(() => {
     const charParam = searchParams.get('character');
@@ -144,7 +166,7 @@ export default function ProgressionClient() {
       initialLoadDone.current = true;
       selectCharacter(charParam);
     }
-  }, [searchParams]);
+  }, [searchParams, selectCharacter]);
 
   // Debounced search
   useEffect(() => {
@@ -191,28 +213,6 @@ export default function ProgressionClient() {
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const selectCharacter = useCallback(async (characterName: string) => {
-    trackSearch(characterName, '/progression');
-    setSelectedCharacter(characterName);
-    setSearchQuery(characterName);
-    setShowDropdown(false);
-    setLoading(true);
-
-    try {
-      const res = await fetch(`/api/progression?characterName=${encodeURIComponent(characterName)}`);
-      if (res.ok) {
-        const json: APIResponse = await res.json();
-        if (json.success) {
-          setData(json.data);
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching progression data:', error);
-    } finally {
-      setLoading(false);
-    }
   }, []);
 
   // Derive computed values from API data
