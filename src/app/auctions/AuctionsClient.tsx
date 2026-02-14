@@ -11,9 +11,12 @@ import {
   Shield,
   Crosshair,
   Wand2,
-  Fish,
   ExternalLink,
   Info,
+  Sparkles,
+  Trophy,
+  Crown,
+  Heart,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -108,26 +111,88 @@ function formatCurrency(value: number): string {
   return value.toFixed(2);
 }
 
-function getMainSkill(auction: SerializedAuction): { name: string; value: number; icon: React.ElementType } {
+// Skill bar configuration with colors
+const SKILL_CONFIG: Record<string, { label: string; icon: React.ElementType; color: string; maxRef: number }> = {
+  magicLevel: { label: 'Magic', icon: Wand2, color: '#8b5cf6', maxRef: 130 },
+  sword: { label: 'Sword', icon: Swords, color: '#ef4444', maxRef: 130 },
+  axe: { label: 'Axe', icon: Swords, color: '#f97316', maxRef: 130 },
+  club: { label: 'Club', icon: Swords, color: '#dc2626', maxRef: 130 },
+  distance: { label: 'Dist.', icon: Crosshair, color: '#f59e0b', maxRef: 130 },
+  shielding: { label: 'Shield', icon: Shield, color: '#3b82f6', maxRef: 130 },
+};
+
+function getRelevantSkills(auction: SerializedAuction): Array<{ key: string; value: number }> {
   const voc = auction.vocation || '';
-  if (voc.includes('Knight')) {
-    const best = Math.max(auction.sword || 0, auction.axe || 0, auction.club || 0);
-    return { name: 'Melee', value: best, icon: Swords };
+  const skills: Array<{ key: string; value: number }> = [];
+
+  // Always show magic level first for mages, or melee skills first for knights
+  if (voc.includes('Sorcerer') || voc.includes('Druid')) {
+    if (auction.magicLevel) skills.push({ key: 'magicLevel', value: auction.magicLevel });
+    if (auction.shielding) skills.push({ key: 'shielding', value: auction.shielding });
+    if (auction.distance) skills.push({ key: 'distance', value: auction.distance });
+  } else if (voc.includes('Paladin')) {
+    if (auction.distance) skills.push({ key: 'distance', value: auction.distance });
+    if (auction.magicLevel) skills.push({ key: 'magicLevel', value: auction.magicLevel });
+    if (auction.shielding) skills.push({ key: 'shielding', value: auction.shielding });
+  } else if (voc.includes('Knight')) {
+    const melee = [
+      { key: 'sword', value: auction.sword || 0 },
+      { key: 'axe', value: auction.axe || 0 },
+      { key: 'club', value: auction.club || 0 },
+    ].sort((a, b) => b.value - a.value);
+    melee.forEach((s) => { if (s.value > 10) skills.push(s); });
+    if (auction.shielding) skills.push({ key: 'shielding', value: auction.shielding });
+    if (auction.magicLevel) skills.push({ key: 'magicLevel', value: auction.magicLevel });
+  } else {
+    if (auction.magicLevel) skills.push({ key: 'magicLevel', value: auction.magicLevel });
+    if (auction.shielding) skills.push({ key: 'shielding', value: auction.shielding });
   }
-  if (voc.includes('Paladin')) return { name: 'Distance', value: auction.distance || 0, icon: Crosshair };
-  if (voc.includes('Sorcerer') || voc.includes('Druid')) return { name: 'ML', value: auction.magicLevel || 0, icon: Wand2 };
-  return { name: 'ML', value: auction.magicLevel || 0, icon: Wand2 };
+
+  return skills.slice(0, 4);
 }
 
-function getCharacterTags(auction: SerializedAuction): Array<{ label: string; color: string }> {
-  const tags: Array<{ label: string; color: string }> = [];
-  if ((auction.charmPoints || 0) >= 3000) tags.push({ label: 'High Charm', color: '#a855f7' });
-  if ((auction.mountsCount || 0) >= 20) tags.push({ label: `${auction.mountsCount} Mounts`, color: '#3b82f6' });
-  if ((auction.outfitsCount || 0) >= 30) tags.push({ label: `${auction.outfitsCount} Outfits`, color: '#ec4899' });
-  if ((auction.achievementPoints || 0) >= 100) tags.push({ label: `${auction.achievementPoints} Achiev.`, color: '#f59e0b' });
-  if (auction.charmExpansion) tags.push({ label: 'Charm Exp.', color: '#8b5cf6' });
-  if ((auction.preySlots || 0) >= 3) tags.push({ label: 'Extra Prey', color: '#06b6d4' });
-  if ((auction.hirelings || 0) >= 1) tags.push({ label: `${auction.hirelings} Hirelings`, color: '#10b981' });
+function SkillBar({ skillKey, value }: { skillKey: string; value: number }) {
+  const config = SKILL_CONFIG[skillKey];
+  if (!config) return null;
+  const Icon = config.icon;
+  const fillPercent = Math.min(100, (value / config.maxRef) * 100);
+
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1 w-[52px] shrink-0">
+        <Icon className="h-3 w-3" style={{ color: config.color }} />
+        <span className="text-[10px] text-muted-foreground">{config.label}</span>
+      </div>
+      <div className="flex-1 h-[14px] bg-secondary/40 rounded-full overflow-hidden relative">
+        <div
+          className="h-full rounded-full transition-all"
+          style={{
+            width: `${fillPercent}%`,
+            backgroundColor: config.color,
+            opacity: 0.7,
+          }}
+        />
+      </div>
+      <span
+        className="text-xs font-bold tabular-nums w-[32px] text-right"
+        style={{ color: config.color }}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function getCharacterTags(auction: SerializedAuction): Array<{ label: string; color: string; icon: React.ElementType }> {
+  const tags: Array<{ label: string; color: string; icon: React.ElementType }> = [];
+  if ((auction.charmPoints || 0) >= 3000) tags.push({ label: `${formatNumber(auction.charmPoints!)} Charms`, color: '#a855f7', icon: Sparkles });
+  if ((auction.bossPoints || 0) >= 500) tags.push({ label: `${formatNumber(auction.bossPoints!)} Boss pts`, color: '#f59e0b', icon: Crown });
+  if ((auction.mountsCount || 0) >= 20) tags.push({ label: `${auction.mountsCount} Mounts`, color: '#3b82f6', icon: Heart });
+  if ((auction.outfitsCount || 0) >= 30) tags.push({ label: `${auction.outfitsCount} Outfits`, color: '#ec4899', icon: Heart });
+  if ((auction.achievementPoints || 0) >= 100) tags.push({ label: `${auction.achievementPoints} Achiev.`, color: '#f59e0b', icon: Trophy });
+  if (auction.charmExpansion) tags.push({ label: 'Charm Exp.', color: '#8b5cf6', icon: Sparkles });
+  if ((auction.hirelings || 0) >= 1) tags.push({ label: `${auction.hirelings} Hirelings`, color: '#10b981', icon: Heart });
+  if ((auction.preySlots || 0) >= 3) tags.push({ label: 'Extra Prey', color: '#06b6d4', icon: Crosshair });
   return tags;
 }
 
@@ -177,13 +242,20 @@ function PriceTooltip({ coins }: { coins: number }) {
 }
 
 function AuctionCard({ auction }: { auction: SerializedAuction }) {
-  const mainSkill = getMainSkill(auction);
+  const skills = getRelevantSkills(auction);
   const tags = getCharacterTags(auction);
   const vocColor = getVocationColor(auction.vocation || '');
   const price = auction.soldPrice || 0;
 
+  // Extra stats to show in detail row
+  const detailStats: Array<{ label: string; value: string | number; icon: React.ElementType }> = [];
+  if (auction.charmPoints) detailStats.push({ label: 'Charms', value: formatNumber(auction.charmPoints), icon: Sparkles });
+  if (auction.bossPoints) detailStats.push({ label: 'Boss', value: formatNumber(auction.bossPoints), icon: Crown });
+  if (auction.achievementPoints) detailStats.push({ label: 'Achiev.', value: auction.achievementPoints, icon: Trophy });
+  if (auction.bestiary) detailStats.push({ label: 'Bestiary', value: auction.bestiary, icon: Search });
+
   return (
-    <Card className="border-border/50 bg-card/50 backdrop-blur transition-all hover:bg-card/80 hover:border-border/80 hover:shadow-lg hover:shadow-black/10 group flex flex-col">
+    <Card className="border-border/50 bg-card/50 backdrop-blur transition-all hover:bg-card/80 hover:border-border/80 hover:shadow-lg hover:shadow-black/10 group flex flex-col overflow-hidden">
       <CardContent className="p-0 flex flex-col flex-1">
         {/* Header: vocation color bar + character info */}
         <div className="relative">
@@ -193,13 +265,13 @@ function AuctionCard({ auction }: { auction: SerializedAuction }) {
             <div className="flex items-start gap-3">
               {/* Avatar */}
               <div
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-base font-bold text-white shadow-md"
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-lg font-bold text-white shadow-md"
                 style={{ backgroundColor: vocColor }}
               >
                 {auction.characterName[0].toUpperCase()}
               </div>
 
-              {/* Name + Vocation */}
+              {/* Name + Vocation + World */}
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold leading-tight">{auction.characterName}</p>
                 <div className="flex items-center gap-1.5 mt-1">
@@ -210,89 +282,70 @@ function AuctionCard({ auction }: { auction: SerializedAuction }) {
                   >
                     {auction.vocation}
                   </Badge>
+                </div>
+                <div className="flex items-center gap-2 mt-1">
                   <span className="text-[10px] text-muted-foreground">{auction.world}</span>
+                  {auction.gender && (
+                    <span className="text-[10px] text-muted-foreground/60">{auction.gender}</span>
+                  )}
                 </div>
               </div>
+
+              {/* Level badge */}
+              <div className="text-right shrink-0">
+                <p className="text-2xl font-bold text-foreground leading-none">{auction.level || '?'}</p>
+                <p className="text-[9px] text-muted-foreground uppercase tracking-wider mt-0.5">Level</p>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Level + Main Skill */}
-        <div className="px-4 pb-3">
-          <div className="grid grid-cols-2 gap-2">
-            <div className="rounded-md bg-secondary/40 px-2.5 py-2 text-center">
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Level</p>
-              <p className="text-lg font-bold text-foreground leading-tight">{auction.level || '?'}</p>
-            </div>
-            <div className="rounded-md bg-secondary/40 px-2.5 py-2 text-center">
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{mainSkill.name}</p>
-              <p className="text-lg font-bold text-foreground leading-tight">{mainSkill.value}</p>
-            </div>
+        {/* Skill Bars */}
+        {skills.length > 0 && (
+          <div className="px-4 pb-3 space-y-1.5">
+            {skills.map(({ key, value }) => (
+              <SkillBar key={key} skillKey={key} value={value} />
+            ))}
           </div>
-        </div>
+        )}
 
-        {/* Skills Row */}
-        <div className="px-4 pb-3">
-          <div className="flex flex-wrap gap-1">
-            {auction.magicLevel ? (
-              <div className="flex items-center gap-1 rounded bg-secondary/30 px-1.5 py-0.5 text-[10px]">
-                <Wand2 className="h-2.5 w-2.5 text-muted-foreground" />
-                <span className="text-muted-foreground">ML</span>
-                <span className="font-semibold">{auction.magicLevel}</span>
-              </div>
-            ) : null}
-            {auction.sword ? (
-              <div className="flex items-center gap-1 rounded bg-secondary/30 px-1.5 py-0.5 text-[10px]">
-                <Swords className="h-2.5 w-2.5 text-muted-foreground" />
-                <span className="font-semibold">{auction.sword}</span>
-              </div>
-            ) : null}
-            {auction.axe ? (
-              <div className="flex items-center gap-1 rounded bg-secondary/30 px-1.5 py-0.5 text-[10px]">
-                <Swords className="h-2.5 w-2.5 text-muted-foreground" />
-                <span className="font-semibold">{auction.axe}</span>
-              </div>
-            ) : null}
-            {auction.club ? (
-              <div className="flex items-center gap-1 rounded bg-secondary/30 px-1.5 py-0.5 text-[10px]">
-                <Swords className="h-2.5 w-2.5 text-muted-foreground" />
-                <span className="font-semibold">{auction.club}</span>
-              </div>
-            ) : null}
-            {auction.distance ? (
-              <div className="flex items-center gap-1 rounded bg-secondary/30 px-1.5 py-0.5 text-[10px]">
-                <Crosshair className="h-2.5 w-2.5 text-muted-foreground" />
-                <span className="font-semibold">{auction.distance}</span>
-              </div>
-            ) : null}
-            {auction.shielding ? (
-              <div className="flex items-center gap-1 rounded bg-secondary/30 px-1.5 py-0.5 text-[10px]">
-                <Shield className="h-2.5 w-2.5 text-muted-foreground" />
-                <span className="font-semibold">{auction.shielding}</span>
-              </div>
-            ) : null}
-            {auction.fishing ? (
-              <div className="flex items-center gap-1 rounded bg-secondary/30 px-1.5 py-0.5 text-[10px]">
-                <Fish className="h-2.5 w-2.5 text-muted-foreground" />
-                <span className="font-semibold">{auction.fishing}</span>
-              </div>
-            ) : null}
+        {/* Detail Stats Row */}
+        {detailStats.length > 0 && (
+          <div className="px-4 pb-3">
+            <div className="grid grid-cols-2 gap-1.5">
+              {detailStats.slice(0, 4).map((stat) => {
+                const Icon = stat.icon;
+                return (
+                  <div key={stat.label} className="flex items-center gap-1.5 rounded-md bg-secondary/30 px-2 py-1.5">
+                    <Icon className="h-3 w-3 text-muted-foreground shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-[9px] text-muted-foreground leading-none">{stat.label}</p>
+                      <p className="text-xs font-semibold leading-tight">{stat.value}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Tags */}
         {tags.length > 0 && (
           <div className="px-4 pb-3">
             <div className="flex flex-wrap gap-1">
-              {tags.slice(0, 3).map((tag) => (
-                <span
-                  key={tag.label}
-                  className="rounded-full px-2 py-0.5 text-[10px] font-medium text-white"
-                  style={{ backgroundColor: tag.color }}
-                >
-                  {tag.label}
-                </span>
-              ))}
+              {tags.slice(0, 3).map((tag) => {
+                const Icon = tag.icon;
+                return (
+                  <span
+                    key={tag.label}
+                    className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium"
+                    style={{ backgroundColor: `${tag.color}20`, color: tag.color }}
+                  >
+                    <Icon className="h-2.5 w-2.5" />
+                    {tag.label}
+                  </span>
+                );
+              })}
               {tags.length > 3 && (
                 <span className="rounded-full px-2 py-0.5 text-[10px] font-medium text-muted-foreground bg-secondary/50">
                   +{tags.length - 3}
@@ -306,7 +359,7 @@ function AuctionCard({ auction }: { auction: SerializedAuction }) {
         <div className="flex-1" />
 
         {/* Price Footer */}
-        <div className="border-t border-border/30 px-4 py-3 mt-auto">
+        <div className="border-t border-border/30 px-4 py-3 mt-auto bg-secondary/10">
           <div className="flex items-center justify-between">
             <div>
               <div className="flex items-center">

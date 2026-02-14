@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef, useEffect } from 'react';
 import { startOfWeek, addDays, format, subMonths, isBefore, isSameDay } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatNumber } from '@/lib/utils/formatters';
@@ -12,16 +12,26 @@ interface TrainingHeatmapProps {
   }>;
 }
 
-const CELL_SIZE = 11;
-const CELL_GAP = 2;
-
 export default function TrainingHeatmap({ snapshots }: TrainingHeatmapProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
   const [hoveredCell, setHoveredCell] = useState<{
     date: Date;
     expGained: number;
     x: number;
     y: number;
   } | null>(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContainerWidth(entry.contentRect.width);
+      }
+    });
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
 
   const { gridData, monthLabels, intensityThresholds } = useMemo(() => {
     const endDate = new Date();
@@ -64,7 +74,6 @@ export default function TrainingHeatmap({ snapshots }: TrainingHeatmapProps) {
       weeks.push(currentWeek);
     }
 
-    // Month labels positioned by week index
     const labels: Array<{ month: string; weekIndex: number }> = [];
     let lastMonth = -1;
     weeks.forEach((week, weekIndex) => {
@@ -79,7 +88,7 @@ export default function TrainingHeatmap({ snapshots }: TrainingHeatmapProps) {
   }, [snapshots]);
 
   const getIntensityClass = (expGained: number | null) => {
-    if (expGained === null || expGained === 0) return 'bg-[#1a1a2e]';
+    if (expGained === null || expGained === 0) return 'bg-[#1e1b2e] border border-[#2a2640]';
     if (expGained <= intensityThresholds.low) return 'bg-purple-900/60';
     if (expGained <= intensityThresholds.medium) return 'bg-purple-700/70';
     if (expGained <= intensityThresholds.high) return 'bg-purple-500/80';
@@ -88,7 +97,15 @@ export default function TrainingHeatmap({ snapshots }: TrainingHeatmapProps) {
 
   const dayLabels = ['', 'Mon', '', 'Wed', '', 'Fri', ''];
   const totalWeeks = gridData.length;
-  const gridWidthPx = totalWeeks * CELL_SIZE + (totalWeeks - 1) * CELL_GAP;
+  const DAY_LABEL_WIDTH = 32;
+  const GAP = 3;
+
+  // Calculate cell size dynamically to fill container width
+  const availableWidth = containerWidth - DAY_LABEL_WIDTH - 8;
+  const cellSize = totalWeeks > 0
+    ? Math.max(10, Math.floor((availableWidth - (totalWeeks - 1) * GAP) / totalWeeks))
+    : 14;
+  const actualGridWidth = totalWeeks * cellSize + (totalWeeks - 1) * GAP;
 
   return (
     <Card className="border-border/50 bg-card/50 backdrop-blur">
@@ -96,83 +113,85 @@ export default function TrainingHeatmap({ snapshots }: TrainingHeatmapProps) {
         <CardTitle className="text-xl font-semibold">EXP Heatmap</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="overflow-x-auto">
-          <div className="inline-flex flex-col">
-            {/* Month labels — positioned using left offset within a fixed-width container */}
-            <div className="flex mb-1" style={{ marginLeft: '36px', width: `${gridWidthPx}px`, position: 'relative', height: '18px' }}>
-              {monthLabels.map((label, idx) => (
-                <span
-                  key={idx}
-                  className="text-xs text-muted-foreground"
-                  style={{
-                    position: 'absolute',
-                    left: `${label.weekIndex * (CELL_SIZE + CELL_GAP)}px`,
-                  }}
-                >
-                  {label.month}
-                </span>
-              ))}
-            </div>
-
-            {/* Day labels + grid */}
-            <div className="flex">
-              {/* Day labels column */}
-              <div className="flex flex-col flex-shrink-0 mr-2" style={{ width: '28px' }}>
-                {dayLabels.map((label, idx) => (
-                  <div
+        <div ref={containerRef} className="w-full">
+          {containerWidth > 0 && (
+            <div className="flex flex-col">
+              {/* Month labels */}
+              <div className="mb-1" style={{ marginLeft: `${DAY_LABEL_WIDTH + 8}px`, width: `${actualGridWidth}px`, position: 'relative', height: '18px' }}>
+                {monthLabels.map((label, idx) => (
+                  <span
                     key={idx}
-                    className="flex items-center justify-end pr-1 text-[10px] text-muted-foreground"
-                    style={{ height: `${CELL_SIZE}px`, marginBottom: idx < 6 ? `${CELL_GAP}px` : 0 }}
+                    className="text-xs text-muted-foreground"
+                    style={{
+                      position: 'absolute',
+                      left: `${label.weekIndex * (cellSize + GAP)}px`,
+                    }}
                   >
-                    {label}
-                  </div>
+                    {label.month}
+                  </span>
                 ))}
               </div>
 
-              {/* Heatmap cells */}
-              <div className="flex" style={{ gap: `${CELL_GAP}px` }}>
-                {gridData.map((week, weekIdx) => (
-                  <div key={weekIdx} className="flex flex-col" style={{ gap: `${CELL_GAP}px` }}>
-                    {week.map((day, dayIdx) => (
-                      <div
-                        key={dayIdx}
-                        className={`rounded-sm ${getIntensityClass(day.expGained)} ${
-                          day.expGained !== null && day.expGained > 0
-                            ? 'cursor-pointer hover:ring-1 hover:ring-purple-400'
-                            : ''
-                        }`}
-                        style={{ width: `${CELL_SIZE}px`, height: `${CELL_SIZE}px` }}
-                        onMouseEnter={(e) => {
-                          if (day.expGained !== null && day.expGained > 0) {
-                            setHoveredCell({
-                              date: day.date,
-                              expGained: day.expGained,
-                              x: e.clientX,
-                              y: e.clientY,
-                            });
-                          }
-                        }}
-                        onMouseLeave={() => setHoveredCell(null)}
-                      />
-                    ))}
-                  </div>
-                ))}
-              </div>
-            </div>
+              {/* Day labels + grid */}
+              <div className="flex">
+                {/* Day labels column */}
+                <div className="flex flex-col flex-shrink-0 mr-2" style={{ width: `${DAY_LABEL_WIDTH}px` }}>
+                  {dayLabels.map((label, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-end pr-1 text-[10px] text-muted-foreground"
+                      style={{ height: `${cellSize}px`, marginBottom: idx < 6 ? `${GAP}px` : 0 }}
+                    >
+                      {label}
+                    </div>
+                  ))}
+                </div>
 
-            {/* Legend */}
-            <div className="mt-3 flex items-center justify-end gap-2">
-              <span className="text-xs text-muted-foreground">Less</span>
-              <div className="flex gap-[2px]">
-                <div className="h-3 w-3 rounded-sm bg-[#1a1a2e]" />
-                <div className="h-3 w-3 rounded-sm bg-purple-900/60" />
-                <div className="h-3 w-3 rounded-sm bg-purple-700/70" />
-                <div className="h-3 w-3 rounded-sm bg-purple-500/80" />
-                <div className="h-3 w-3 rounded-sm bg-purple-400" />
+                {/* Heatmap cells */}
+                <div className="flex" style={{ gap: `${GAP}px` }}>
+                  {gridData.map((week, weekIdx) => (
+                    <div key={weekIdx} className="flex flex-col" style={{ gap: `${GAP}px` }}>
+                      {week.map((day, dayIdx) => (
+                        <div
+                          key={dayIdx}
+                          className={`rounded-sm ${getIntensityClass(day.expGained)} ${
+                            day.expGained !== null && day.expGained > 0
+                              ? 'cursor-pointer hover:ring-1 hover:ring-purple-400'
+                              : ''
+                          }`}
+                          style={{ width: `${cellSize}px`, height: `${cellSize}px` }}
+                          onMouseEnter={(e) => {
+                            if (day.expGained !== null && day.expGained > 0) {
+                              setHoveredCell({
+                                date: day.date,
+                                expGained: day.expGained,
+                                x: e.clientX,
+                                y: e.clientY,
+                              });
+                            }
+                          }}
+                          onMouseLeave={() => setHoveredCell(null)}
+                        />
+                      ))}
+                    </div>
+                  ))}
+                </div>
               </div>
-              <span className="text-xs text-muted-foreground">More</span>
+
+              {/* Legend */}
+              <div className="mt-3 flex items-center justify-end gap-2">
+                <span className="text-xs text-muted-foreground">Less</span>
+                <div className="flex gap-[3px]">
+                  <div className="h-3 w-3 rounded-sm bg-[#1e1b2e] border border-[#2a2640]" />
+                  <div className="h-3 w-3 rounded-sm bg-purple-900/60" />
+                  <div className="h-3 w-3 rounded-sm bg-purple-700/70" />
+                  <div className="h-3 w-3 rounded-sm bg-purple-500/80" />
+                  <div className="h-3 w-3 rounded-sm bg-purple-400" />
+                </div>
+                <span className="text-xs text-muted-foreground">More</span>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Tooltip */}
           {hoveredCell && (
