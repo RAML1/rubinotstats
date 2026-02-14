@@ -4,7 +4,6 @@ import { useState, useMemo } from 'react';
 import {
   Search,
   SlidersHorizontal,
-  ArrowUpDown,
   ChevronDown,
   ChevronUp,
   X,
@@ -12,12 +11,9 @@ import {
   Shield,
   Crosshair,
   Wand2,
-  Sparkles,
   Fish,
-  Trophy,
-  Star,
-  Crown,
-  Heart,
+  ExternalLink,
+  Info,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -85,14 +81,42 @@ interface AuctionsClientProps {
 type SortField = 'soldPrice' | 'level' | 'coinsPerLevel' | 'magicLevel' | 'charmPoints';
 type SortOrder = 'asc' | 'desc';
 
-const ITEMS_PER_PAGE = 20;
+const ITEMS_PER_PAGE = 24;
 
-function getMainSkill(auction: SerializedAuction): { name: string; value: number } {
+// Currency conversion rates (base: 1 coin = 11 BRL)
+const BRL_PER_COIN = 11;
+const CURRENCY_RATES: Record<string, { symbol: string; rate: number; code: string }> = {
+  BRL: { symbol: 'R$', rate: 1, code: 'BRL' },
+  USD: { symbol: '$', rate: 0.18, code: 'USD' },
+  EUR: { symbol: '\u20ac', rate: 0.17, code: 'EUR' },
+  PLN: { symbol: 'z\u0142', rate: 0.73, code: 'PLN' },
+  MXN: { symbol: '$', rate: 3.58, code: 'MXN' },
+};
+
+function convertPrice(coins: number): Record<string, number> {
+  const brlValue = coins * BRL_PER_COIN;
+  const conversions: Record<string, number> = {};
+  for (const [key, { rate }] of Object.entries(CURRENCY_RATES)) {
+    conversions[key] = brlValue * rate;
+  }
+  return conversions;
+}
+
+function formatCurrency(value: number): string {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
+  return value.toFixed(2);
+}
+
+function getMainSkill(auction: SerializedAuction): { name: string; value: number; icon: React.ElementType } {
   const voc = auction.vocation || '';
-  if (voc.includes('Knight')) return { name: 'Sword', value: Math.max(auction.sword || 0, auction.axe || 0, auction.club || 0) };
-  if (voc.includes('Paladin')) return { name: 'Distance', value: auction.distance || 0 };
-  if (voc.includes('Sorcerer') || voc.includes('Druid')) return { name: 'ML', value: auction.magicLevel || 0 };
-  return { name: 'ML', value: auction.magicLevel || 0 };
+  if (voc.includes('Knight')) {
+    const best = Math.max(auction.sword || 0, auction.axe || 0, auction.club || 0);
+    return { name: 'Melee', value: best, icon: Swords };
+  }
+  if (voc.includes('Paladin')) return { name: 'Distance', value: auction.distance || 0, icon: Crosshair };
+  if (voc.includes('Sorcerer') || voc.includes('Druid')) return { name: 'ML', value: auction.magicLevel || 0, icon: Wand2 };
+  return { name: 'ML', value: auction.magicLevel || 0, icon: Wand2 };
 }
 
 function getCharacterTags(auction: SerializedAuction): Array<{ label: string; color: string }> {
@@ -100,21 +124,217 @@ function getCharacterTags(auction: SerializedAuction): Array<{ label: string; co
   if ((auction.charmPoints || 0) >= 3000) tags.push({ label: 'High Charm', color: '#a855f7' });
   if ((auction.mountsCount || 0) >= 20) tags.push({ label: `${auction.mountsCount} Mounts`, color: '#3b82f6' });
   if ((auction.outfitsCount || 0) >= 30) tags.push({ label: `${auction.outfitsCount} Outfits`, color: '#ec4899' });
-  if ((auction.achievementPoints || 0) >= 100) tags.push({ label: `${auction.achievementPoints} Achievements`, color: '#f59e0b' });
-  if (auction.charmExpansion) tags.push({ label: 'Charm Expansion', color: '#8b5cf6' });
-  if ((auction.preySlots || 0) >= 3) tags.push({ label: 'Extra Prey Slots', color: '#06b6d4' });
+  if ((auction.achievementPoints || 0) >= 100) tags.push({ label: `${auction.achievementPoints} Achiev.`, color: '#f59e0b' });
+  if (auction.charmExpansion) tags.push({ label: 'Charm Exp.', color: '#8b5cf6' });
+  if ((auction.preySlots || 0) >= 3) tags.push({ label: 'Extra Prey', color: '#06b6d4' });
   if ((auction.hirelings || 0) >= 1) tags.push({ label: `${auction.hirelings} Hirelings`, color: '#10b981' });
   return tags;
 }
 
-function SkillPill({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: number | null }) {
-  if (!value) return null;
+function PriceTooltip({ coins }: { coins: number }) {
+  const [show, setShow] = useState(false);
+  const conversions = convertPrice(coins);
+
   return (
-    <div className="flex items-center gap-1.5 rounded-md bg-secondary/50 px-2 py-1 text-xs">
-      <Icon className="h-3 w-3 text-muted-foreground" />
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-semibold">{value}</span>
+    <div className="relative inline-block">
+      <button
+        onMouseEnter={() => setShow(true)}
+        onMouseLeave={() => setShow(false)}
+        onClick={(e) => { e.stopPropagation(); setShow(!show); }}
+        className="ml-1 inline-flex items-center text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+      >
+        <Info className="h-3.5 w-3.5" />
+      </button>
+
+      {show && (
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 w-48 rounded-lg border border-border bg-background/95 p-3 shadow-xl backdrop-blur animate-in fade-in-0 zoom-in-95 duration-100">
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+            Equivalent Value
+          </p>
+          <div className="space-y-1.5">
+            {Object.entries(CURRENCY_RATES).map(([key, { symbol, code }]) => (
+              <div key={key} className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">{symbol} {code}</span>
+                <span className="font-semibold text-foreground">
+                  {symbol} {formatCurrency(conversions[key])}
+                </span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-2 pt-2 border-t border-border/50">
+            <p className="text-[10px] text-muted-foreground/60 text-center">
+              1 TC = R$ {BRL_PER_COIN}
+            </p>
+          </div>
+          {/* Arrow */}
+          <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-[1px]">
+            <div className="w-2 h-2 rotate-45 bg-background border-r border-b border-border" />
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+function AuctionCard({ auction }: { auction: SerializedAuction }) {
+  const mainSkill = getMainSkill(auction);
+  const tags = getCharacterTags(auction);
+  const vocColor = getVocationColor(auction.vocation || '');
+  const price = auction.soldPrice || 0;
+
+  return (
+    <Card className="border-border/50 bg-card/50 backdrop-blur transition-all hover:bg-card/80 hover:border-border/80 hover:shadow-lg hover:shadow-black/10 group flex flex-col">
+      <CardContent className="p-0 flex flex-col flex-1">
+        {/* Header: vocation color bar + character info */}
+        <div className="relative">
+          <div className="absolute top-0 left-0 right-0 h-1 rounded-t-lg" style={{ backgroundColor: vocColor }} />
+
+          <div className="pt-4 px-4 pb-3">
+            <div className="flex items-start gap-3">
+              {/* Avatar */}
+              <div
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-base font-bold text-white shadow-md"
+                style={{ backgroundColor: vocColor }}
+              >
+                {auction.characterName[0].toUpperCase()}
+              </div>
+
+              {/* Name + Vocation */}
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold leading-tight">{auction.characterName}</p>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] px-1.5 py-0 h-4 leading-none"
+                    style={{ borderColor: vocColor, color: vocColor }}
+                  >
+                    {auction.vocation}
+                  </Badge>
+                  <span className="text-[10px] text-muted-foreground">{auction.world}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Level + Main Skill */}
+        <div className="px-4 pb-3">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-md bg-secondary/40 px-2.5 py-2 text-center">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Level</p>
+              <p className="text-lg font-bold text-foreground leading-tight">{auction.level || '?'}</p>
+            </div>
+            <div className="rounded-md bg-secondary/40 px-2.5 py-2 text-center">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{mainSkill.name}</p>
+              <p className="text-lg font-bold text-foreground leading-tight">{mainSkill.value}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Skills Row */}
+        <div className="px-4 pb-3">
+          <div className="flex flex-wrap gap-1">
+            {auction.magicLevel ? (
+              <div className="flex items-center gap-1 rounded bg-secondary/30 px-1.5 py-0.5 text-[10px]">
+                <Wand2 className="h-2.5 w-2.5 text-muted-foreground" />
+                <span className="text-muted-foreground">ML</span>
+                <span className="font-semibold">{auction.magicLevel}</span>
+              </div>
+            ) : null}
+            {auction.sword ? (
+              <div className="flex items-center gap-1 rounded bg-secondary/30 px-1.5 py-0.5 text-[10px]">
+                <Swords className="h-2.5 w-2.5 text-muted-foreground" />
+                <span className="font-semibold">{auction.sword}</span>
+              </div>
+            ) : null}
+            {auction.axe ? (
+              <div className="flex items-center gap-1 rounded bg-secondary/30 px-1.5 py-0.5 text-[10px]">
+                <Swords className="h-2.5 w-2.5 text-muted-foreground" />
+                <span className="font-semibold">{auction.axe}</span>
+              </div>
+            ) : null}
+            {auction.club ? (
+              <div className="flex items-center gap-1 rounded bg-secondary/30 px-1.5 py-0.5 text-[10px]">
+                <Swords className="h-2.5 w-2.5 text-muted-foreground" />
+                <span className="font-semibold">{auction.club}</span>
+              </div>
+            ) : null}
+            {auction.distance ? (
+              <div className="flex items-center gap-1 rounded bg-secondary/30 px-1.5 py-0.5 text-[10px]">
+                <Crosshair className="h-2.5 w-2.5 text-muted-foreground" />
+                <span className="font-semibold">{auction.distance}</span>
+              </div>
+            ) : null}
+            {auction.shielding ? (
+              <div className="flex items-center gap-1 rounded bg-secondary/30 px-1.5 py-0.5 text-[10px]">
+                <Shield className="h-2.5 w-2.5 text-muted-foreground" />
+                <span className="font-semibold">{auction.shielding}</span>
+              </div>
+            ) : null}
+            {auction.fishing ? (
+              <div className="flex items-center gap-1 rounded bg-secondary/30 px-1.5 py-0.5 text-[10px]">
+                <Fish className="h-2.5 w-2.5 text-muted-foreground" />
+                <span className="font-semibold">{auction.fishing}</span>
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        {/* Tags */}
+        {tags.length > 0 && (
+          <div className="px-4 pb-3">
+            <div className="flex flex-wrap gap-1">
+              {tags.slice(0, 3).map((tag) => (
+                <span
+                  key={tag.label}
+                  className="rounded-full px-2 py-0.5 text-[10px] font-medium text-white"
+                  style={{ backgroundColor: tag.color }}
+                >
+                  {tag.label}
+                </span>
+              ))}
+              {tags.length > 3 && (
+                <span className="rounded-full px-2 py-0.5 text-[10px] font-medium text-muted-foreground bg-secondary/50">
+                  +{tags.length - 3}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Spacer to push price to bottom */}
+        <div className="flex-1" />
+
+        {/* Price Footer */}
+        <div className="border-t border-border/30 px-4 py-3 mt-auto">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center">
+                <p className="text-xl font-bold text-emerald-400">
+                  {formatNumber(price)} TC
+                </p>
+                <PriceTooltip coins={price} />
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-0.5">
+                {auction.coinsPerLevel ? `${auction.coinsPerLevel.toFixed(1)} TC/lvl` : '\u2014'}
+              </p>
+            </div>
+            {auction.url && (
+              <a
+                href={auction.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="flex items-center gap-1 rounded-md bg-primary/10 px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-primary/20 transition-colors"
+              >
+                View
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -130,7 +350,6 @@ export function AuctionsClient({ initialAuctions, worlds, vocations, initialSear
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [page, setPage] = useState(1);
   const [showFilters, setShowFilters] = useState(false);
-  const [expandedId, setExpandedId] = useState<number | null>(null);
 
   const filtered = useMemo(() => {
     let result = initialAuctions;
@@ -314,146 +533,11 @@ export function AuctionsClient({ initialAuctions, worlds, vocations, initialSear
         </div>
       </div>
 
-      {/* Auction Cards */}
-      <div className="space-y-3">
-        {paginated.map((auction) => {
-          const mainSkill = getMainSkill(auction);
-          const tags = getCharacterTags(auction);
-          const isExpanded = expandedId === auction.id;
-          const vocColor = getVocationColor(auction.vocation || '');
-
-          return (
-            <Card
-              key={auction.id}
-              className="border-border/50 bg-card/50 backdrop-blur transition-colors hover:bg-card/80"
-            >
-              <CardContent className="p-0">
-                {/* Main Row */}
-                <button
-                  onClick={() => setExpandedId(isExpanded ? null : auction.id)}
-                  className="flex w-full items-center gap-4 p-4 text-left"
-                >
-                  {/* Avatar */}
-                  <div
-                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-lg font-bold text-white"
-                    style={{ backgroundColor: vocColor }}
-                  >
-                    {auction.characterName[0].toUpperCase()}
-                  </div>
-
-                  {/* Character Info */}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="truncate text-base font-semibold">{auction.characterName}</p>
-                      <Badge
-                        variant="outline"
-                        className="shrink-0 text-[10px] px-1.5 py-0"
-                        style={{ borderColor: vocColor, color: vocColor }}
-                      >
-                        {auction.vocation}
-                      </Badge>
-                    </div>
-                    <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-                      <span>Level <strong className="text-foreground">{auction.level}</strong></span>
-                      <span>{mainSkill.name} <strong className="text-foreground">{mainSkill.value}</strong></span>
-                      <span>{auction.world}</span>
-                    </div>
-                  </div>
-
-                  {/* Tags (desktop) */}
-                  <div className="hidden flex-wrap gap-1.5 lg:flex">
-                    {tags.slice(0, 3).map((tag) => (
-                      <span
-                        key={tag.label}
-                        className="rounded-full px-2 py-0.5 text-[10px] font-medium text-white"
-                        style={{ backgroundColor: tag.color }}
-                      >
-                        {tag.label}
-                      </span>
-                    ))}
-                  </div>
-
-                  {/* Price */}
-                  <div className="shrink-0 text-right">
-                    <p className="text-lg font-bold text-emerald-400">
-                      {formatNumber(auction.soldPrice || 0)} TC
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {auction.coinsPerLevel ? `${auction.coinsPerLevel.toFixed(1)} TC/lvl` : '—'}
-                    </p>
-                  </div>
-
-                  {/* Expand */}
-                  <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
-                </button>
-
-                {/* Expanded Details */}
-                {isExpanded && (
-                  <div className="border-t border-border/50 px-4 pb-4 pt-3">
-                    {/* Tags (mobile) */}
-                    {tags.length > 0 && (
-                      <div className="mb-3 flex flex-wrap gap-1.5 lg:hidden">
-                        {tags.map((tag) => (
-                          <span
-                            key={tag.label}
-                            className="rounded-full px-2 py-0.5 text-[10px] font-medium text-white"
-                            style={{ backgroundColor: tag.color }}
-                          >
-                            {tag.label}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Skills Grid */}
-                    <div className="mb-3">
-                      <p className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">Combat Skills</p>
-                      <div className="flex flex-wrap gap-2">
-                        <SkillPill icon={Wand2} label="Magic" value={auction.magicLevel} />
-                        <SkillPill icon={Swords} label="Sword" value={auction.sword} />
-                        <SkillPill icon={Swords} label="Axe" value={auction.axe} />
-                        <SkillPill icon={Swords} label="Club" value={auction.club} />
-                        <SkillPill icon={Crosshair} label="Dist" value={auction.distance} />
-                        <SkillPill icon={Shield} label="Shield" value={auction.shielding} />
-                        <SkillPill icon={Swords} label="Fist" value={auction.fist} />
-                        <SkillPill icon={Fish} label="Fish" value={auction.fishing} />
-                      </div>
-                    </div>
-
-                    {/* Stats Grid */}
-                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
-                      <StatItem icon={Heart} label="HP" value={auction.hitPoints} />
-                      <StatItem icon={Sparkles} label="Mana" value={auction.mana} />
-                      <StatItem icon={Star} label="Charm Pts" value={auction.charmPoints} />
-                      <StatItem icon={Trophy} label="Achievements" value={auction.achievementPoints} />
-                      <StatItem icon={Crown} label="Boss Pts" value={auction.bossPoints} />
-                      <StatItem icon={Swords} label="Hunt Tasks" value={auction.huntingTaskPoints} />
-                      <StatItem icon={Star} label="Mounts" value={auction.mountsCount} />
-                      <StatItem icon={Star} label="Outfits" value={auction.outfitsCount} />
-                      <StatItem icon={Star} label="Titles" value={auction.titlesCount} />
-                      <StatItem icon={Star} label="Linked Tasks" value={auction.linkedTasks} />
-                      <StatItem icon={Star} label="Prey Slots" value={auction.preySlots} />
-                      <StatItem icon={Star} label="Hirelings" value={auction.hirelings} />
-                    </div>
-
-                    {/* Auction Info Footer */}
-                    <div className="mt-3 flex flex-wrap items-center gap-4 border-t border-border/50 pt-3 text-xs text-muted-foreground">
-                      {auction.auctionStart && <span>Started: {auction.auctionStart}</span>}
-                      {auction.auctionEnd && <span>Ended: {auction.auctionEnd}</span>}
-                      {auction.gender && <span>{auction.gender}</span>}
-                      {auction.experience && <span>Exp: {auction.experience}</span>}
-                      {auction.url && (
-                        <a href={auction.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                          View on RubinOT
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          );
-        })}
+      {/* Auction Card Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {paginated.map((auction) => (
+          <AuctionCard key={auction.id} auction={auction} />
+        ))}
       </div>
 
       {/* Empty State */}
@@ -501,19 +585,6 @@ export function AuctionsClient({ initialAuctions, worlds, vocations, initialSear
           </button>
         </div>
       )}
-    </div>
-  );
-}
-
-function StatItem({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: number | null | undefined }) {
-  if (!value) return null;
-  return (
-    <div className="flex items-center gap-2 rounded-md bg-secondary/30 px-2.5 py-2">
-      <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-      <div>
-        <p className="text-[10px] text-muted-foreground">{label}</p>
-        <p className="text-sm font-semibold">{formatNumber(value)}</p>
-      </div>
     </div>
   );
 }
