@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { TrendingUp, TrendingDown, Minus, Search, Trophy, Zap, Swords, Medal } from 'lucide-react';
 import { formatNumber, formatExp } from '@/lib/utils/formatters';
+import { trackSearch } from '@/components/analytics/AnalyticsTracker';
 import ExpChart from './components/ExpChart';
 import SkillGrid from './components/SkillGrid';
 import TrainingHeatmap from './components/TrainingHeatmap';
@@ -143,6 +144,7 @@ export default function ProgressionClient() {
   }, []);
 
   const selectCharacter = useCallback(async (characterName: string) => {
+    trackSearch(characterName, '/progression');
     setSelectedCharacter(characterName);
     setSearchQuery(characterName);
     setShowDropdown(false);

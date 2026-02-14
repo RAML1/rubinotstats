@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Search } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { trackSearch } from "@/components/analytics/AnalyticsTracker";
 
 export function SearchBar() {
   const [query, setQuery] = useState("");
@@ -12,6 +13,7 @@ export function SearchBar() {
     e.preventDefault();
     const trimmed = query.trim();
     if (trimmed) {
+      trackSearch(trimmed, "/auctions");
       router.push(`/auctions?search=${encodeURIComponent(trimmed)}`);
       setQuery("");
     }
