@@ -12,6 +12,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { PrismaClient } from '@prisma/client';
 import { getBrowserContext, closeBrowser } from '../src/lib/scraper/browser';
+import type { BrowserName } from '../src/lib/scraper/browser';
+
+const BROWSER: BrowserName = 'auctions';
 import {
   scrapeAuctionHistory,
   scrapeSingleAuction,
@@ -143,8 +146,8 @@ async function main() {
     fs.mkdirSync(dataDir, { recursive: true });
   }
 
-  console.log('Launching browser...');
-  const context = await getBrowserContext({ headless });
+  console.log(`Launching browser (${BROWSER})...`);
+  const context = await getBrowserContext({ headless, browser: BROWSER });
   const page = context.pages()[0] || (await context.newPage());
 
   try {
@@ -180,6 +183,7 @@ async function main() {
         maxAuctions,
         skipExternalIds,
         onAuction,
+        browserName: BROWSER,
       });
       const outFile = path.join(dataDir, `auctions-${today}.json`);
 
@@ -205,7 +209,7 @@ async function main() {
     }
   } finally {
     await prisma.$disconnect();
-    await closeBrowser();
+    await closeBrowser(BROWSER);
   }
 }
 
@@ -316,5 +320,5 @@ ${Object.entries(worldCounts)
 
 main().catch((err) => {
   console.error('Scraper failed:', err);
-  prisma.$disconnect().then(() => closeBrowser()).finally(() => process.exit(1));
+  prisma.$disconnect().then(() => closeBrowser(BROWSER)).finally(() => process.exit(1));
 });

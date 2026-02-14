@@ -69,6 +69,69 @@ export const HIGHSCORE_CATEGORIES = {
   'Weekly Tasks': '21',
 } as const;
 
+/** Highscore profession filter values (site form values) */
+export const HIGHSCORE_PROFESSIONS = {
+  All: '0',
+  Knights: '2',
+  Paladins: '3',
+  Sorcerers: '4',
+  Druids: '5',
+  Monks: '6',
+} as const;
+
+/** Default professions for daily scrape (skip "All" — per-vocation covers everyone) */
+export const DAILY_PROFESSIONS: (keyof typeof HIGHSCORE_PROFESSIONS)[] = [
+  'Knights',
+  'Paladins',
+  'Sorcerers',
+  'Druids',
+  'Monks',
+];
+
+/** Core categories for daily scrape (exp + combat skills + charm) */
+export const DAILY_CATEGORIES: (keyof typeof HIGHSCORE_CATEGORIES)[] = [
+  'Experience Points',
+  'Magic Level',
+  'Fist Fighting',
+  'Club Fighting',
+  'Sword Fighting',
+  'Axe Fighting',
+  'Distance Fighting',
+  'Shielding',
+  'Charm Points',
+];
+
+/**
+ * Categories to SKIP per profession — these vocations can't train these skills.
+ * Reduces wasted requests significantly.
+ */
+export const PROFESSION_SKIP_CATEGORIES: Partial<Record<keyof typeof HIGHSCORE_PROFESSIONS, (keyof typeof HIGHSCORE_CATEGORIES)[]>> = {
+  Paladins: ['Sword Fighting', 'Axe Fighting', 'Shielding', 'Club Fighting', 'Fist Fighting'],
+  Sorcerers: ['Sword Fighting', 'Axe Fighting', 'Shielding', 'Club Fighting', 'Distance Fighting', 'Fist Fighting'],
+  Druids: ['Sword Fighting', 'Axe Fighting', 'Shielding', 'Club Fighting', 'Distance Fighting', 'Fist Fighting'],
+  Knights: ['Distance Fighting', 'Fist Fighting'],
+  Monks: ['Sword Fighting', 'Shielding', 'Axe Fighting', 'Club Fighting', 'Distance Fighting'],
+};
+
+/** Shorthand profession aliases for CLI use */
+export const PROFESSION_ALIASES: Record<string, keyof typeof HIGHSCORE_PROFESSIONS> = {
+  all: 'All',
+  knight: 'Knights',
+  knights: 'Knights',
+  ek: 'Knights',
+  paladin: 'Paladins',
+  paladins: 'Paladins',
+  rp: 'Paladins',
+  sorcerer: 'Sorcerers',
+  sorcerers: 'Sorcerers',
+  ms: 'Sorcerers',
+  druid: 'Druids',
+  druids: 'Druids',
+  ed: 'Druids',
+  monk: 'Monks',
+  monks: 'Monks',
+};
+
 /** Shorthand category keys for CLI use */
 export const CATEGORY_ALIASES: Record<string, keyof typeof HIGHSCORE_CATEGORIES> = {
   experience: 'Experience Points',
@@ -130,4 +193,5 @@ export type World = (typeof WORLDS)[number];
 export type Vocation = (typeof VOCATIONS)[number];
 export type Skill = (typeof SKILLS)[number];
 export type HighscoreCategory = keyof typeof HIGHSCORE_CATEGORIES;
+export type HighscoreProfession = keyof typeof HIGHSCORE_PROFESSIONS;
 export type DealScoreVariant = 'great' | 'good' | 'fair' | 'overpriced';

@@ -44,7 +44,7 @@ yarn-error.log*
 next-env.d.ts
 
 # scraper
-/.browser-data/
+/.browser-data*/
 /data/
 /scripts/*-dump.html
 /scripts/discover*.ts

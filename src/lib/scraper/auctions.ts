@@ -6,7 +6,7 @@
 import * as cheerio from 'cheerio';
 import { RUBINOT_URLS } from '../utils/constants';
 import type { Page } from 'playwright';
-import { navigateWithCloudflare, rateLimit } from './browser';
+import { navigateWithCloudflare, rateLimit, getHealthyPage, sleep, type BrowserName } from './browser';
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -339,12 +339,14 @@ export interface ScrapeOptions {
   maxAuctions?: number;
   skipExternalIds?: Set<string>;
   onAuction?: (auction: ScrapedAuction) => Promise<void>;
+  browserName?: BrowserName;
 }
 
 /**
  * Scrape sold auction history. Processes page-by-page: for each list page,
  * immediately scrapes detail pages for new auctions before moving to the
  * next list page. Stops once maxAuctions new auctions have been scraped.
+ * Recovers automatically if the browser context dies (Cloudflare, crash, etc.).
  */
 export async function scrapeAuctionHistory(
   page: Page,
@@ -354,13 +356,25 @@ export async function scrapeAuctionHistory(
   const fullAuctions: ScrapedAuction[] = [];
   let scraped = 0;
   let skippedTotal = 0;
+  const browserName = opts.browserName ?? 'auctions';
+
+  // Mutable page ref — may be replaced if browser context dies
+  let currentPage = page;
 
   // Fetch first page to get total page count
   console.log(`Fetching page 1: ${baseUrl}`);
-  await navigateWithCloudflare(page, baseUrl);
-  await page.waitForTimeout(1200 + Math.floor(Math.random() * 1800));
+  try {
+    await navigateWithCloudflare(currentPage, baseUrl);
+    await sleep(1200 + Math.floor(Math.random() * 1800));
+  } catch {
+    console.error('  Page died on first fetch — recovering browser...');
+    await rateLimit('slow');
+    currentPage = await getHealthyPage(browserName);
+    await navigateWithCloudflare(currentPage, baseUrl);
+    await sleep(1200 + Math.floor(Math.random() * 1800));
+  }
 
-  const firstPageHtml = await page.content();
+  const firstPageHtml = await currentPage.content();
   const totalPages = opts.maxPages
     ? Math.min(getTotalPages(firstPageHtml), opts.maxPages)
     : getTotalPages(firstPageHtml);
@@ -384,23 +398,32 @@ export async function scrapeAuctionHistory(
     const target = opts.maxAuctions ?? '?';
     console.log(`  [${scraped}/${target}] ${a.characterName} (${detailUrl})`);
 
-    const auction = await scrapeAuctionDetail(page, a, detailUrl);
+    const auction = await scrapeAuctionDetail(currentPage, a, detailUrl, browserName);
     if (opts.onAuction) await opts.onAuction(auction);
     fullAuctions.push(auction);
   }
 
+  // Track consecutive fully-scraped pages to detect the end of new data
+  // When --count is specified, don't early-stop (user wants to go deeper into history)
+  let consecutiveSkippedPages = newOnFirst.length === 0 && firstPageAuctions.length > 0 ? 1 : 0;
+  const MAX_CONSECUTIVE_SKIPS = opts.maxAuctions ? Infinity : 3;
+
   // Process remaining pages
   for (let p = 2; p <= totalPages; p++) {
     if (opts.maxAuctions && scraped >= opts.maxAuctions) break;
+    if (consecutiveSkippedPages >= MAX_CONSECUTIVE_SKIPS) {
+      console.log(`\n${MAX_CONSECUTIVE_SKIPS} consecutive pages with no new auctions — stopping.`);
+      break;
+    }
 
     await rateLimit();
     const pageUrl = `${RUBINOT_URLS.base}/?subtopic=pastcharactertrades&currentpage=${p}`;
     console.log(`\nFetching page ${p}/${totalPages}...`);
 
     try {
-      await navigateWithCloudflare(page, pageUrl);
-      await page.waitForTimeout(800 + Math.floor(Math.random() * 1200));
-      const html = await page.content();
+      await navigateWithCloudflare(currentPage, pageUrl);
+      await sleep(800 + Math.floor(Math.random() * 1200));
+      const html = await currentPage.content();
       const pageAuctions = parseAuctionListPage(html);
       const newOnPage = opts.skipExternalIds
         ? pageAuctions.filter((a) => !opts.skipExternalIds!.has(a.externalId))
@@ -409,6 +432,13 @@ export async function scrapeAuctionHistory(
       skippedTotal += skippedOnPage;
 
       console.log(`  Page ${p}: ${pageAuctions.length} sold (${newOnPage.length} new, ${skippedOnPage} skipped)`);
+
+      if (newOnPage.length === 0 && pageAuctions.length > 0) {
+        consecutiveSkippedPages++;
+        console.log(`  No new auctions (${consecutiveSkippedPages}/${MAX_CONSECUTIVE_SKIPS} consecutive skips)`);
+        continue;
+      }
+      consecutiveSkippedPages = 0; // Reset when we find new auctions
 
       // Immediately scrape details for new auctions on this page
       for (const a of newOnPage) {
@@ -419,12 +449,17 @@ export async function scrapeAuctionHistory(
         const target = opts.maxAuctions ?? '?';
         console.log(`  [${scraped}/${target}] ${a.characterName} (${detailUrl})`);
 
-        const auction = await scrapeAuctionDetail(page, a, detailUrl);
+        const auction = await scrapeAuctionDetail(currentPage, a, detailUrl, browserName);
         if (opts.onAuction) await opts.onAuction(auction);
         fullAuctions.push(auction);
       }
     } catch (err) {
-      console.error(`  Failed page ${p}:`, err);
+      console.error(`  Failed page ${p} — recovering browser...`);
+      try {
+        currentPage = await getHealthyPage(browserName);
+      } catch {
+        // Will be recovered on next page
+      }
     }
   }
 
@@ -441,6 +476,7 @@ async function scrapeAuctionDetail(
   page: Page,
   a: ListAuction,
   detailUrl: string,
+  browserName: BrowserName = 'chromium',
 ): Promise<ScrapedAuction> {
   let detail: DetailPageData = {
     magicLevel: null, fist: null, club: null, sword: null,
@@ -456,11 +492,11 @@ async function scrapeAuctionDetail(
 
   try {
     await navigateWithCloudflare(page, detailUrl);
-    await page.waitForTimeout(800 + Math.floor(Math.random() * 1200));
+    await sleep(800 + Math.floor(Math.random() * 1200));
     const detailHtml = await page.content();
     detail = parseDetailPage(detailHtml);
   } catch (err) {
-    console.error(`    Failed to fetch details for ${a.characterName}:`, err);
+    console.error(`    Failed to fetch details for ${a.characterName} — skipping detail`);
   }
 
   const coinsPerLevel =
@@ -500,7 +536,7 @@ export async function scrapeSingleAuction(
   const detailUrl = `${RUBINOT_URLS.base}/?currentcharactertrades/${auctionId}`;
   console.log(`Fetching auction ${auctionId}: ${detailUrl}`);
   await navigateWithCloudflare(page, detailUrl);
-  await page.waitForTimeout(1200 + Math.floor(Math.random() * 1800));
+  await sleep(1200 + Math.floor(Math.random() * 1800));
 
   const html = await page.content();
   const $ = cheerio.load(html);
