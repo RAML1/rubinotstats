@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -124,6 +125,7 @@ function deriveSkillsFromHighscores(highscores: any[]): SkillValues {
 }
 
 export default function ProgressionClient() {
+  const searchParams = useSearchParams();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [selectedCharacter, setSelectedCharacter] = useState<string | null>(null);
@@ -133,6 +135,16 @@ export default function ProgressionClient() {
   const [showDropdown, setShowDropdown] = useState(false);
   const searchTimeout = useRef<NodeJS.Timeout>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const initialLoadDone = useRef(false);
+
+  // Auto-load character from URL search params (e.g. ?character=Super+Bonk+Lee)
+  useEffect(() => {
+    const charParam = searchParams.get('character');
+    if (charParam && !initialLoadDone.current) {
+      initialLoadDone.current = true;
+      selectCharacter(charParam);
+    }
+  }, [searchParams]);
 
   // Debounced search
   useEffect(() => {
@@ -334,6 +346,16 @@ export default function ProgressionClient() {
       {/* Main Content */}
       {!loading && data && computed && (
         <>
+          {/* Character Header */}
+          <div className="flex items-center gap-3">
+            <h2 className="text-2xl font-bold">{data.character.name}</h2>
+            {data.character.vocation && (
+              <Badge variant="secondary" className="text-sm">
+                {data.character.vocation}
+              </Badge>
+            )}
+          </div>
+
           {/* KPI Cards */}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Card className="border-border/50 bg-card/50 backdrop-blur">

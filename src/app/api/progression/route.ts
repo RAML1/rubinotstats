@@ -429,8 +429,8 @@ export async function GET(request: NextRequest) {
         charLevel = Math.max(...highscores.map((h: any) => h.level || 0));
       }
 
-      const levelMin = Math.max(1, charLevel - 10);
-      const levelMax = charLevel + 10;
+      const levelMin = Math.max(1, charLevel - 100);
+      const levelMax = charLevel + 100;
 
       const auctionStats = await prisma.auction.groupBy({
         by: ['vocation'],

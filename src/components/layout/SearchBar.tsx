@@ -13,8 +13,8 @@ export function SearchBar() {
     e.preventDefault();
     const trimmed = query.trim();
     if (trimmed) {
-      trackSearch(trimmed, "/auctions");
-      router.push(`/auctions?search=${encodeURIComponent(trimmed)}`);
+      trackSearch(trimmed, "/progression");
+      router.push(`/progression?character=${encodeURIComponent(trimmed)}`);
       setQuery("");
     }
   };
