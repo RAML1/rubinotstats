@@ -457,8 +457,24 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 5. Calculate KPIs
-    const kpis = calculateKPIs(snapshots);
+    // 5. Calculate KPIs (use highscore data as fallback when no snapshots)
+    let kpis = calculateKPIs(snapshots);
+    if (snapshots.length === 0 && highscores.length > 0) {
+      // Extract level and ranks from highscore entries
+      const expEntry = highscores.find((h: any) => h.category === 'Experience Points');
+      const mlEntry = highscores.find((h: any) => h.category === 'Magic Level');
+      kpis = {
+        ...kpis,
+        currentLevel: expEntry?.level ?? char.world ? 0 : 0,
+        currentExpRank: expEntry?.rank ?? null,
+        currentMlRank: mlEntry?.rank ?? null,
+      };
+      // Try to get level from the highest-level entry
+      const maxLevel = Math.max(...highscores.map((h: any) => h.level || 0));
+      if (maxLevel > 0) {
+        kpis.currentLevel = maxLevel;
+      }
+    }
 
     // 6. Derive milestones
     const milestones = deriveMilestones(snapshots);

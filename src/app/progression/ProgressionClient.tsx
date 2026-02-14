@@ -85,6 +85,43 @@ interface APIResponse {
   };
 }
 
+// Map highscore categories to skill field names
+const HIGHSCORE_TO_SKILL: Record<string, string> = {
+  'Magic Level': 'magicLevel',
+  'Fist Fighting': 'fist',
+  'Club Fighting': 'club',
+  'Sword Fighting': 'sword',
+  'Axe Fighting': 'axe',
+  'Distance Fighting': 'distance',
+  'Shielding': 'shielding',
+  'Fishing': 'fishing',
+};
+
+interface SkillValues {
+  magicLevel: number | null;
+  fist: number | null;
+  club: number | null;
+  sword: number | null;
+  axe: number | null;
+  distance: number | null;
+  shielding: number | null;
+  fishing: number | null;
+}
+
+function deriveSkillsFromHighscores(highscores: any[]): SkillValues {
+  const skills: SkillValues = {
+    magicLevel: null, fist: null, club: null, sword: null,
+    axe: null, distance: null, shielding: null, fishing: null,
+  };
+  for (const entry of highscores) {
+    const field = HIGHSCORE_TO_SKILL[entry.category] as keyof SkillValues | undefined;
+    if (field) {
+      skills[field] = Number(entry.score) || null;
+    }
+  }
+  return skills;
+}
+
 export default function ProgressionClient() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
@@ -192,21 +229,28 @@ export default function ProgressionClient() {
     const bestDaySnapshot = snapshots.reduce((best, s) =>
       (s.expGained || 0) > (best?.expGained || 0) ? s : best, snapshots[0]);
 
+    // Derive skills from highscore entries when no snapshots exist
+    const hsSkills = !latestSnapshot && data.highscores.length > 0
+      ? deriveSkillsFromHighscores(data.highscores)
+      : null;
+
+    const skills = latestSnapshot ? {
+      magicLevel: latestSnapshot.magicLevel,
+      fist: latestSnapshot.fist,
+      club: latestSnapshot.club,
+      sword: latestSnapshot.sword,
+      axe: latestSnapshot.axe,
+      distance: latestSnapshot.distance,
+      shielding: latestSnapshot.shielding,
+      fishing: latestSnapshot.fishing,
+    } : hsSkills;
+
     return {
       expChangePercent,
       levelsDir,
       avgDailyExp,
       avgWeeklyExp,
-      currentSkills: latestSnapshot ? {
-        magicLevel: latestSnapshot.magicLevel,
-        fist: latestSnapshot.fist,
-        club: latestSnapshot.club,
-        sword: latestSnapshot.sword,
-        axe: latestSnapshot.axe,
-        distance: latestSnapshot.distance,
-        shielding: latestSnapshot.shielding,
-        fishing: latestSnapshot.fishing,
-      } : null,
+      currentSkills: skills,
       previousSkills: previousSnapshot ? {
         magicLevel: previousSnapshot.magicLevel,
         fist: previousSnapshot.fist,
@@ -227,7 +271,7 @@ export default function ProgressionClient() {
         distance: latestSnapshot.distance,
         shielding: latestSnapshot.shielding,
         fishing: latestSnapshot.fishing,
-      } : null,
+      } : (hsSkills ? { level: kpis.currentLevel, ...hsSkills } : null),
       bestDayLevels: bestDaySnapshot?.levelsGained || 0,
       bestWeekLevels: 0, // Approximation
     };
