@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { X, Home, Gavel, Store } from "lucide-react";
+import { X, Home, Gavel, Store, TrendingUp } from "lucide-react";
 import Link from "next/link";
 
 interface MobileNavProps {
@@ -61,6 +61,14 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
             >
               <Store className="h-5 w-5" />
               Market
+            </Link>
+            <Link
+              href="/progression"
+              onClick={onClose}
+              className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-accent"
+            >
+              <TrendingUp className="h-5 w-5" />
+              Progression
             </Link>
           </nav>
         </div>

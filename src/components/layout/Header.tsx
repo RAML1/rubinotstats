@@ -38,6 +38,12 @@ export function Header() {
           >
             Market
           </Link>
+          <Link
+            href="/progression"
+            className="text-sm font-medium transition-colors hover:text-primary"
+          >
+            Progression
+          </Link>
         </nav>
 
         {/* Search Bar - Hidden on mobile */}
