@@ -52,6 +52,7 @@ interface APIResponse {
     highscores: any[];
     vocationAverages: {
       vocation: string;
+      levelRange?: string;
       avgLevel: number | null;
       avgMagicLevel: number | null;
       avgFist: number | null;
@@ -416,18 +417,23 @@ export default function ProgressionClient() {
           {/* EXP Chart */}
           <ExpChart snapshots={data.snapshots} />
 
-          {/* Skill Grid + Skill Distribution */}
-          <div className="grid gap-4 lg:grid-cols-3">
-            <div className="lg:col-span-2">
-              <SkillGrid
-                currentSkills={computed.currentSkills}
-                previousSkills={computed.previousSkills}
-              />
-            </div>
-            <div>
-              <SkillDistribution snapshots={data.snapshots} />
-            </div>
+          {/* Skill Grid + Vocation Comparison */}
+          <div className="grid gap-4 lg:grid-cols-2">
+            <SkillGrid
+              vocation={data.character.vocation || 'None'}
+              currentSkills={computed.currentSkills}
+              previousSkills={computed.previousSkills}
+            />
+            <VocationComparison
+              characterName={data.character.name}
+              vocation={data.character.vocation || 'None'}
+              currentStats={computed.currentStats}
+              vocationAverages={data.vocationAverages}
+            />
           </div>
+
+          {/* Skill Distribution */}
+          <SkillDistribution snapshots={data.snapshots} />
 
           {/* Training Heatmap */}
           <TrainingHeatmap snapshots={data.snapshots} />
@@ -455,23 +461,15 @@ export default function ProgressionClient() {
             />
           </div>
 
-          {/* Milestones Feed + Vocation Comparison */}
-          <div className="grid gap-4 lg:grid-cols-2">
-            <MilestonesFeed
-              milestones={data.milestones.map((m, i) => ({
-                type: m.type,
-                title: m.description,
-                description: m.skill ? `${m.skill} reached ${m.value}` : `Milestone: ${m.value}`,
-                date: m.date,
-              }))}
-            />
-            <VocationComparison
-              characterName={data.character.name}
-              vocation={data.character.vocation || 'None'}
-              currentStats={computed.currentStats}
-              vocationAverages={data.vocationAverages}
-            />
-          </div>
+          {/* Milestones Feed */}
+          <MilestonesFeed
+            milestones={data.milestones.map((m, i) => ({
+              type: m.type,
+              title: m.description,
+              description: m.skill ? `${m.skill} reached ${m.value}` : `Milestone: ${m.value}`,
+              date: m.date,
+            }))}
+          />
         </>
       )}
 

@@ -2,9 +2,10 @@
 
 import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Wand2, Swords, Target, Shield, Fish } from 'lucide-react';
+import { Wand2, Swords, Target, Shield } from 'lucide-react';
 
 interface SkillGridProps {
+  vocation: string;
   currentSkills: {
     magicLevel: number | null;
     fist: number | null;
@@ -33,98 +34,55 @@ interface SkillCardData {
   current: number | null;
   previous: number | null;
   icon: React.ReactNode;
-  maxLevel: number;
   color: string;
   badgeColor: string;
 }
 
-export default function SkillGrid({ currentSkills, previousSkills }: SkillGridProps) {
+const ALL_SKILLS: Omit<SkillCardData, 'current' | 'previous'>[] = [
+  { key: 'magicLevel', name: 'Magic Level', icon: <Wand2 className="w-5 h-5" />, color: 'bg-purple-500', badgeColor: 'bg-purple-600' },
+  { key: 'fist', name: 'Fist', icon: <Swords className="w-5 h-5" />, color: 'bg-orange-500', badgeColor: 'bg-orange-600' },
+  { key: 'club', name: 'Club', icon: <Swords className="w-5 h-5" />, color: 'bg-orange-500', badgeColor: 'bg-orange-600' },
+  { key: 'sword', name: 'Sword', icon: <Swords className="w-5 h-5" />, color: 'bg-orange-500', badgeColor: 'bg-orange-600' },
+  { key: 'axe', name: 'Axe', icon: <Swords className="w-5 h-5" />, color: 'bg-orange-500', badgeColor: 'bg-orange-600' },
+  { key: 'distance', name: 'Distance', icon: <Target className="w-5 h-5" />, color: 'bg-amber-500', badgeColor: 'bg-amber-600' },
+  { key: 'shielding', name: 'Shielding', icon: <Shield className="w-5 h-5" />, color: 'bg-blue-500', badgeColor: 'bg-blue-600' },
+];
+
+function getRelevantSkillKeys(vocation: string): string[] {
+  const voc = vocation.toLowerCase();
+  if (voc.includes('knight') || voc.includes('ek')) {
+    return ['shielding', 'sword', 'axe', 'club', 'magicLevel'];
+  }
+  if (voc.includes('druid') || voc.includes('ed')) {
+    return ['magicLevel'];
+  }
+  if (voc.includes('sorcerer') || voc.includes('ms')) {
+    return ['magicLevel'];
+  }
+  if (voc.includes('paladin') || voc.includes('rp')) {
+    return ['distance', 'magicLevel'];
+  }
+  if (voc.includes('monk')) {
+    return ['fist', 'magicLevel'];
+  }
+  // Unknown vocation — show all
+  return ALL_SKILLS.map((s) => s.key);
+}
+
+export default function SkillGrid({ vocation, currentSkills, previousSkills }: SkillGridProps) {
   const skills = useMemo((): SkillCardData[] => {
     if (!currentSkills) return [];
 
-    return [
-      {
-        key: 'magicLevel',
-        name: 'Magic Level',
-        current: currentSkills.magicLevel,
-        previous: previousSkills?.magicLevel ?? null,
-        icon: <Wand2 className="w-5 h-5" />,
-        maxLevel: 50,
-        color: 'bg-purple-500',
-        badgeColor: 'bg-purple-600',
-      },
-      {
-        key: 'fist',
-        name: 'Fist',
-        current: currentSkills.fist,
-        previous: previousSkills?.fist ?? null,
-        icon: <Swords className="w-5 h-5" />,
-        maxLevel: 150,
-        color: 'bg-orange-500',
-        badgeColor: 'bg-orange-600',
-      },
-      {
-        key: 'club',
-        name: 'Club',
-        current: currentSkills.club,
-        previous: previousSkills?.club ?? null,
-        icon: <Swords className="w-5 h-5" />,
-        maxLevel: 150,
-        color: 'bg-orange-500',
-        badgeColor: 'bg-orange-600',
-      },
-      {
-        key: 'sword',
-        name: 'Sword',
-        current: currentSkills.sword,
-        previous: previousSkills?.sword ?? null,
-        icon: <Swords className="w-5 h-5" />,
-        maxLevel: 150,
-        color: 'bg-orange-500',
-        badgeColor: 'bg-orange-600',
-      },
-      {
-        key: 'axe',
-        name: 'Axe',
-        current: currentSkills.axe,
-        previous: previousSkills?.axe ?? null,
-        icon: <Swords className="w-5 h-5" />,
-        maxLevel: 150,
-        color: 'bg-orange-500',
-        badgeColor: 'bg-orange-600',
-      },
-      {
-        key: 'distance',
-        name: 'Distance',
-        current: currentSkills.distance,
-        previous: previousSkills?.distance ?? null,
-        icon: <Target className="w-5 h-5" />,
-        maxLevel: 150,
-        color: 'bg-amber-500',
-        badgeColor: 'bg-amber-600',
-      },
-      {
-        key: 'shielding',
-        name: 'Shielding',
-        current: currentSkills.shielding,
-        previous: previousSkills?.shielding ?? null,
-        icon: <Shield className="w-5 h-5" />,
-        maxLevel: 150,
-        color: 'bg-blue-500',
-        badgeColor: 'bg-blue-600',
-      },
-      {
-        key: 'fishing',
-        name: 'Fishing',
-        current: currentSkills.fishing,
-        previous: previousSkills?.fishing ?? null,
-        icon: <Fish className="w-5 h-5" />,
-        maxLevel: 30,
-        color: 'bg-cyan-500',
-        badgeColor: 'bg-cyan-600',
-      },
-    ];
-  }, [currentSkills, previousSkills]);
+    const relevantKeys = getRelevantSkillKeys(vocation);
+
+    return ALL_SKILLS
+      .filter((s) => relevantKeys.includes(s.key))
+      .map((s) => ({
+        ...s,
+        current: currentSkills[s.key as keyof typeof currentSkills],
+        previous: previousSkills?.[s.key as keyof typeof previousSkills] ?? null,
+      }));
+  }, [currentSkills, previousSkills, vocation]);
 
   const getStatusBadgeColor = (current: number | null, previous: number | null) => {
     if (current === null) return 'bg-gray-600';
@@ -166,16 +124,13 @@ export default function SkillGrid({ currentSkills, previousSkills }: SkillGridPr
           {skills.map((skill) => {
             const change = getChange(skill.current, skill.previous);
             const badgeColor = getStatusBadgeColor(skill.current, skill.previous);
-            const progressPercent = skill.current
-              ? Math.min((skill.current / skill.maxLevel) * 100, 100)
-              : 0;
 
             return (
               <div
                 key={skill.key}
                 className="rounded-lg border border-border/30 bg-secondary/30 p-4 hover:bg-secondary/50 transition-colors"
               >
-                <div className="flex items-center gap-3 mb-3">
+                <div className="flex items-center gap-3">
                   <div className={`${badgeColor} rounded-lg p-2 text-white font-bold text-lg w-14 h-14 flex items-center justify-center`}>
                     {skill.current ?? '-'}
                   </div>
@@ -189,21 +144,6 @@ export default function SkillGrid({ currentSkills, previousSkills }: SkillGridPr
                         {change > 0 ? '+' : ''}{change}
                       </div>
                     )}
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center text-xs text-muted-foreground">
-                    <span>Progress</span>
-                    <span className="text-foreground font-medium">
-                      {skill.current ?? 0} / {skill.maxLevel}
-                    </span>
-                  </div>
-                  <div className="w-full h-2 bg-secondary/50 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full ${skill.color} transition-all duration-300`}
-                      style={{ width: `${progressPercent}%` }}
-                    />
                   </div>
                 </div>
               </div>

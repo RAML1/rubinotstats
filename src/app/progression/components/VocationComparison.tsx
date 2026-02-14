@@ -20,6 +20,7 @@ interface VocationComparisonProps {
     fishing: number | null;
   } | null;
   vocationAverages: {
+    levelRange?: string;
     avgLevel: number | null;
     avgMagicLevel: number | null;
     avgFist: number | null;
@@ -46,44 +47,40 @@ function getVocationColor(vocation: string): string {
   if (vocLower.includes('druid') || vocLower.includes('ed')) {
     return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
   }
+  if (vocLower.includes('monk')) {
+    return 'bg-orange-500/20 text-orange-400 border-orange-500/30';
+  }
   return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
 }
 
 function getVocationBarColor(vocation: string): string {
   const vocLower = vocation.toLowerCase();
-  if (vocLower.includes('knight') || vocLower.includes('ek')) {
-    return 'bg-red-500';
-  }
-  if (vocLower.includes('paladin') || vocLower.includes('rp')) {
-    return 'bg-amber-500';
-  }
-  if (vocLower.includes('sorcerer') || vocLower.includes('ms')) {
-    return 'bg-violet-500';
-  }
-  if (vocLower.includes('druid') || vocLower.includes('ed')) {
-    return 'bg-emerald-500';
-  }
+  if (vocLower.includes('knight') || vocLower.includes('ek')) return 'bg-red-500';
+  if (vocLower.includes('paladin') || vocLower.includes('rp')) return 'bg-amber-500';
+  if (vocLower.includes('sorcerer') || vocLower.includes('ms')) return 'bg-violet-500';
+  if (vocLower.includes('druid') || vocLower.includes('ed')) return 'bg-emerald-500';
+  if (vocLower.includes('monk')) return 'bg-orange-500';
   return 'bg-gray-500';
 }
 
-function getRelevantStats(vocation: string) {
+function getRelevantStats(vocation: string): string[] {
   const vocLower = vocation.toLowerCase();
-  const baseStats = ['level', 'magicLevel', 'shielding'];
-
   if (vocLower.includes('knight') || vocLower.includes('ek')) {
-    return [...baseStats, 'sword', 'club', 'axe'];
-  }
-  if (vocLower.includes('paladin') || vocLower.includes('rp')) {
-    return [...baseStats, 'distance'];
-  }
-  if (vocLower.includes('sorcerer') || vocLower.includes('ms')) {
-    return ['level', 'magicLevel', 'distance'];
+    return ['shielding', 'sword', 'axe', 'club', 'magicLevel'];
   }
   if (vocLower.includes('druid') || vocLower.includes('ed')) {
-    return ['level', 'magicLevel', 'distance'];
+    return ['magicLevel'];
   }
-
-  return baseStats;
+  if (vocLower.includes('sorcerer') || vocLower.includes('ms')) {
+    return ['magicLevel'];
+  }
+  if (vocLower.includes('paladin') || vocLower.includes('rp')) {
+    return ['distance', 'magicLevel'];
+  }
+  if (vocLower.includes('monk')) {
+    return ['fist', 'magicLevel'];
+  }
+  return ['magicLevel', 'shielding'];
 }
 
 function StatLabel(stat: string): string {
@@ -96,7 +93,6 @@ function StatLabel(stat: string): string {
     axe: 'Axe',
     distance: 'Distance',
     shielding: 'Shielding',
-    fishing: 'Fishing',
   };
   return labels[stat] || stat;
 }
@@ -131,16 +127,16 @@ export function VocationComparison({
           `avg${stat.charAt(0).toUpperCase()}${stat.slice(1)}` as keyof typeof vocationAverages
         ];
 
-      if (characterValue !== null && averageValue !== null) {
+      if (characterValue !== null && averageValue !== null && typeof averageValue === 'number') {
         comps.push({
           stat,
-          characterValue,
+          characterValue: characterValue as number,
           averageValue,
         });
 
-        if (characterValue > averageValue) {
+        if ((characterValue as number) > averageValue) {
           above++;
-        } else if (characterValue < averageValue) {
+        } else if ((characterValue as number) < averageValue) {
           below++;
         }
       }
@@ -152,6 +148,7 @@ export function VocationComparison({
   const hasData = comparisons.length > 0;
   const vocBarColor = getVocationBarColor(vocation);
   const vocBadgeColor = getVocationColor(vocation);
+  const levelRange = vocationAverages?.levelRange;
 
   return (
     <Card className="border-border/50 bg-card/50 backdrop-blur">
@@ -167,9 +164,14 @@ export function VocationComparison({
           </div>
         ) : (
           <>
-            {/* Vocation Badge */}
-            <div className="flex items-center gap-2">
+            {/* Vocation Badge + Level Range */}
+            <div className="flex items-center gap-2 flex-wrap">
               <Badge className={`${vocBadgeColor} border`}>{vocation}</Badge>
+              {levelRange && (
+                <span className="text-xs text-muted-foreground">
+                  vs avg of levels {levelRange}
+                </span>
+              )}
             </div>
 
             {/* Stats Comparison */}
@@ -207,7 +209,7 @@ export function VocationComparison({
                           style={{ width: `${averagePercent}%` }}
                         >
                           <span className="text-xs text-muted-foreground whitespace-nowrap">
-                            Avg: {averageValue}
+                            Avg: {Math.round(averageValue)}
                           </span>
                         </div>
                       </div>

@@ -418,13 +418,25 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // 4. Get vocation averages from auctions
+    // 4. Get vocation averages by level range (+/- 10 levels) across all worlds
     let vocationAverages = null;
     if (char.vocation) {
+      // Determine character level from latest snapshot or highscores
+      let charLevel = 0;
+      if (snapshots.length > 0) {
+        charLevel = (snapshots[snapshots.length - 1] as any).level || 0;
+      } else if (highscores.length > 0) {
+        charLevel = Math.max(...highscores.map((h: any) => h.level || 0));
+      }
+
+      const levelMin = Math.max(1, charLevel - 10);
+      const levelMax = charLevel + 10;
+
       const auctionStats = await prisma.auction.groupBy({
         by: ['vocation'],
         where: {
           vocation: char.vocation,
+          level: { gte: levelMin, lte: levelMax },
         },
         _avg: {
           level: true,
@@ -436,13 +448,13 @@ export async function GET(request: NextRequest) {
           distance: true,
           shielding: true,
           fishing: true,
-          soldPrice: true,
         },
       });
 
       if (auctionStats.length > 0) {
         vocationAverages = {
           vocation: char.vocation,
+          levelRange: `${levelMin}-${levelMax}`,
           avgLevel: auctionStats[0]._avg.level,
           avgMagicLevel: auctionStats[0]._avg.magicLevel,
           avgFist: auctionStats[0]._avg.fist,
@@ -452,7 +464,6 @@ export async function GET(request: NextRequest) {
           avgDistance: auctionStats[0]._avg.distance,
           avgShielding: auctionStats[0]._avg.shielding,
           avgFishing: auctionStats[0]._avg.fishing,
-          avgSoldPrice: auctionStats[0]._avg.soldPrice,
         };
       }
     }
