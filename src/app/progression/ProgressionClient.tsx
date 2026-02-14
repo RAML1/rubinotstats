@@ -5,17 +5,14 @@ import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { TrendingUp, TrendingDown, Minus, Search, Trophy, Zap, Swords, Medal } from 'lucide-react';
-import { formatNumber, formatExp } from '@/lib/utils/formatters';
+import { TrendingUp, TrendingDown, Minus, Search, Trophy, Zap, Calendar, Star } from 'lucide-react';
+import { formatExp } from '@/lib/utils/formatters';
 import { trackSearch } from '@/components/analytics/AnalyticsTracker';
+import { format } from 'date-fns';
 import ExpChart from './components/ExpChart';
-import SkillGrid from './components/SkillGrid';
 import TrainingHeatmap from './components/TrainingHeatmap';
-import BestRecords from './components/BestRecords';
 import MilestonesFeed from './components/MilestonesFeed';
 import { SessionCalculator } from './components/SessionCalculator';
-import { VocationComparison } from './components/VocationComparison';
-import SkillDistribution from './components/SkillDistribution';
 
 interface SearchResult {
   name: string;
@@ -87,42 +84,17 @@ interface APIResponse {
   };
 }
 
-// Map highscore categories to skill field names
-const HIGHSCORE_TO_SKILL: Record<string, string> = {
-  'Magic Level': 'magicLevel',
-  'Fist Fighting': 'fist',
-  'Club Fighting': 'club',
-  'Sword Fighting': 'sword',
-  'Axe Fighting': 'axe',
-  'Distance Fighting': 'distance',
-  'Shielding': 'shielding',
-  'Fishing': 'fishing',
+// Map skill field names to human-readable labels
+const SKILL_LABELS: Record<string, string> = {
+  magicLevel: 'ML',
+  fist: 'Fist',
+  club: 'Club',
+  sword: 'Sword',
+  axe: 'Axe',
+  distance: 'Dist',
+  shielding: 'Shield',
+  fishing: 'Fish',
 };
-
-interface SkillValues {
-  magicLevel: number | null;
-  fist: number | null;
-  club: number | null;
-  sword: number | null;
-  axe: number | null;
-  distance: number | null;
-  shielding: number | null;
-  fishing: number | null;
-}
-
-function deriveSkillsFromHighscores(highscores: any[]): SkillValues {
-  const skills: SkillValues = {
-    magicLevel: null, fist: null, club: null, sword: null,
-    axe: null, distance: null, shielding: null, fishing: null,
-  };
-  for (const entry of highscores) {
-    const field = HIGHSCORE_TO_SKILL[entry.category] as keyof SkillValues | undefined;
-    if (field) {
-      skills[field] = Number(entry.score) || null;
-    }
-  }
-  return skills;
-}
 
 export default function ProgressionClient() {
   const searchParams = useSearchParams();
@@ -176,6 +148,11 @@ export default function ProgressionClient() {
       return;
     }
 
+    // Don't re-search when query matches the already-selected character
+    if (selectedCharacter && searchQuery.toLowerCase() === selectedCharacter.toLowerCase()) {
+      return;
+    }
+
     if (searchTimeout.current) {
       clearTimeout(searchTimeout.current);
     }
@@ -201,7 +178,7 @@ export default function ProgressionClient() {
         clearTimeout(searchTimeout.current);
       }
     };
-  }, [searchQuery]);
+  }, [searchQuery, selectedCharacter]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -220,17 +197,14 @@ export default function ProgressionClient() {
     if (!data) return null;
 
     const { kpis, snapshots } = data;
-    const latestSnapshot = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null;
-    const previousSnapshot = snapshots.length > 1 ? snapshots[snapshots.length - 2] : null;
-
     // EXP change percent
     const expChangePercent = kpis.expGainedLastMonth > 0
       ? ((kpis.expGainedThisMonth - kpis.expGainedLastMonth) / kpis.expGainedLastMonth) * 100
       : 0;
 
-    // Level change direction
-    const levelsDir = kpis.levelsGainedThisMonth > kpis.levelsGainedLastMonth ? 'up' as const
-      : kpis.levelsGainedThisMonth < kpis.levelsGainedLastMonth ? 'down' as const
+    // Level change direction — positive gains = green
+    const levelsDir = kpis.levelsGainedThisMonth > 0 ? 'up' as const
+      : kpis.levelsGainedThisMonth < 0 ? 'down' as const
       : 'neutral' as const;
 
     // Avg daily/weekly exp
@@ -238,55 +212,11 @@ export default function ProgressionClient() {
     const avgDailyExp = snapshots.length > 0 ? totalExp / snapshots.length : 0;
     const avgWeeklyExp = avgDailyExp * 7;
 
-    // Best day with levels
-    const bestDaySnapshot = snapshots.reduce((best, s) =>
-      (s.expGained || 0) > (best?.expGained || 0) ? s : best, snapshots[0]);
-
-    // Derive skills from highscore entries when no snapshots exist
-    const hsSkills = !latestSnapshot && data.highscores.length > 0
-      ? deriveSkillsFromHighscores(data.highscores)
-      : null;
-
-    const skills = latestSnapshot ? {
-      magicLevel: latestSnapshot.magicLevel,
-      fist: latestSnapshot.fist,
-      club: latestSnapshot.club,
-      sword: latestSnapshot.sword,
-      axe: latestSnapshot.axe,
-      distance: latestSnapshot.distance,
-      shielding: latestSnapshot.shielding,
-      fishing: latestSnapshot.fishing,
-    } : hsSkills;
-
     return {
       expChangePercent,
       levelsDir,
       avgDailyExp,
       avgWeeklyExp,
-      currentSkills: skills,
-      previousSkills: previousSnapshot ? {
-        magicLevel: previousSnapshot.magicLevel,
-        fist: previousSnapshot.fist,
-        club: previousSnapshot.club,
-        sword: previousSnapshot.sword,
-        axe: previousSnapshot.axe,
-        distance: previousSnapshot.distance,
-        shielding: previousSnapshot.shielding,
-        fishing: previousSnapshot.fishing,
-      } : null,
-      currentStats: latestSnapshot ? {
-        level: latestSnapshot.level,
-        magicLevel: latestSnapshot.magicLevel,
-        fist: latestSnapshot.fist,
-        club: latestSnapshot.club,
-        sword: latestSnapshot.sword,
-        axe: latestSnapshot.axe,
-        distance: latestSnapshot.distance,
-        shielding: latestSnapshot.shielding,
-        fishing: latestSnapshot.fishing,
-      } : (hsSkills ? { level: kpis.currentLevel, ...hsSkills } : null),
-      bestDayLevels: bestDaySnapshot?.levelsGained || 0,
-      bestWeekLevels: 0, // Approximation
     };
   }, [data]);
 
@@ -397,84 +327,45 @@ export default function ProgressionClient() {
             <Card className="border-border/50 bg-card/50 backdrop-blur">
               <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                  <Swords size={16} className="text-primary" />
-                  Skills Upgraded
+                  <Star size={16} className="text-primary" />
+                  Best Day EXP
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold">{data.kpis.skillChangesThisMonth.length}</div>
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {data.kpis.skillChangesThisMonth.slice(0, 3).map((s) => (
-                    <Badge key={s.skill} variant="secondary" className="text-xs bg-accent/30 border-border/50">
-                      {s.skill} +{s.change}
-                    </Badge>
-                  ))}
-                  {data.kpis.skillChangesThisMonth.length > 3 && (
-                    <Badge variant="secondary" className="text-xs bg-accent/30 border-border/50">
-                      +{data.kpis.skillChangesThisMonth.length - 3} more
-                    </Badge>
-                  )}
+                <div className="text-3xl font-bold">
+                  {data.kpis.bestDayEver.expGained > 0 ? formatExp(data.kpis.bestDayEver.expGained) : '—'}
                 </div>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {data.kpis.bestDayEver.date
+                    ? format(new Date(data.kpis.bestDayEver.date), 'MMM d, yyyy')
+                    : 'No data yet'}
+                </p>
               </CardContent>
             </Card>
 
             <Card className="border-border/50 bg-card/50 backdrop-blur">
               <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                  <Medal size={16} className="text-primary" />
-                  Server Rank
+                  <Calendar size={16} className="text-primary" />
+                  Best Week EXP
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold">
-                  {data.kpis.currentExpRank ? `#${data.kpis.currentExpRank}` : '—'}
+                  {data.kpis.bestWeekEver.expGained > 0 ? formatExp(data.kpis.bestWeekEver.expGained) : '—'}
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {data.kpis.currentMlRank ? `ML Rank: #${data.kpis.currentMlRank}` : 'Experience ranking'}
+                  {data.kpis.bestWeekEver.startDate
+                    ? `${format(new Date(data.kpis.bestWeekEver.startDate), 'MMM d')} – ${format(new Date(data.kpis.bestWeekEver.endDate!), 'MMM d, yyyy')}`
+                    : 'No data yet'}
                 </p>
               </CardContent>
             </Card>
           </div>
 
-          {/* EXP Chart */}
-          <ExpChart snapshots={data.snapshots} />
-
-          {/* Skill Grid + Vocation Comparison */}
-          <div className="grid gap-4 lg:grid-cols-2">
-            <SkillGrid
-              vocation={data.character.vocation || 'None'}
-              currentSkills={computed.currentSkills}
-              previousSkills={computed.previousSkills}
-            />
-            <VocationComparison
-              characterName={data.character.name}
-              vocation={data.character.vocation || 'None'}
-              currentStats={computed.currentStats}
-              vocationAverages={data.vocationAverages}
-            />
-          </div>
-
-          {/* Skill Distribution */}
-          <SkillDistribution snapshots={data.snapshots} />
-
-          {/* Training Heatmap */}
-          <TrainingHeatmap snapshots={data.snapshots} />
-
-          {/* Best Records + Session Calculator */}
-          <div className="grid gap-4 lg:grid-cols-2">
-            <BestRecords
-              bestDay={data.kpis.bestDayEver.date ? {
-                date: data.kpis.bestDayEver.date,
-                expGained: data.kpis.bestDayEver.expGained,
-                levelsGained: computed.bestDayLevels,
-              } : null}
-              bestWeek={data.kpis.bestWeekEver.startDate ? {
-                startDate: data.kpis.bestWeekEver.startDate,
-                endDate: data.kpis.bestWeekEver.endDate!,
-                expGained: data.kpis.bestWeekEver.expGained,
-                levelsGained: computed.bestWeekLevels,
-              } : null}
-            />
+          {/* EXP Chart + Pace Calculator */}
+          <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
+            <ExpChart snapshots={data.snapshots} />
             <SessionCalculator
               currentLevel={data.kpis.currentLevel}
               currentExp={data.snapshots.length > 0 ? data.snapshots[data.snapshots.length - 1].experience : null}
@@ -483,15 +374,66 @@ export default function ProgressionClient() {
             />
           </div>
 
-          {/* Milestones Feed */}
-          <MilestonesFeed
-            milestones={data.milestones.map((m, i) => ({
-              type: m.type,
-              title: m.description,
-              description: m.skill ? `${m.skill} reached ${m.value}` : `Milestone: ${m.value}`,
-              date: m.date,
-            }))}
-          />
+          {/* EXP Heatmap */}
+          <TrainingHeatmap snapshots={data.snapshots} />
+
+          {/* Server Rankings + Milestones */}
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card className="border-border/50 bg-card/50 backdrop-blur">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Trophy size={20} className="text-amber-400" />
+                  Server Rankings
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {data.kpis.currentExpRank ? (
+                  <div className="flex items-center justify-between bg-background/50 rounded-lg p-4">
+                    <div>
+                      <div className="text-sm text-muted-foreground">EXP Rank</div>
+                      <div className="text-2xl font-bold">#{data.kpis.currentExpRank}</div>
+                    </div>
+                    <Badge variant="secondary" className="text-xs">
+                      among {data.character.vocation || 'all'} players
+                    </Badge>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No ranking data available</p>
+                )}
+                {data.kpis.currentMlRank && (
+                  <div className="flex items-center justify-between bg-background/50 rounded-lg p-4">
+                    <div>
+                      <div className="text-sm text-muted-foreground">Magic Level Rank</div>
+                      <div className="text-2xl font-bold">#{data.kpis.currentMlRank}</div>
+                    </div>
+                    <Badge variant="secondary" className="text-xs">
+                      among {data.character.vocation || 'all'} players
+                    </Badge>
+                  </div>
+                )}
+                {data.kpis.skillChangesThisMonth.length > 0 && (
+                  <div className="border-t border-border/30 pt-4">
+                    <div className="text-sm font-medium mb-2">Skills Upgraded This Month</div>
+                    <div className="flex flex-wrap gap-1">
+                      {data.kpis.skillChangesThisMonth.map((s) => (
+                        <Badge key={s.skill} variant="secondary" className="text-xs bg-accent/30 border-border/50">
+                          {SKILL_LABELS[s.skill] || s.skill} +{s.change}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+            <MilestonesFeed
+              milestones={data.milestones.map((m) => ({
+                type: m.type,
+                title: m.description,
+                description: m.skill ? `${m.skill} reached ${m.value}` : `Milestone: ${m.value}`,
+                date: m.date,
+              }))}
+            />
+          </div>
         </>
       )}
 

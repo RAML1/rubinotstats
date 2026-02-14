@@ -9,6 +9,11 @@ function serializeBigInt<T>(obj: T): T {
     return Number(obj) as T;
   }
 
+  // Preserve Date objects (they are typeof 'object' but should not be iterated)
+  if (obj instanceof Date) {
+    return obj as T;
+  }
+
   if (Array.isArray(obj)) {
     return obj.map(serializeBigInt) as T;
   }
@@ -171,6 +176,18 @@ function calculateKPIs(snapshots: any[]) {
   };
 }
 
+// Human-readable skill labels
+const SKILL_LABELS: Record<string, string> = {
+  magicLevel: 'Magic Level',
+  fist: 'Fist Fighting',
+  club: 'Club Fighting',
+  sword: 'Sword Fighting',
+  axe: 'Axe Fighting',
+  distance: 'Distance Fighting',
+  shielding: 'Shielding',
+  fishing: 'Fishing',
+};
+
 // Derive milestones from snapshots
 function deriveMilestones(snapshots: any[]) {
   const milestones: any[] = [];
@@ -216,12 +233,13 @@ function deriveMilestones(snapshots: any[]) {
         for (const milestoneValue of skillMilestoneValues) {
           if (currentValue >= milestoneValue && previousValue < milestoneValue) {
             if (!recordedSkillMilestones.get(skill)?.has(milestoneValue)) {
+              const skillLabel = SKILL_LABELS[skill] || skill;
               milestones.push({
                 type: 'skill',
-                skill,
+                skill: skillLabel,
                 value: milestoneValue,
                 date: snapshot.capturedDate,
-                description: `${skill} reached ${milestoneValue}`,
+                description: `${skillLabel} reached ${milestoneValue}`,
               });
               recordedSkillMilestones.get(skill)?.add(milestoneValue);
             }

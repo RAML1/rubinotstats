@@ -50,22 +50,11 @@ const ALL_SKILLS: Omit<SkillCardData, 'current' | 'previous'>[] = [
 
 function getRelevantSkillKeys(vocation: string): string[] {
   const voc = vocation.toLowerCase();
-  if (voc.includes('knight') || voc.includes('ek')) {
-    return ['shielding', 'sword', 'axe', 'club', 'magicLevel'];
-  }
-  if (voc.includes('druid') || voc.includes('ed')) {
-    return ['magicLevel'];
-  }
-  if (voc.includes('sorcerer') || voc.includes('ms')) {
-    return ['magicLevel'];
-  }
-  if (voc.includes('paladin') || voc.includes('rp')) {
-    return ['distance', 'magicLevel'];
-  }
-  if (voc.includes('monk')) {
-    return ['fist', 'magicLevel'];
-  }
-  // Unknown vocation — show all
+  if (voc.includes('monk')) return ['fist', 'magicLevel'];
+  if (voc.includes('knight')) return ['shielding', 'sword', 'axe', 'club', 'magicLevel'];
+  if (voc.includes('paladin')) return ['distance', 'magicLevel'];
+  if (voc.includes('druid')) return ['magicLevel'];
+  if (voc.includes('sorcerer')) return ['magicLevel'];
   return ALL_SKILLS.map((s) => s.key);
 }
 

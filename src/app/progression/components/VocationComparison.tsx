@@ -35,51 +35,31 @@ interface VocationComparisonProps {
 
 function getVocationColor(vocation: string): string {
   const vocLower = vocation.toLowerCase();
-  if (vocLower.includes('knight') || vocLower.includes('ek')) {
-    return 'bg-red-500/20 text-red-400 border-red-500/30';
-  }
-  if (vocLower.includes('paladin') || vocLower.includes('rp')) {
-    return 'bg-amber-500/20 text-amber-400 border-amber-500/30';
-  }
-  if (vocLower.includes('sorcerer') || vocLower.includes('ms')) {
-    return 'bg-violet-500/20 text-violet-400 border-violet-500/30';
-  }
-  if (vocLower.includes('druid') || vocLower.includes('ed')) {
-    return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
-  }
-  if (vocLower.includes('monk')) {
-    return 'bg-orange-500/20 text-orange-400 border-orange-500/30';
-  }
+  if (vocLower.includes('monk')) return 'bg-orange-500/20 text-orange-400 border-orange-500/30';
+  if (vocLower.includes('knight')) return 'bg-red-500/20 text-red-400 border-red-500/30';
+  if (vocLower.includes('paladin')) return 'bg-amber-500/20 text-amber-400 border-amber-500/30';
+  if (vocLower.includes('sorcerer')) return 'bg-violet-500/20 text-violet-400 border-violet-500/30';
+  if (vocLower.includes('druid')) return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
   return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
 }
 
 function getVocationBarColor(vocation: string): string {
   const vocLower = vocation.toLowerCase();
-  if (vocLower.includes('knight') || vocLower.includes('ek')) return 'bg-red-500';
-  if (vocLower.includes('paladin') || vocLower.includes('rp')) return 'bg-amber-500';
-  if (vocLower.includes('sorcerer') || vocLower.includes('ms')) return 'bg-violet-500';
-  if (vocLower.includes('druid') || vocLower.includes('ed')) return 'bg-emerald-500';
   if (vocLower.includes('monk')) return 'bg-orange-500';
+  if (vocLower.includes('knight')) return 'bg-red-500';
+  if (vocLower.includes('paladin')) return 'bg-amber-500';
+  if (vocLower.includes('sorcerer')) return 'bg-violet-500';
+  if (vocLower.includes('druid')) return 'bg-emerald-500';
   return 'bg-gray-500';
 }
 
 function getRelevantStats(vocation: string): string[] {
   const vocLower = vocation.toLowerCase();
-  if (vocLower.includes('knight') || vocLower.includes('ek')) {
-    return ['shielding', 'sword', 'axe', 'club', 'magicLevel'];
-  }
-  if (vocLower.includes('druid') || vocLower.includes('ed')) {
-    return ['magicLevel'];
-  }
-  if (vocLower.includes('sorcerer') || vocLower.includes('ms')) {
-    return ['magicLevel'];
-  }
-  if (vocLower.includes('paladin') || vocLower.includes('rp')) {
-    return ['distance', 'magicLevel'];
-  }
-  if (vocLower.includes('monk')) {
-    return ['fist', 'magicLevel'];
-  }
+  if (vocLower.includes('monk')) return ['fist', 'magicLevel'];
+  if (vocLower.includes('knight')) return ['shielding', 'sword', 'axe', 'club', 'magicLevel'];
+  if (vocLower.includes('paladin')) return ['distance', 'magicLevel'];
+  if (vocLower.includes('druid')) return ['magicLevel'];
+  if (vocLower.includes('sorcerer')) return ['magicLevel'];
   return ['magicLevel', 'shielding'];
 }
 
