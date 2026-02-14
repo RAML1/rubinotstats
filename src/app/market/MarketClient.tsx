@@ -360,13 +360,19 @@ export default function MarketClient() {
                         <div
                           key={key}
                           className={`flex items-center justify-between text-sm rounded px-2 py-0.5 ${
-                            isPrimary ? 'bg-primary/10' : ''
+                            isPrimary
+                              ? 'border-l-2 bg-primary/10 pl-2'
+                              : 'opacity-50'
                           }`}
+                          style={isPrimary ? { borderLeftColor: vocColor } : undefined}
                         >
                           <span className={isPrimary ? 'text-foreground font-medium' : 'text-muted-foreground'}>
                             {label}
                           </span>
-                          <span className={isPrimary ? 'font-semibold' : 'text-muted-foreground'}>
+                          <span
+                            className={isPrimary ? 'font-bold' : 'text-muted-foreground'}
+                            style={isPrimary ? { color: vocColor } : undefined}
+                          >
                             {val !== null ? Math.round(val) : '—'}
                           </span>
                         </div>

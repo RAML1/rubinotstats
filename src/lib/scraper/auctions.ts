@@ -19,6 +19,7 @@ export interface ScrapedAuction {
   world: string | null;
   auctionStart: string | null;
   auctionEnd: string | null;
+  auctionStatus: string | null; // sold, cancelled, expired
   soldPrice: number | null;
   // Skills (all 8)
   magicLevel: number | null;
@@ -54,6 +55,7 @@ export interface ScrapedAuction {
   hirelings: number | null;
   hirelingJobs: number | null;
   // Items
+  hasLootPouch: boolean | null;
   storeItemsCount: number | null;
   // Other
   bossPoints: number | null;
@@ -62,6 +64,10 @@ export interface ScrapedAuction {
   gold: number | null;
   bestiary: number | null;
   dailyRewardStreak: number | null;
+  // Quest availability (true = quest NOT done, available for buyer)
+  primalOrdealAvailable: boolean | null;
+  soulWarAvailable: boolean | null;
+  sanguineBloodAvailable: boolean | null;
   // Calculated
   coinsPerLevel: number | null;
   url: string;
@@ -75,6 +81,17 @@ function parseNumber(s: string | undefined): number | null {
   return cleaned ? parseInt(cleaned, 10) : null;
 }
 
+/**
+ * Derive auction status from the bid label text.
+ * "Winning Bid" → sold, "Cancelled" → cancelled, anything else → expired (no bids / minimum bid)
+ */
+function parseBidStatus(bidLabel: string): string {
+  const lower = bidLabel.toLowerCase();
+  if (lower.includes('winning')) return 'sold';
+  if (lower.includes('cancel')) return 'cancelled';
+  return 'expired';
+}
+
 // ── List page parser ───────────────────────────────────────────────────
 
 interface ListAuction {
@@ -86,6 +103,7 @@ interface ListAuction {
   world: string | null;
   auctionStart: string | null;
   auctionEnd: string | null;
+  auctionStatus: string | null;
   soldPrice: number | null;
   charmPoints: number | null;
   unusedCharmPoints: number | null;
@@ -96,7 +114,7 @@ interface ListAuction {
 }
 
 /**
- * Parse auction history list page. Only returns sold auctions (Winning Bid).
+ * Parse auction history list page. Returns all auctions with status.
  */
 function parseAuctionListPage(html: string): ListAuction[] {
   const $ = cheerio.load(html);
@@ -107,13 +125,13 @@ function parseAuctionListPage(html: string): ListAuction[] {
 
     const bidRow = auction.find('.ShortAuctionDataBidRow');
     const bidLabel = bidRow.find('.ShortAuctionDataLabel').text().trim();
-    if (!bidLabel.toLowerCase().includes('winning')) return;
 
     const detailLink = auction.find('.AuctionCharacterName a').attr('href') || '';
     const idMatch = detailLink.match(/currentcharactertrades\/(\d+)/);
     const externalId = idMatch ? idMatch[1] : '';
     if (!externalId) return;
 
+    const auctionStatus = parseBidStatus(bidLabel);
     const characterName = auction.find('.AuctionCharacterName a').text().trim();
 
     const headerText = auction.find('.AuctionHeader').text();
@@ -133,7 +151,8 @@ function parseAuctionListPage(html: string): ListAuction[] {
       if (lt.includes('Auction End')) auctionEnd = vt;
     });
 
-    const soldPrice = parseNumber(bidRow.find('.ShortAuctionDataValue b').text());
+    const bidValue = parseNumber(bidRow.find('.ShortAuctionDataValue b').text());
+    const soldPrice = auctionStatus === 'sold' ? bidValue : null;
 
     let charmPoints: number | null = null;
     let unusedCharmPoints: number | null = null;
@@ -170,6 +189,7 @@ function parseAuctionListPage(html: string): ListAuction[] {
       world: worldMatch ? worldMatch[1].trim() : null,
       auctionStart,
       auctionEnd,
+      auctionStatus,
       soldPrice,
       charmPoints,
       unusedCharmPoints,
@@ -214,10 +234,25 @@ interface DetailPageData {
   huntingTaskPoints: number | null;
   hirelings: number | null;
   hirelingJobs: number | null;
+  hasLootPouch: boolean | null;
   storeItemsCount: number | null;
   blessingsCount: number | null;
   dailyRewardStreak: number | null;
+  // Quest availability (true = NOT completed → available for buyer)
+  primalOrdealAvailable: boolean | null;
+  soulWarAvailable: boolean | null;
+  sanguineBloodAvailable: boolean | null;
 }
+
+/**
+ * Quest names to track — if NOT in the completed list, the quest is "available".
+ * Uses case-insensitive substring matching.
+ */
+const TRACKED_QUESTS = {
+  primalOrdealAvailable: ['primal ordeal'],
+  soulWarAvailable: ['soul war'],
+  sanguineBloodAvailable: ['sanguine', 'rotten blood'],
+} as const;
 
 /**
  * Parse the detail page General tab for all skills and stats.
@@ -233,8 +268,9 @@ function parseDetailPage(html: string): DetailPageData {
     mountsCount: null, outfitsCount: null, titlesCount: null,
     linkedTasks: null, charmExpansion: null, spentCharmPoints: null,
     preySlots: null, preyWildcards: null, huntingTaskPoints: null,
-    hirelings: null, hirelingJobs: null, storeItemsCount: null,
+    hirelings: null, hirelingJobs: null, hasLootPouch: null, storeItemsCount: null,
     blessingsCount: null, dailyRewardStreak: null,
+    primalOrdealAvailable: null, soulWarAvailable: null, sanguineBloodAvailable: null,
   };
 
   // Skills from the skill table (td.LabelColumn > b + td.LevelColumn)
@@ -301,7 +337,7 @@ function parseDetailPage(html: string): DetailPageData {
     }
   });
 
-  // Store items count from "» Results: X" in the Store Item Summary section
+  // Store items — count + check for specific items (Loot Pouch, etc.)
   const storeBlock = $('#StoreItemSummary, div.CharacterDetailsBlock').filter((_i, el) => {
     return $(el).find('.Text').text().includes('Store Item Summary');
   });
@@ -310,6 +346,27 @@ function parseDetailPage(html: string): DetailPageData {
     const resultsMatch = resultsText.match(/Results:\s*(\d+)/);
     if (resultsMatch) {
       data.storeItemsCount = parseInt(resultsMatch[1], 10);
+    }
+    // Check for Loot Pouch in the item list
+    const storeText = storeBlock.text().toLowerCase();
+    data.hasLootPouch = storeText.includes('loot pouch');
+  }
+
+  // Completed Quest Lines — collect all quest names from the section
+  const questBlock = $('#CompletedQuestLines');
+  if (questBlock.length) {
+    const completedQuests: string[] = [];
+    questBlock.find('table.TableContent tr.Odd td, table.TableContent tr.Even td').each((_i, el) => {
+      const name = $(el).text().trim().toLowerCase();
+      if (name && name !== 'quest line names') completedQuests.push(name);
+    });
+
+    // "available" = quest NOT in the completed list (buyer can still do it)
+    for (const [field, patterns] of Object.entries(TRACKED_QUESTS)) {
+      const completed = completedQuests.some((q) =>
+        patterns.some((p) => q.includes(p))
+      );
+      (data as any)[field] = !completed;
     }
   }
 
@@ -486,8 +543,9 @@ async function scrapeAuctionDetail(
     mountsCount: null, outfitsCount: null, titlesCount: null,
     linkedTasks: null, charmExpansion: null, spentCharmPoints: null,
     preySlots: null, preyWildcards: null, huntingTaskPoints: null,
-    hirelings: null, hirelingJobs: null, storeItemsCount: null,
+    hirelings: null, hirelingJobs: null, hasLootPouch: null, storeItemsCount: null,
     blessingsCount: null, dailyRewardStreak: null,
+    primalOrdealAvailable: null, soulWarAvailable: null, sanguineBloodAvailable: null,
   };
 
   try {
@@ -513,6 +571,7 @@ async function scrapeAuctionDetail(
     world: a.world,
     auctionStart: a.auctionStart,
     auctionEnd: a.auctionEnd,
+    auctionStatus: a.auctionStatus,
     soldPrice: a.soldPrice,
     ...detail,
     charmPoints: a.charmPoints,
@@ -558,7 +617,8 @@ export async function scrapeSingleAuction(
   const bidRow = auctionEl.find('.ShortAuctionDataBidRow');
   const bidLabel = bidRow.find('.ShortAuctionDataLabel').text().trim();
   const bidValue = parseNumber(bidRow.find('.ShortAuctionDataValue b').text());
-  const soldPrice = bidLabel.toLowerCase().includes('winning') ? bidValue : null;
+  const auctionStatus = parseBidStatus(bidLabel);
+  const soldPrice = auctionStatus === 'sold' ? bidValue : null;
 
   const labels = auctionEl.find('.ShortAuctionDataLabel');
   const values = auctionEl.find('.ShortAuctionDataValue');
@@ -613,6 +673,7 @@ export async function scrapeSingleAuction(
     world: worldMatch ? worldMatch[1].trim() : null,
     auctionStart,
     auctionEnd,
+    auctionStatus,
     soldPrice,
     ...detail,
     charmPoints,

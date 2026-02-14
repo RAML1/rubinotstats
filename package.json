@@ -13,6 +13,7 @@
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
     "scrape": "tsx scripts/scrape.ts",
+    "scrape:ids": "tsx scripts/scrape-by-id.ts",
     "scrape:highscores": "tsx scripts/scrape-highscores.ts"
   },
   "dependencies": {

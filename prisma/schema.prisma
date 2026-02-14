@@ -68,7 +68,7 @@ model CharacterSnapshot {
   @@map("character_snapshots")
 }
 
-// Sold auctions from pastcharactertrades
+// Auctions from pastcharactertrades (sold, cancelled, expired)
 model Auction {
   id                 Int        @id @default(autoincrement())
   externalId         String     @unique @map("external_id") @db.VarChar(100)
@@ -79,6 +79,7 @@ model Auction {
   world              String?    @db.VarChar(100)
   auctionStart       String?    @map("auction_start") @db.VarChar(100)
   auctionEnd         String?    @map("auction_end") @db.VarChar(100)
+  auctionStatus      String?    @map("auction_status") @db.VarChar(20)  // sold, cancelled, expired
   soldPrice          Int?       @map("sold_price")
   coinsPerLevel      Float?     @map("coins_per_level")
   // Skills
@@ -116,6 +117,7 @@ model Auction {
   hirelings          Int?
   hirelingJobs       Int?       @map("hireling_jobs")
   // Items
+  hasLootPouch       Boolean?   @map("has_loot_pouch")
   storeItemsCount    Int?       @map("store_items_count")
   // Other
   bossPoints         Int?       @map("boss_points")
@@ -124,6 +126,10 @@ model Auction {
   gold               Int?
   bestiary           Int?
   url                String?    @db.VarChar(500)
+  // Quest availability (true = quest NOT yet done, available for buyer)
+  primalOrdealAvailable    Boolean?   @map("primal_ordeal_available")
+  soulWarAvailable         Boolean?   @map("soul_war_available")
+  sanguineBloodAvailable   Boolean?   @map("sanguine_blood_available")
   // Timestamps
   createdAt          DateTime   @default(now()) @map("created_at")
   updatedAt          DateTime   @default(now()) @updatedAt @map("updated_at")
