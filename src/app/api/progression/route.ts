@@ -279,6 +279,7 @@ export async function GET(request: NextRequest) {
 
     // Search mode: return character name matches
     if (!characterName && searchQuery) {
+      // Search characters table first
       const characters = await prisma.character.findMany({
         where: {
           name: {
@@ -295,13 +296,46 @@ export async function GET(request: NextRequest) {
         },
       });
 
+      const results = characters.map(c => ({
+        name: c.name,
+        world: c.world.name,
+        vocation: c.vocation,
+      }));
+
+      // Also search highscore entries for characters not in the characters table
+      if (results.length < 10) {
+        const characterNames = new Set(results.map(r => r.name.toLowerCase()));
+        const highscoreChars = await prisma.highscoreEntry.findMany({
+          where: {
+            characterName: {
+              contains: searchQuery,
+              mode: 'insensitive',
+            },
+          },
+          distinct: ['characterName', 'world'],
+          select: {
+            characterName: true,
+            world: true,
+            vocation: true,
+          },
+          take: 10,
+        });
+
+        for (const h of highscoreChars) {
+          if (!characterNames.has(h.characterName.toLowerCase()) && results.length < 10) {
+            characterNames.add(h.characterName.toLowerCase());
+            results.push({
+              name: h.characterName,
+              world: h.world,
+              vocation: h.vocation,
+            });
+          }
+        }
+      }
+
       return NextResponse.json({
         success: true,
-        data: characters.map(c => ({
-          name: c.name,
-          world: c.world.name,
-          vocation: c.vocation,
-        })),
+        data: results,
       });
     }
 
@@ -314,7 +348,7 @@ export async function GET(request: NextRequest) {
     }
 
     // 1. Get character with world relation
-    const character = await prisma.character.findFirst({
+    let character = await prisma.character.findFirst({
       where: {
         name: {
           equals: characterName,
@@ -326,31 +360,58 @@ export async function GET(request: NextRequest) {
       },
     });
 
+    // Fall back to highscore entries if character not in characters table
+    let highscoreOnly = false;
     if (!character) {
-      return NextResponse.json(
-        { success: false, error: 'Character not found' },
-        { status: 404 }
-      );
+      const hsEntry = await prisma.highscoreEntry.findFirst({
+        where: {
+          characterName: {
+            equals: characterName,
+            mode: 'insensitive',
+          },
+        },
+      });
+
+      if (!hsEntry) {
+        return NextResponse.json(
+          { success: false, error: 'Character not found' },
+          { status: 404 }
+        );
+      }
+
+      highscoreOnly = true;
+      // Build a synthetic character object from highscore data
+      character = {
+        id: 0,
+        name: hsEntry.characterName,
+        worldId: 0,
+        vocation: hsEntry.vocation,
+        guildName: null,
+        firstSeen: hsEntry.createdAt,
+        lastUpdated: hsEntry.createdAt,
+        world: { id: 0, name: hsEntry.world, pvpType: null, isActive: true, createdAt: hsEntry.createdAt },
+      } as any;
     }
 
-    // 2. Get all snapshots
-    const snapshots = await prisma.characterSnapshot.findMany({
-      where: {
-        characterId: character.id,
-      },
-      orderBy: {
-        capturedDate: 'asc',
-      },
-    });
+    // At this point character is guaranteed non-null (either from DB or synthetic)
+    const char = character!;
+
+    // 2. Get all snapshots (empty if highscore-only)
+    const snapshots = highscoreOnly
+      ? []
+      : await prisma.characterSnapshot.findMany({
+          where: { characterId: char.id },
+          orderBy: { capturedDate: 'asc' },
+        });
 
     // 3. Get highscore entries
     const highscores = await prisma.highscoreEntry.findMany({
       where: {
         characterName: {
-          equals: character.name,
+          equals: char.name,
           mode: 'insensitive',
         },
-        world: character.world.name,
+        world: char.world.name,
       },
       orderBy: {
         capturedDate: 'asc',
@@ -359,11 +420,11 @@ export async function GET(request: NextRequest) {
 
     // 4. Get vocation averages from auctions
     let vocationAverages = null;
-    if (character.vocation) {
+    if (char.vocation) {
       const auctionStats = await prisma.auction.groupBy({
         by: ['vocation'],
         where: {
-          vocation: character.vocation,
+          vocation: char.vocation,
         },
         _avg: {
           level: true,
@@ -381,7 +442,7 @@ export async function GET(request: NextRequest) {
 
       if (auctionStats.length > 0) {
         vocationAverages = {
-          vocation: character.vocation,
+          vocation: char.vocation,
           avgLevel: auctionStats[0]._avg.level,
           avgMagicLevel: auctionStats[0]._avg.magicLevel,
           avgFist: auctionStats[0]._avg.fist,
@@ -406,7 +467,7 @@ export async function GET(request: NextRequest) {
     const response = {
       success: true,
       data: {
-        character: serializeBigInt(character),
+        character: serializeBigInt(char),
         snapshots: serializeBigInt(snapshots),
         highscores: serializeBigInt(highscores),
         vocationAverages: serializeBigInt(vocationAverages),

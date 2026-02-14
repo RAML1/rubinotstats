@@ -207,7 +207,7 @@ export async function scrapeHighscores(
         const firstUrl = buildHighscoreUrl(world, categoryValue, professionValue, 1);
         console.log(`\n[${completedCount}/${totalCombinations}] ${world} / ${category} / ${profession}`);
 
-        let firstResult: HighscorePageResult;
+        let firstResult!: HighscorePageResult;
         try {
           await rateLimit();
           await navigateWithCloudflare(currentPage, firstUrl);
