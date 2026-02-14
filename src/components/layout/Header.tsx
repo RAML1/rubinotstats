@@ -44,6 +44,12 @@ export function Header() {
           >
             Progression
           </Link>
+          <Link
+            href="/calculator"
+            className="text-sm font-medium transition-colors hover:text-primary"
+          >
+            Calculator
+          </Link>
         </nav>
 
         {/* Search Bar - Hidden on mobile */}
