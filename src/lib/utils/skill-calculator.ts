@@ -27,13 +27,14 @@ export const MAGIC_MULTIPLIERS = [
 
 // --- Vocations ---
 
-export type Vocation = 'knight' | 'paladin' | 'sorcerer' | 'druid';
+export type Vocation = 'knight' | 'paladin' | 'sorcerer' | 'druid' | 'monk';
 
 export const VOCATIONS: { value: Vocation; label: string }[] = [
   { value: 'knight', label: 'Knight' },
   { value: 'paladin', label: 'Paladin' },
   { value: 'sorcerer', label: 'Sorcerer' },
   { value: 'druid', label: 'Druid' },
+  { value: 'monk', label: 'Monk' },
 ];
 
 // --- Skill Categories ---
@@ -112,6 +113,15 @@ const VOCATION_CONSTANTS: Record<Vocation, Record<SkillCategory, number>> = {
     fist: 1.5,
     distance: 1.8,
     shielding: 1.5,
+  },
+  monk: {
+    magic: 1.25,
+    sword: 1.4,
+    axe: 1.4,
+    club: 1.4,
+    fist: 1.1,
+    distance: 1.5,
+    shielding: 1.15,
   },
 };
 
@@ -344,5 +354,7 @@ export function getRelevantSkills(vocation: Vocation): SkillCategory[] {
     case 'sorcerer':
     case 'druid':
       return ['magic', 'shielding', 'distance', 'sword', 'axe', 'club', 'fist'];
+    case 'monk':
+      return ['fist', 'shielding', 'magic', 'sword', 'axe', 'club', 'distance'];
   }
 }
