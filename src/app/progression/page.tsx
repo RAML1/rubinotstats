@@ -62,7 +62,7 @@ function ProgressionSkeleton() {
 export default function ProgressionPage() {
   return (
     <div className="container mx-auto space-y-8 px-4 py-8">
-      <div>
+      <div className="text-center">
         <h1 className="text-3xl font-bold">Character Progression</h1>
         <p className="text-muted-foreground">Track experience, skills, and milestones over time</p>
       </div>

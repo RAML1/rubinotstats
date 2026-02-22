@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { TrendingUp, TrendingDown, Minus, Search, Trophy, Zap, Calendar, Star } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, Search, Trophy, Zap, Calendar, Star, X, GitCompareArrows } from 'lucide-react';
 import { formatExp } from '@/lib/utils/formatters';
 import { trackSearch } from '@/components/analytics/AnalyticsTracker';
 import { format } from 'date-fns';
@@ -13,6 +13,8 @@ import ExpChart from './components/ExpChart';
 import TrainingHeatmap from './components/TrainingHeatmap';
 import MilestonesFeed from './components/MilestonesFeed';
 import { SessionCalculator } from './components/SessionCalculator';
+import WorldLeaders from './components/WorldLeaders';
+import CompareView from './components/CompareView';
 
 interface SearchResult {
   name: string;
@@ -109,6 +111,17 @@ export default function ProgressionClient() {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const initialLoadDone = useRef(false);
 
+  // Compare feature state
+  const [compareQuery, setCompareQuery] = useState('');
+  const [compareResults, setCompareResults] = useState<SearchResult[]>([]);
+  const [compareData, setCompareData] = useState<APIResponse['data'] | null>(null);
+  const [compareLoading, setCompareLoading] = useState(false);
+  const [compareSearchLoading, setCompareSearchLoading] = useState(false);
+  const [showCompareDropdown, setShowCompareDropdown] = useState(false);
+  const [showCompareSearch, setShowCompareSearch] = useState(false);
+  const compareTimeout = useRef<NodeJS.Timeout>(null);
+  const compareDropdownRef = useRef<HTMLDivElement>(null);
+
   const selectCharacter = useCallback(async (characterName: string) => {
     trackSearch(characterName, '/progression');
     setSelectedCharacter(characterName);
@@ -129,6 +142,32 @@ export default function ProgressionClient() {
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  const selectCompareCharacter = useCallback(async (characterName: string) => {
+    setCompareQuery(characterName);
+    setShowCompareDropdown(false);
+    setCompareLoading(true);
+
+    try {
+      const res = await fetch(`/api/progression?characterName=${encodeURIComponent(characterName)}`);
+      if (res.ok) {
+        const json: APIResponse = await res.json();
+        if (json.success) {
+          setCompareData(json.data);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching compare data:', error);
+    } finally {
+      setCompareLoading(false);
+    }
+  }, []);
+
+  const clearCompare = useCallback(() => {
+    setCompareData(null);
+    setCompareQuery('');
+    setShowCompareSearch(false);
   }, []);
 
   // Auto-load character from URL search params (e.g. ?character=Super+Bonk+Lee)
@@ -192,6 +231,57 @@ export default function ProgressionClient() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Debounced compare search
+  useEffect(() => {
+    if (compareQuery.length < 2) {
+      setCompareResults([]);
+      setShowCompareDropdown(false);
+      return;
+    }
+
+    if (compareData && compareQuery.toLowerCase() === compareData.character.name.toLowerCase()) {
+      return;
+    }
+
+    if (compareTimeout.current) {
+      clearTimeout(compareTimeout.current);
+    }
+
+    compareTimeout.current = setTimeout(async () => {
+      setCompareSearchLoading(true);
+      try {
+        const res = await fetch(`/api/progression?q=${encodeURIComponent(compareQuery)}`);
+        if (res.ok) {
+          const json = await res.json();
+          setCompareResults((json.data || []).filter((r: SearchResult) => r.name !== selectedCharacter));
+          setShowCompareDropdown(true);
+        }
+      } catch (error) {
+        console.error('Compare search failed:', error);
+      } finally {
+        setCompareSearchLoading(false);
+      }
+    }, 300);
+
+    return () => {
+      if (compareTimeout.current) {
+        clearTimeout(compareTimeout.current);
+      }
+    };
+  }, [compareQuery, compareData, selectedCharacter]);
+
+  // Close compare dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (compareDropdownRef.current && !compareDropdownRef.current.contains(event.target as Node)) {
+        setShowCompareDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   // Derive computed values from API data
   const computed = useMemo(() => {
     if (!data) return null;
@@ -228,42 +318,49 @@ export default function ProgressionClient() {
 
   return (
     <div className="space-y-8">
-      {/* Search Bar */}
-      <div className="relative max-w-md" ref={dropdownRef}>
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={20} />
-          <Input
-            type="text"
-            placeholder="Search character name..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 bg-card/50 border-border/50 backdrop-blur"
-          />
-          {searchLoading && (
-            <div className="absolute right-3 top-1/2 -translate-y-1/2">
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-            </div>
+      {/* Search Bar — centered when no character loaded, compact when loaded */}
+      <div className={`flex flex-col items-center ${data ? 'items-start' : ''}`}>
+        {!data && !loading && (
+          <p className="text-sm text-muted-foreground mb-2">
+            Search your character to view progression, EXP history, and skill stats
+          </p>
+        )}
+        <div className={`relative w-full ${data ? 'max-w-md' : 'max-w-lg'}`} ref={dropdownRef}>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={20} />
+            <Input
+              type="text"
+              placeholder="Search character name..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className={`pl-10 bg-card/50 border-border/50 backdrop-blur ${!data ? 'h-12 text-base' : ''}`}
+            />
+            {searchLoading && (
+              <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              </div>
+            )}
+          </div>
+
+          {showDropdown && searchResults.length > 0 && (
+            <Card className="absolute z-50 mt-2 w-full border-border/50 bg-card/95 backdrop-blur-xl shadow-xl">
+              <CardContent className="p-2">
+                {searchResults.map((result) => (
+                  <button
+                    key={`${result.name}-${result.world}`}
+                    onClick={() => selectCharacter(result.name)}
+                    className="w-full rounded-md px-3 py-2 text-left hover:bg-accent/50 transition-colors"
+                  >
+                    <div className="font-medium">{result.name}</div>
+                    <div className="text-sm text-muted-foreground">
+                      {result.vocation} &bull; {result.world}
+                    </div>
+                  </button>
+                ))}
+              </CardContent>
+            </Card>
           )}
         </div>
-
-        {showDropdown && searchResults.length > 0 && (
-          <Card className="absolute z-50 mt-2 w-full border-border/50 bg-card/95 backdrop-blur-xl shadow-xl">
-            <CardContent className="p-2">
-              {searchResults.map((result) => (
-                <button
-                  key={`${result.name}-${result.world}`}
-                  onClick={() => selectCharacter(result.name)}
-                  className="w-full rounded-md px-3 py-2 text-left hover:bg-accent/50 transition-colors"
-                >
-                  <div className="font-medium">{result.name}</div>
-                  <div className="text-sm text-muted-foreground">
-                    {result.vocation} &bull; {result.world}
-                  </div>
-                </button>
-              ))}
-            </CardContent>
-          </Card>
-        )}
       </div>
 
       {/* Loading State */}
@@ -277,14 +374,80 @@ export default function ProgressionClient() {
       {!loading && data && computed && (
         <>
           {/* Character Header */}
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <h2 className="text-2xl font-bold">{data.character.name}</h2>
             {data.character.vocation && (
               <Badge variant="secondary" className="text-sm">
                 {data.character.vocation}
               </Badge>
             )}
+            <div className="ml-auto flex items-center gap-2">
+              {!showCompareSearch && !compareData && (
+                <button
+                  onClick={() => setShowCompareSearch(true)}
+                  className="flex items-center gap-1.5 rounded-full bg-secondary/50 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                >
+                  <GitCompareArrows size={14} />
+                  Compare
+                </button>
+              )}
+              {(showCompareSearch || compareData) && !compareLoading && (
+                <button
+                  onClick={clearCompare}
+                  className="flex items-center gap-1 rounded-full bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-400 transition-colors hover:bg-red-500/20"
+                >
+                  <X size={14} />
+                  {compareData ? 'Remove comparison' : 'Cancel'}
+                </button>
+              )}
+            </div>
           </div>
+
+          {/* Compare Search */}
+          {showCompareSearch && !compareData && (
+            <div className="relative max-w-sm" ref={compareDropdownRef}>
+              <div className="relative">
+                <GitCompareArrows className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-400" size={16} />
+                <Input
+                  type="text"
+                  placeholder="Search character to compare..."
+                  value={compareQuery}
+                  onChange={(e) => setCompareQuery(e.target.value)}
+                  className="pl-9 bg-card/50 border-amber-500/30 backdrop-blur text-sm"
+                  autoFocus
+                />
+                {compareSearchLoading && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-amber-400 border-t-transparent" />
+                  </div>
+                )}
+              </div>
+              {showCompareDropdown && compareResults.length > 0 && (
+                <Card className="absolute z-50 mt-2 w-full border-border/50 bg-card/95 backdrop-blur-xl shadow-xl">
+                  <CardContent className="p-2">
+                    {compareResults.map((result) => (
+                      <button
+                        key={`${result.name}-${result.world}`}
+                        onClick={() => selectCompareCharacter(result.name)}
+                        className="w-full rounded-md px-3 py-2 text-left hover:bg-accent/50 transition-colors"
+                      >
+                        <div className="font-medium text-sm">{result.name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {result.vocation} &bull; {result.world}
+                        </div>
+                      </button>
+                    ))}
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
+          {compareLoading && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-amber-400 border-t-transparent" />
+              Loading comparison data...
+            </div>
+          )}
 
           {/* KPI Cards */}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -363,9 +526,21 @@ export default function ProgressionClient() {
             </Card>
           </div>
 
+          {/* Compare View (if comparing) */}
+          {compareData && (
+            <CompareView
+              primary={{ character: data.character, snapshots: data.snapshots, kpis: data.kpis }}
+              compare={{ character: compareData.character, snapshots: compareData.snapshots, kpis: compareData.kpis }}
+            />
+          )}
+
           {/* EXP Chart + Pace Calculator */}
           <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
-            <ExpChart snapshots={data.snapshots} />
+            <ExpChart
+              snapshots={data.snapshots}
+              compareSnapshots={compareData?.snapshots}
+              compareName={compareData?.character.name}
+            />
             <SessionCalculator
               currentLevel={data.kpis.currentLevel}
               currentExp={data.snapshots.length > 0 ? data.snapshots[data.snapshots.length - 1].experience : null}
@@ -437,17 +612,9 @@ export default function ProgressionClient() {
         </>
       )}
 
-      {/* Empty State */}
+      {/* Empty State — World Leaders */}
       {!loading && !data && (
-        <Card className="border-border/50 bg-card/50 backdrop-blur">
-          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-            <Search size={48} className="text-muted-foreground mb-4" />
-            <h3 className="text-xl font-semibold mb-2">No character selected</h3>
-            <p className="text-muted-foreground">
-              Search for a character above to view their progression statistics
-            </p>
-          </CardContent>
-        </Card>
+        <WorldLeaders onSelectCharacter={selectCharacter} />
       )}
     </div>
   );

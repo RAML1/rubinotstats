@@ -295,6 +295,41 @@ export async function GET(request: NextRequest) {
     const characterName = searchParams.get('characterName');
     const searchQuery = searchParams.get('q');
 
+    // World leaders mode: top EXP gainer per world in last 30 days
+    const mode = searchParams.get('mode');
+    if (mode === 'worldLeaders') {
+      const leaders: any[] = await prisma.$queryRaw`
+        WITH date_range AS (
+          SELECT character_name, world, vocation, level, score, captured_date,
+            ROW_NUMBER() OVER (PARTITION BY character_name, world ORDER BY captured_date ASC) as rn_first,
+            ROW_NUMBER() OVER (PARTITION BY character_name, world ORDER BY captured_date DESC) as rn_last
+          FROM highscore_entries
+          WHERE category = 'Experience Points'
+            AND captured_date >= CURRENT_DATE - INTERVAL '30 days'
+        ),
+        gains AS (
+          SELECT f.character_name, f.world, f.vocation,
+            l.level as current_level, f.level as start_level,
+            (l.score - f.score) as exp_gained,
+            (l.level - f.level) as levels_gained
+          FROM date_range f
+          JOIN date_range l ON f.character_name = l.character_name AND f.world = l.world
+          WHERE f.rn_first = 1 AND l.rn_last = 1 AND l.score > f.score
+        ),
+        ranked AS (
+          SELECT *, ROW_NUMBER() OVER (PARTITION BY world ORDER BY exp_gained DESC) as rank
+          FROM gains
+        )
+        SELECT world, character_name, vocation, current_level, start_level, exp_gained, levels_gained
+        FROM ranked WHERE rank = 1 ORDER BY exp_gained DESC
+      `;
+
+      return NextResponse.json({
+        success: true,
+        data: serializeBigInt(leaders),
+      });
+    }
+
     // Search mode: return character name matches
     if (!characterName && searchQuery) {
       // Search characters table first
@@ -379,7 +414,6 @@ export async function GET(request: NextRequest) {
     });
 
     // Fall back to highscore entries if character not in characters table
-    let highscoreOnly = false;
     if (!character) {
       const hsEntry = await prisma.highscoreEntry.findFirst({
         where: {
@@ -397,7 +431,6 @@ export async function GET(request: NextRequest) {
         );
       }
 
-      highscoreOnly = true;
       // Build a synthetic character object from highscore data
       character = {
         id: 0,
@@ -414,15 +447,7 @@ export async function GET(request: NextRequest) {
     // At this point character is guaranteed non-null (either from DB or synthetic)
     const char = character!;
 
-    // 2. Get all snapshots (empty if highscore-only)
-    const snapshots = highscoreOnly
-      ? []
-      : await prisma.characterSnapshot.findMany({
-          where: { characterId: char.id },
-          orderBy: { capturedDate: 'asc' },
-        });
-
-    // 3. Get highscore entries
+    // 2. Get highscore entries (primary data source for progression)
     const highscores = await prisma.highscoreEntry.findMany({
       where: {
         characterName: {
@@ -435,6 +460,88 @@ export async function GET(request: NextRequest) {
         capturedDate: 'asc',
       },
     });
+
+    // 3. Build snapshots from highscore entries grouped by date
+    const toNum = (val: any): number => {
+      if (val === null || val === undefined) return 0;
+      if (typeof val === 'bigint') return Number(val);
+      return Number(val);
+    };
+
+    const toDateKey = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+    const dateMap = new Map<string, any>();
+
+    for (const entry of highscores) {
+      const dateKey = toDateKey(new Date(entry.capturedDate));
+
+      if (!dateMap.has(dateKey)) {
+        dateMap.set(dateKey, {
+          id: 0,
+          characterId: char.id,
+          capturedDate: entry.capturedDate,
+          level: entry.level || 0,
+          experience: null,
+          magicLevel: null,
+          fist: null,
+          club: null,
+          sword: null,
+          axe: null,
+          distance: null,
+          shielding: null,
+          fishing: null,
+          expRank: null,
+          mlRank: null,
+          expGained: 0,
+          levelsGained: 0,
+        });
+      }
+
+      const snapshot = dateMap.get(dateKey)!;
+      if (entry.level && entry.level > (snapshot.level || 0)) {
+        snapshot.level = entry.level;
+      }
+
+      const cat = entry.category;
+      const score = toNum(entry.score);
+
+      if (cat === 'Experience Points') {
+        snapshot.experience = score;
+        snapshot.expRank = entry.rank;
+      } else if (cat === 'Magic Level') {
+        snapshot.magicLevel = score;
+        snapshot.mlRank = entry.rank;
+      } else if (cat === 'Fist Fighting') {
+        snapshot.fist = score;
+      } else if (cat === 'Club Fighting') {
+        snapshot.club = score;
+      } else if (cat === 'Sword Fighting') {
+        snapshot.sword = score;
+      } else if (cat === 'Axe Fighting') {
+        snapshot.axe = score;
+      } else if (cat === 'Distance Fighting') {
+        snapshot.distance = score;
+      } else if (cat === 'Shielding') {
+        snapshot.shielding = score;
+      } else if (cat === 'Fishing') {
+        snapshot.fishing = score;
+      }
+    }
+
+    // Build sorted snapshots array and calculate daily gains
+    let snapshots: any[] = Array.from(dateMap.values()).sort(
+      (a: any, b: any) => new Date(a.capturedDate).getTime() - new Date(b.capturedDate).getTime()
+    );
+
+    for (let i = 1; i < snapshots.length; i++) {
+      if (snapshots[i].experience != null && snapshots[i - 1].experience != null) {
+        snapshots[i].expGained = snapshots[i].experience - snapshots[i - 1].experience;
+      }
+      if (snapshots[i].level != null && snapshots[i - 1].level != null) {
+        snapshots[i].levelsGained = snapshots[i].level - snapshots[i - 1].level;
+      }
+    }
 
     // 4. Get vocation averages by level range (+/- 10 levels) across all worlds
     let vocationAverages = null;
@@ -486,24 +593,8 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 5. Calculate KPIs (use highscore data as fallback when no snapshots)
-    let kpis = calculateKPIs(snapshots);
-    if (snapshots.length === 0 && highscores.length > 0) {
-      // Extract level and ranks from highscore entries
-      const expEntry = highscores.find((h: any) => h.category === 'Experience Points');
-      const mlEntry = highscores.find((h: any) => h.category === 'Magic Level');
-      kpis = {
-        ...kpis,
-        currentLevel: expEntry?.level ?? char.world ? 0 : 0,
-        currentExpRank: expEntry?.rank ?? null,
-        currentMlRank: mlEntry?.rank ?? null,
-      };
-      // Try to get level from the highest-level entry
-      const maxLevel = Math.max(...highscores.map((h: any) => h.level || 0));
-      if (maxLevel > 0) {
-        kpis.currentLevel = maxLevel;
-      }
-    }
+    // 5. Calculate KPIs from snapshots
+    const kpis = calculateKPIs(snapshots);
 
     // 6. Derive milestones
     const milestones = deriveMilestones(snapshots);

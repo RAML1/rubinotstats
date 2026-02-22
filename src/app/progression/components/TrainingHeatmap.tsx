@@ -17,7 +17,7 @@ export default function TrainingHeatmap({ snapshots }: TrainingHeatmapProps) {
   const [containerWidth, setContainerWidth] = useState(0);
   const [hoveredCell, setHoveredCell] = useState<{
     date: Date;
-    expGained: number;
+    expGained: number | null;
     x: number;
     y: number;
   } | null>(null);
@@ -113,7 +113,7 @@ export default function TrainingHeatmap({ snapshots }: TrainingHeatmapProps) {
         <CardTitle className="text-xl font-semibold">EXP Heatmap</CardTitle>
       </CardHeader>
       <CardContent>
-        <div ref={containerRef} className="w-full">
+        <div ref={containerRef} className="relative w-full">
           {containerWidth > 0 && (
             <div className="flex flex-col">
               {/* Month labels */}
@@ -154,21 +154,21 @@ export default function TrainingHeatmap({ snapshots }: TrainingHeatmapProps) {
                       {week.map((day, dayIdx) => (
                         <div
                           key={dayIdx}
-                          className={`rounded-sm ${getIntensityClass(day.expGained)} ${
+                          className={`rounded-sm cursor-pointer ${getIntensityClass(day.expGained)} ${
                             day.expGained !== null && day.expGained > 0
-                              ? 'cursor-pointer hover:ring-1 hover:ring-purple-400'
-                              : ''
+                              ? 'hover:ring-1 hover:ring-purple-400'
+                              : 'hover:ring-1 hover:ring-border'
                           }`}
                           style={{ width: `${cellSize}px`, height: `${cellSize}px` }}
                           onMouseEnter={(e) => {
-                            if (day.expGained !== null && day.expGained > 0) {
-                              setHoveredCell({
-                                date: day.date,
-                                expGained: day.expGained,
-                                x: e.clientX,
-                                y: e.clientY,
-                              });
-                            }
+                            const rect = containerRef.current?.getBoundingClientRect();
+                            if (!rect) return;
+                            setHoveredCell({
+                              date: day.date,
+                              expGained: day.expGained,
+                              x: e.clientX - rect.left,
+                              y: e.clientY - rect.top,
+                            });
                           }}
                           onMouseLeave={() => setHoveredCell(null)}
                         />
@@ -196,21 +196,27 @@ export default function TrainingHeatmap({ snapshots }: TrainingHeatmapProps) {
           {/* Tooltip */}
           {hoveredCell && (
             <div
-              className="pointer-events-none fixed z-50 rounded-lg border border-border bg-background/95 px-3 py-2 shadow-lg backdrop-blur"
+              className="pointer-events-none absolute z-50 rounded-lg border border-border bg-background/95 px-3 py-2 shadow-lg backdrop-blur"
               style={{
-                left: `${hoveredCell.x + 10}px`,
+                left: `${Math.min(hoveredCell.x + 10, containerWidth - 200)}px`,
                 top: `${hoveredCell.y + 10}px`,
               }}
             >
               <p className="text-xs font-medium text-foreground">
-                {format(hoveredCell.date, 'MMM d, yyyy')}
+                {format(hoveredCell.date, 'EEEE, MMM d, yyyy')}
               </p>
-              <p className="text-xs text-muted-foreground">
-                EXP Gained:{' '}
-                <span className="font-semibold text-purple-400">
-                  {formatNumber(hoveredCell.expGained)}
-                </span>
-              </p>
+              {hoveredCell.expGained !== null && hoveredCell.expGained > 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  EXP Gained:{' '}
+                  <span className="font-semibold text-purple-400">
+                    {formatNumber(hoveredCell.expGained)}
+                  </span>
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground/60">
+                  {hoveredCell.expGained === 0 ? 'No EXP gained' : 'No data recorded'}
+                </p>
+              )}
             </div>
           )}
         </div>
