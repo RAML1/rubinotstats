@@ -321,9 +321,14 @@ export default function ProgressionClient() {
       {/* Search Bar — centered when no character loaded, compact when loaded */}
       <div className={`flex flex-col items-center ${data ? 'items-start' : ''}`}>
         {!data && !loading && (
-          <p className="text-sm text-muted-foreground mb-2">
-            Search your character to view progression, EXP history, and skill stats
-          </p>
+          <>
+            <p className="text-sm text-muted-foreground mb-2">
+              Search your character to view progression, EXP history, and skill stats
+            </p>
+            <p className="text-xs text-muted-foreground/60 mb-3">
+              Data is updated daily around 12:00 BRT (Brasilia Time)
+            </p>
+          </>
         )}
         <div className={`relative w-full ${data ? 'max-w-md' : 'max-w-lg'}`} ref={dropdownRef}>
           <div className="relative">

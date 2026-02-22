@@ -86,6 +86,7 @@ export default async function CurrentAuctionsPage({
       <div>
         <h1 className="text-3xl font-bold">Current Auctions</h1>
         <p className="text-muted-foreground">Live character auctions on RubinOT — track bids in real-time</p>
+        <p className="text-xs text-muted-foreground/60 mt-1">Current bid values may differ from actual due to data loading delays</p>
       </div>
       <Suspense fallback={<CurrentAuctionsSkeleton />}>
         <CurrentAuctionsContent initialSearch={initialSearch} />
