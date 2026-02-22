@@ -1,8 +1,24 @@
 "use client";
 
-import { useState } from "react";
-import { X, Home, Gavel, Store, TrendingUp, Calculator } from "lucide-react";
+import {
+  X,
+  Home,
+  Store,
+  TrendingUp,
+  Calculator,
+  Zap,
+} from "lucide-react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { Logo } from "@/components/brand/Logo";
+
+const navItems = [
+  { href: "/", label: "Home", icon: Home },
+  { href: "/current-auctions", label: "Current Auctions", icon: Zap },
+  { href: "/market", label: "Market", icon: Store },
+  { href: "/progression", label: "Progression", icon: TrendingUp },
+  { href: "/calculator", label: "Calculator", icon: Calculator },
+];
 
 interface MobileNavProps {
   isOpen: boolean;
@@ -10,26 +26,28 @@ interface MobileNavProps {
 }
 
 export function MobileNav({ isOpen, onClose }: MobileNavProps) {
+  const pathname = usePathname();
+
   if (!isOpen) return null;
 
   return (
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-40 bg-black/50"
+        className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
         aria-hidden="true"
       />
 
       {/* Slide-in panel */}
-      <div className="fixed inset-y-0 right-0 z-50 w-full max-w-xs bg-background shadow-lg">
+      <div className="fixed inset-y-0 right-0 z-50 w-full max-w-xs bg-card shadow-2xl">
         <div className="flex h-full flex-col">
-          {/* Header */}
-          <div className="flex items-center justify-between border-b px-6 py-4">
-            <h2 className="text-lg font-semibold">Menu</h2>
+          {/* Header with logo */}
+          <div className="flex items-center justify-between border-b px-5 py-4">
+            <Logo size="sm" />
             <button
               onClick={onClose}
-              className="rounded-md p-2 hover:bg-accent"
+              className="rounded-full p-2 hover:bg-accent"
               aria-label="Close menu"
             >
               <X className="h-5 w-5" />
@@ -37,47 +55,26 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
           </div>
 
           {/* Navigation links */}
-          <nav className="flex-1 space-y-1 px-4 py-6">
-            <Link
-              href="/"
-              onClick={onClose}
-              className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-accent"
-            >
-              <Home className="h-5 w-5" />
-              Home
-            </Link>
-            <Link
-              href="/auctions"
-              onClick={onClose}
-              className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-accent"
-            >
-              <Gavel className="h-5 w-5" />
-              Auctions
-            </Link>
-            <Link
-              href="/market"
-              onClick={onClose}
-              className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-accent"
-            >
-              <Store className="h-5 w-5" />
-              Market
-            </Link>
-            <Link
-              href="/progression"
-              onClick={onClose}
-              className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-accent"
-            >
-              <TrendingUp className="h-5 w-5" />
-              Progression
-            </Link>
-            <Link
-              href="/calculator"
-              onClick={onClose}
-              className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-accent"
-            >
-              <Calculator className="h-5 w-5" />
-              Calculator
-            </Link>
+          <nav className="flex-1 space-y-1 px-3 py-4">
+            {navItems.map(({ href, label, icon: Icon }) => {
+              const isActive =
+                href === "/" ? pathname === "/" : pathname.startsWith(href);
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  onClick={onClose}
+                  className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-colors ${
+                    isActive
+                      ? "bg-primary/15 text-primary"
+                      : "text-foreground hover:bg-accent"
+                  }`}
+                >
+                  <Icon className="h-5 w-5" />
+                  {label}
+                </Link>
+              );
+            })}
           </nav>
         </div>
       </div>

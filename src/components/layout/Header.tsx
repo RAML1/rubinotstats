@@ -2,90 +2,79 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Menu, Moon, Sun } from "lucide-react";
-import { SearchBar } from "./SearchBar";
+import { usePathname } from "next/navigation";
+import {
+  Menu,
+  Home,
+  Store,
+  TrendingUp,
+  Calculator,
+  Zap,
+} from "lucide-react";
+import { Logo } from "@/components/brand/Logo";
 import { MobileNav } from "./MobileNav";
+
+const navItems = [
+  { href: "/", label: "Home", icon: Home },
+  { href: "/current-auctions", label: "Current Auctions", icon: Zap },
+  { href: "/market", label: "Market", icon: Store },
+  { href: "/progression", label: "Progression", icon: TrendingUp },
+  { href: "/calculator", label: "Calculator", icon: Calculator },
+];
 
 export function Header() {
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const pathname = usePathname();
 
   return (
-    <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container mx-auto flex h-16 items-center gap-4 px-4">
-        {/* Logo */}
-        <Link href="/" className="flex items-center space-x-2">
-          <span className="text-xl font-bold">RubinOT Stats</span>
-        </Link>
+    <header className="sticky top-0 z-30">
+      {/* Main navigation bar — colored background like ExevoPan */}
+      <div className="bg-primary">
+        <div className="container mx-auto flex h-14 items-center gap-4 px-4">
+          {/* Logo */}
+          <Link href="/" className="flex items-center gap-2 text-white">
+            <Logo size="sm" showText={false} />
+            <span className="text-lg font-bold tracking-tight hidden sm:inline">
+              RubinOT Stats
+            </span>
+          </Link>
 
-        {/* Desktop Navigation */}
-        <nav className="hidden items-center space-x-6 md:flex">
-          <Link
-            href="/"
-            className="text-sm font-medium transition-colors hover:text-primary"
-          >
-            Home
-          </Link>
-          <Link
-            href="/auctions"
-            className="text-sm font-medium transition-colors hover:text-primary"
-          >
-            Auctions
-          </Link>
-          <Link
-            href="/market"
-            className="text-sm font-medium transition-colors hover:text-primary"
-          >
-            Market
-          </Link>
-          <Link
-            href="/progression"
-            className="text-sm font-medium transition-colors hover:text-primary"
-          >
-            Progression
-          </Link>
-          <Link
-            href="/calculator"
-            className="text-sm font-medium transition-colors hover:text-primary"
-          >
-            Calculator
-          </Link>
-        </nav>
+          {/* Desktop Navigation — icon + label pills */}
+          <nav className="hidden items-center gap-1 md:flex ml-4">
+            {navItems.map(({ href, label, icon: Icon }) => {
+              const isActive =
+                href === "/"
+                  ? pathname === "/"
+                  : pathname.startsWith(href);
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+                    isActive
+                      ? "bg-white/20 text-white"
+                      : "text-white/75 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                  {label}
+                </Link>
+              );
+            })}
+          </nav>
 
-        {/* Search Bar - Hidden on mobile */}
-        <div className="hidden flex-1 md:flex md:justify-center">
-          <SearchBar />
+          {/* Right side */}
+          <div className="ml-auto flex items-center gap-2">
+            {/* Mobile menu button */}
+            <button
+              onClick={() => setIsMobileNavOpen(true)}
+              className="rounded-full p-2 text-white/80 hover:bg-white/10 hover:text-white md:hidden"
+              aria-label="Open menu"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+          </div>
         </div>
-
-        {/* Right side actions */}
-        <div className="ml-auto flex items-center gap-2">
-          {/* Theme toggle button */}
-          <button
-            onClick={() => setIsDarkMode(!isDarkMode)}
-            className="hidden rounded-md p-2 hover:bg-accent md:inline-flex"
-            aria-label="Toggle theme"
-          >
-            {isDarkMode ? (
-              <Sun className="h-5 w-5" />
-            ) : (
-              <Moon className="h-5 w-5" />
-            )}
-          </button>
-
-          {/* Mobile menu button */}
-          <button
-            onClick={() => setIsMobileNavOpen(true)}
-            className="rounded-md p-2 hover:bg-accent md:hidden"
-            aria-label="Open menu"
-          >
-            <Menu className="h-5 w-5" />
-          </button>
-        </div>
-      </div>
-
-      {/* Mobile Search Bar */}
-      <div className="border-t px-4 py-3 md:hidden">
-        <SearchBar />
       </div>
 
       {/* Mobile Navigation */}

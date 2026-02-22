@@ -1,32 +1,38 @@
 @import "tailwindcss";
 
 :root {
-  /* Dark theme by default — matching the mockup's deep navy look */
-  --background: 222 47% 6%;
-  --foreground: 210 40% 96%;
-  --card: 222 47% 9%;
-  --card-foreground: 210 40% 96%;
-  --popover: 222 47% 9%;
-  --popover-foreground: 210 40% 96%;
-  --primary: 270 70% 60%;
+  /* Friendly dark theme — warm navy with purple accents (ExevoPan-inspired) */
+  --background: 230 25% 9%;
+  --foreground: 220 20% 93%;
+  --card: 230 25% 12%;
+  --card-foreground: 220 20% 93%;
+  --popover: 230 25% 12%;
+  --popover-foreground: 220 20% 93%;
+  --primary: 262 83% 58%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 222 40% 14%;
-  --secondary-foreground: 210 40% 96%;
-  --muted: 222 40% 14%;
-  --muted-foreground: 215 20% 55%;
-  --accent: 222 40% 14%;
-  --accent-foreground: 210 40% 96%;
+  --secondary: 230 20% 16%;
+  --secondary-foreground: 220 20% 93%;
+  --muted: 230 20% 16%;
+  --muted-foreground: 220 15% 58%;
+  --accent: 262 40% 22%;
+  --accent-foreground: 262 80% 80%;
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
-  --border: 222 30% 16%;
-  --input: 222 30% 16%;
-  --ring: 270 70% 60%;
-  --radius: 0.5rem;
+  --border: 230 20% 18%;
+  --input: 230 20% 18%;
+  --ring: 262 83% 58%;
+  --radius: 0.75rem;
   --chart-green: 160 84% 39%;
   --chart-orange: 38 92% 50%;
   --chart-red: 0 84% 60%;
   --chart-blue: 217 91% 60%;
-  --chart-purple: 270 70% 60%;
+  --chart-purple: 262 83% 58%;
+
+  /* Vocation colors as CSS variables */
+  --voc-knight: 0 84% 60%;
+  --voc-paladin: 38 92% 50%;
+  --voc-sorcerer: 258 90% 66%;
+  --voc-druid: 160 84% 39%;
 }
 
 * {
@@ -36,4 +42,9 @@
 body {
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));
+}
+
+/* Smooth transitions for interactive elements */
+a, button {
+  transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
 }

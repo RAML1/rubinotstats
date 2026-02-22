@@ -2,244 +2,155 @@ export const dynamic = 'force-dynamic';
 
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { Gavel, TrendingUp, Users, Globe, ArrowRight, Swords, Shield, Sparkles } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Zap, TrendingUp, Calculator, ArrowRight, Megaphone, Heart } from 'lucide-react';
+import { LogoIcon } from '@/components/brand/Logo';
+import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import prisma from '@/lib/db/prisma';
-import { formatNumber, getVocationColor } from '@/lib/utils/formatters';
+import { formatNumber } from '@/lib/utils/formatters';
 
-async function getStats() {
-  const [totalAuctions, totalHighscores, totalWorlds, avgPrice, recentAuctions, topPlayers] =
-    await Promise.all([
-      prisma.auction.count(),
-      prisma.highscoreEntry.count(),
-      prisma.world.count(),
-      prisma.auction.aggregate({ _avg: { soldPrice: true } }),
-      prisma.auction.findMany({
-        orderBy: { createdAt: 'desc' },
-        take: 8,
-      }),
-      prisma.highscoreEntry.findMany({
-        where: { category: 'Experience Points' },
-        orderBy: { score: 'desc' },
-        take: 5,
-        distinct: ['characterName'],
-      }),
-    ]);
-
-  return { totalAuctions, totalHighscores, totalWorlds, avgPrice: avgPrice._avg.soldPrice, recentAuctions, topPlayers };
+async function getQuickStats() {
+  const [liveAuctions, trackedCharacters] = await Promise.all([
+    prisma.currentAuction.count({ where: { isActive: true } }),
+    prisma.character.count(),
+  ]);
+  return { liveAuctions, trackedCharacters };
 }
 
-function StatCard({ title, value, icon: Icon, description }: { title: string; value: string; icon: React.ElementType; description: string }) {
+const features = [
+  {
+    href: '/current-auctions',
+    title: 'Auction Market',
+    icon: Zap,
+    color: 'text-amber-400',
+    bgColor: 'bg-amber-400/10',
+    borderColor: 'hover:border-amber-400/50',
+    description: 'Browse live character auctions, track bidding activity, and find deals on the RubinOT market.',
+    statKey: 'liveAuctions' as const,
+    statLabel: 'Live Auctions',
+  },
+  {
+    href: '/progression',
+    title: 'Progression',
+    icon: TrendingUp,
+    color: 'text-emerald-400',
+    bgColor: 'bg-emerald-400/10',
+    borderColor: 'hover:border-emerald-400/50',
+    description: 'Track character EXP, skills, and milestones over time. Compare players and view world leaderboards.',
+    statKey: 'trackedCharacters' as const,
+    statLabel: 'Characters Tracked',
+  },
+  {
+    href: '/calculator',
+    title: 'Skill Calculator',
+    icon: Calculator,
+    color: 'text-sky-400',
+    bgColor: 'bg-sky-400/10',
+    borderColor: 'hover:border-sky-400/50',
+    description: 'Plan your training sessions, estimate costs, and optimize your skill advancement strategy.',
+    statKey: null,
+    statLabel: null,
+  },
+];
+
+async function FeatureShowcase() {
+  const stats = await getQuickStats();
+
   return (
-    <Card className="border-border/50 bg-card/50 backdrop-blur">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
-        <Icon className="h-4 w-4 text-muted-foreground" />
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
-        <p className="text-xs text-muted-foreground">{description}</p>
-      </CardContent>
-    </Card>
-  );
-}
+    <section className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      {features.map(({ href, title, icon: Icon, color, bgColor, borderColor, description, statKey, statLabel }) => (
+        <Link key={href} href={href} className="group">
+          <Card className={`h-full border-border/50 bg-card/50 backdrop-blur transition-all duration-200 group-hover:scale-[1.02] group-hover:shadow-lg ${borderColor}`}>
+            <CardContent className="flex flex-col gap-4 p-6">
+              {/* Icon */}
+              <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${bgColor}`}>
+                <Icon className={`h-6 w-6 ${color}`} />
+              </div>
 
-function getVocationIcon(vocation: string) {
-  if (vocation.includes('Knight')) return Swords;
-  if (vocation.includes('Paladin')) return TrendingUp;
-  if (vocation.includes('Druid')) return Shield;
-  if (vocation.includes('Sorcerer')) return Sparkles;
-  return Users;
-}
+              {/* Title + Arrow */}
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold">{title}</h2>
+                <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-1" />
+              </div>
 
-async function DashboardContent() {
-  const { totalAuctions, totalHighscores, totalWorlds, avgPrice, recentAuctions, topPlayers } = await getStats();
+              {/* Description */}
+              <p className="text-sm text-muted-foreground leading-relaxed">{description}</p>
 
-  return (
-    <>
-      {/* Stats Grid */}
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          title="Total Auctions"
-          value={formatNumber(totalAuctions)}
-          icon={Gavel}
-          description="Sold character auctions tracked"
-        />
-        <StatCard
-          title="Avg. Sold Price"
-          value={`${formatNumber(Math.round(avgPrice || 0))} TC`}
-          icon={TrendingUp}
-          description="Average auction sale price"
-        />
-        <StatCard
-          title="Highscore Entries"
-          value={formatNumber(totalHighscores)}
-          icon={Users}
-          description="Leaderboard entries tracked"
-        />
-        <StatCard
-          title="Active Worlds"
-          value={String(totalWorlds)}
-          icon={Globe}
-          description="RubinOT game worlds"
-        />
-      </section>
-
-      {/* Two-column: Recent Auctions + Top Players */}
-      <section className="grid gap-6 lg:grid-cols-3">
-        {/* Recent Auctions */}
-        <div className="lg:col-span-2">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl font-semibold">Recent Auctions</h2>
-            <Link href="/auctions" className="flex items-center gap-1 text-sm text-primary hover:underline">
-              View All <ArrowRight className="h-3 w-3" />
-            </Link>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {recentAuctions.map((auction) => (
-              <Card key={auction.id} className="border-border/50 bg-card/50 backdrop-blur transition-colors hover:bg-card/80">
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="flex h-10 w-10 items-center justify-center rounded-lg text-white text-sm font-bold"
-                        style={{ backgroundColor: getVocationColor(auction.vocation || '') }}
-                      >
-                        {(auction.characterName || '?')[0].toUpperCase()}
-                      </div>
-                      <div>
-                        <p className="font-semibold leading-tight">{auction.characterName}</p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <Badge
-                            variant="outline"
-                            className="text-[10px] px-1.5 py-0"
-                            style={{ borderColor: getVocationColor(auction.vocation || ''), color: getVocationColor(auction.vocation || '') }}
-                          >
-                            {auction.vocation}
-                          </Badge>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
-                    <div>
-                      <span className="text-muted-foreground">Level</span>
-                      <p className="font-semibold">{auction.level}</p>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">ML</span>
-                      <p className="font-semibold">{auction.magicLevel || '—'}</p>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">World</span>
-                      <p className="font-semibold">{auction.world}</p>
-                    </div>
-                  </div>
-                  <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-3">
-                    <span className="text-xs text-muted-foreground">Sold Price</span>
-                    <span className="text-sm font-bold text-emerald-400">
-                      {formatNumber(auction.soldPrice || 0)} TC
+              {/* Quick Stat */}
+              {statKey && (
+                <div className="mt-auto pt-4 border-t border-border/50">
+                  <div className="flex items-baseline gap-2">
+                    <span className={`text-2xl font-bold ${color}`}>
+                      {formatNumber(stats[statKey])}
                     </span>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-
-        {/* Top Players */}
-        <div>
-          <div className="mb-4">
-            <h2 className="text-xl font-semibold">Top Players</h2>
-            <p className="text-sm text-muted-foreground">By Experience Points</p>
-          </div>
-          <Card className="border-border/50 bg-card/50 backdrop-blur">
-            <CardContent className="p-0">
-              {topPlayers.map((player, i) => (
-                <div
-                  key={`${player.characterName}-${player.world}`}
-                  className={`flex items-center gap-3 px-4 py-3 ${i !== topPlayers.length - 1 ? 'border-b border-border/50' : ''}`}
-                >
-                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-                    {player.rank}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{player.characterName}</p>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground">{player.world}</span>
-                      <Badge
-                        variant="outline"
-                        className="text-[10px] px-1.5 py-0"
-                        style={{ borderColor: getVocationColor(player.vocation), color: getVocationColor(player.vocation) }}
-                      >
-                        {player.vocation}
-                      </Badge>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-semibold">Lvl {player.level}</p>
-                    <p className="text-xs text-muted-foreground">{formatNumber(Number(player.score))} exp</p>
+                    <span className="text-xs text-muted-foreground">{statLabel}</span>
                   </div>
                 </div>
-              ))}
+              )}
             </CardContent>
           </Card>
-        </div>
-      </section>
-    </>
+        </Link>
+      ))}
+    </section>
   );
 }
 
-function DashboardSkeleton() {
+function FeatureShowcaseSkeleton() {
   return (
-    <>
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <Card key={i} className="border-border/50 bg-card/50">
-            <CardHeader className="pb-2"><Skeleton className="h-4 w-24" /></CardHeader>
-            <CardContent><Skeleton className="h-8 w-16" /><Skeleton className="mt-1 h-3 w-32" /></CardContent>
-          </Card>
-        ))}
-      </section>
-      <section className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <Skeleton className="mb-4 h-7 w-40" />
-          <div className="grid gap-3 sm:grid-cols-2">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <Card key={i} className="border-border/50 bg-card/50">
-                <CardContent className="p-4"><Skeleton className="h-24 w-full" /></CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-        <div>
-          <Skeleton className="mb-4 h-7 w-32" />
-          <Card className="border-border/50 bg-card/50">
-            <CardContent className="p-4"><Skeleton className="h-64 w-full" /></CardContent>
-          </Card>
-        </div>
-      </section>
-    </>
+    <section className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      {[1, 2, 3].map((i) => (
+        <Card key={i} className="border-border/50 bg-card/50">
+          <CardContent className="flex flex-col gap-4 p-6">
+            <Skeleton className="h-12 w-12 rounded-xl" />
+            <Skeleton className="h-6 w-32" />
+            <Skeleton className="h-12 w-full" />
+            <div className="pt-4 border-t border-border/50">
+              <Skeleton className="h-8 w-24" />
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </section>
   );
 }
 
 export default function HomePage() {
   return (
     <div className="container mx-auto space-y-8 px-4 py-8">
+      {/* Ad Banner */}
+      <section className="rounded-xl border border-dashed border-border/50 bg-muted/20 px-4 py-3 text-center">
+        <div className="flex items-center justify-center gap-2">
+          <Megaphone className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm text-muted-foreground">
+            Advertise here — reach the RubinOT community
+          </span>
+        </div>
+        <p className="text-xs text-muted-foreground/60 mt-0.5">Contact us for ad placement</p>
+      </section>
+
       {/* Hero Section */}
-      <section className="flex flex-col items-center space-y-4 text-center">
-        <h1 className="bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 bg-clip-text text-4xl font-bold tracking-tight text-transparent sm:text-5xl">
-          RubinOT Stats
+      <section className="flex flex-col items-center space-y-4 text-center relative">
+        {/* Tip Message — top right */}
+        <div className="hidden sm:flex items-center gap-1.5 absolute top-0 right-0 rounded-full bg-amber-400/10 border border-amber-400/20 px-3 py-1.5">
+          <Heart className="h-3.5 w-3.5 text-amber-400 fill-amber-400" />
+          <span className="text-xs text-amber-300">
+            Show love by sending Rubinicoins to <strong>Super Bonk Lee</strong>
+          </span>
+        </div>
+
+        <LogoIcon size={72} className="text-white" />
+        <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
+          <span className="text-foreground">RubinOT</span>{' '}
+          <span className="text-primary">Stats</span>
         </h1>
-        <p className="max-w-2xl text-lg text-muted-foreground">
-          Character Progression Tracker & Auction Intelligence
+        <p className="max-w-2xl text-base text-muted-foreground">
+          Character Progression Tracker &amp; Auction Intelligence
         </p>
       </section>
 
-      <Suspense fallback={<DashboardSkeleton />}>
-        <DashboardContent />
+      {/* Feature Showcase */}
+      <Suspense fallback={<FeatureShowcaseSkeleton />}>
+        <FeatureShowcase />
       </Suspense>
     </div>
   );
