@@ -2,9 +2,10 @@
 /**
  * Current auctions scraper — scrapes live auctions from currentcharactertrades.
  *
- * Browses the list pages, then scrapes each auction's detail page for full stats.
- * New auctions are added; existing auctions get their bids updated.
- * Auctions that no longer appear are marked as inactive.
+ * Features:
+ *   - Parallel tabs for detail page scraping (configurable concurrency)
+ *   - Save-as-you-go: each auction is saved immediately after scraping
+ *   - Archive: ended auctions are copied to auction history before deactivation
  *
  * Usage:
  *   pnpm scrape:current                     # Scrape all current auctions
@@ -13,6 +14,8 @@
  *   pnpm scrape:current --headless          # Run headless
  *   pnpm scrape:current --no-db             # Skip database saves
  *   pnpm scrape:current --update-only       # Only update bids on existing auctions (skip detail scrape)
+ *   pnpm scrape:current --rescrape          # Re-scrape detail pages for ALL auctions (not just new)
+ *   pnpm scrape:current --tabs 4            # Use 4 parallel tabs for detail scraping (default: 3)
  */
 import * as fs from 'fs';
 import * as path from 'path';
@@ -22,6 +25,7 @@ import { getBrowserContext, closeBrowser, navigateWithCloudflare, rateLimit, get
 import type { BrowserName } from '../src/lib/scraper/browser';
 import { scrapeSingleAuction, getTotalPages, type ScrapedAuction } from '../src/lib/scraper/auctions';
 import { RUBINOT_URLS } from '../src/lib/utils/constants';
+import type { Page } from 'playwright';
 
 const BROWSER: BrowserName = 'current-auctions';
 const prisma = new PrismaClient();
@@ -42,6 +46,7 @@ const headless = hasFlag('--headless');
 const skipDb = hasFlag('--no-db');
 const updateOnly = hasFlag('--update-only');
 const rescrape = hasFlag('--rescrape');
+const PARALLEL_TABS = getArg('--tabs') ? parseInt(getArg('--tabs')!, 10) : 3;
 
 if (hasFlag('--help') || hasFlag('-h')) {
   console.log(`
@@ -57,6 +62,7 @@ Usage:
   pnpm scrape:current --no-db             Skip database saves
   pnpm scrape:current --update-only       Only update bids (skip detail scrape for new)
   pnpm scrape:current --rescrape          Re-scrape detail pages for ALL auctions (not just new)
+  pnpm scrape:current --tabs 4            Use 4 parallel tabs (default: 3)
 `);
   process.exit(0);
 }
@@ -186,8 +192,6 @@ function parseCurrentAuctionListPage(html: string): CurrentListAuction[] {
 // ── Database helpers ───────────────────────────────────────────────────
 
 async function upsertCurrentAuction(list: CurrentListAuction, detail: ScrapedAuction | null): Promise<void> {
-  const bidPrice = list.currentBid ?? list.minimumBid;
-
   const data: Record<string, unknown> = {
     characterName: list.characterName,
     level: list.level,
@@ -245,7 +249,6 @@ async function upsertCurrentAuction(list: CurrentListAuction, detail: ScrapedAuc
       primalOrdealAvailable: detail.primalOrdealAvailable,
       soulWarAvailable: detail.soulWarAvailable,
       sanguineBloodAvailable: detail.sanguineBloodAvailable,
-      // New fields
       magicLevelPct: detail.magicLevelPct,
       fistPct: detail.fistPct,
       clubPct: detail.clubPct,
@@ -258,6 +261,8 @@ async function upsertCurrentAuction(list: CurrentListAuction, detail: ScrapedAuc
       gems: detail.gems,
       weeklyTaskExpansion: detail.weeklyTaskExpansion,
       displayItems: detail.displayItems,
+      outfitNames: detail.outfitNames,
+      mountNames: detail.mountNames,
     });
   }
 
@@ -275,6 +280,257 @@ async function updateBidOnly(externalId: string, minimumBid: number | null, curr
   });
 }
 
+/**
+ * Archive ended auctions: copy their data from current_auctions to auctions (history),
+ * then mark them as inactive.
+ */
+async function archiveEndedAuctions(seenIds: Set<string>): Promise<number> {
+  // Find auctions that are active in DB but NOT on the site anymore
+  const ended = await prisma.currentAuction.findMany({
+    where: {
+      isActive: true,
+      externalId: { notIn: Array.from(seenIds) },
+    },
+  });
+
+  if (ended.length === 0) return 0;
+
+  let archived = 0;
+  for (const auction of ended) {
+    try {
+      // Check if already exists in auction history
+      const exists = await prisma.auction.findFirst({
+        where: { externalId: auction.externalId },
+      });
+
+      if (!exists) {
+        // Copy to auction history with sold status
+        await prisma.auction.create({
+          data: {
+            externalId: auction.externalId,
+            characterName: auction.characterName,
+            level: auction.level,
+            vocation: auction.vocation,
+            gender: auction.gender,
+            world: auction.world,
+            auctionStart: auction.auctionStart,
+            auctionEnd: auction.auctionEnd,
+            auctionStatus: auction.hasBeenBidOn ? 'sold' : 'expired',
+            soldPrice: auction.currentBid ?? auction.minimumBid,
+            coinsPerLevel: auction.level && auction.level > 0
+              ? Math.round(((auction.currentBid ?? auction.minimumBid ?? 0) / auction.level) * 100) / 100
+              : null,
+            magicLevel: auction.magicLevel,
+            fist: auction.fist,
+            club: auction.club,
+            sword: auction.sword,
+            axe: auction.axe,
+            distance: auction.distance,
+            shielding: auction.shielding,
+            fishing: auction.fishing,
+            hitPoints: auction.hitPoints,
+            mana: auction.mana,
+            capacity: auction.capacity,
+            speed: auction.speed,
+            experience: auction.experience,
+            creationDate: auction.creationDate,
+            achievementPoints: auction.achievementPoints,
+            mountsCount: auction.mountsCount,
+            outfitsCount: auction.outfitsCount,
+            titlesCount: auction.titlesCount,
+            linkedTasks: auction.linkedTasks,
+            dailyRewardStreak: auction.dailyRewardStreak,
+            charmExpansion: auction.charmExpansion,
+            charmPoints: auction.charmPoints,
+            unusedCharmPoints: auction.unusedCharmPoints,
+            spentCharmPoints: auction.spentCharmPoints,
+            preySlots: auction.preySlots,
+            preyWildcards: auction.preyWildcards,
+            huntingTaskPoints: auction.huntingTaskPoints,
+            hirelings: auction.hirelings,
+            hirelingJobs: auction.hirelingJobs,
+            hasLootPouch: auction.hasLootPouch,
+            storeItemsCount: auction.storeItemsCount,
+            bossPoints: auction.bossPoints,
+            blessingsCount: auction.blessingsCount,
+            exaltedDust: auction.exaltedDust,
+            gold: auction.gold,
+            bestiary: auction.bestiary,
+            url: auction.url,
+            primalOrdealAvailable: auction.primalOrdealAvailable,
+            soulWarAvailable: auction.soulWarAvailable,
+            sanguineBloodAvailable: auction.sanguineBloodAvailable,
+            // New fields added to auctions table
+            minimumBid: auction.minimumBid,
+            currentBid: auction.currentBid,
+            hasBeenBidOn: auction.hasBeenBidOn,
+            magicLevelPct: auction.magicLevelPct,
+            fistPct: auction.fistPct,
+            clubPct: auction.clubPct,
+            swordPct: auction.swordPct,
+            axePct: auction.axePct,
+            distancePct: auction.distancePct,
+            shieldingPct: auction.shieldingPct,
+            fishingPct: auction.fishingPct,
+            outfitImageUrl: auction.outfitImageUrl,
+            gems: auction.gems,
+            weeklyTaskExpansion: auction.weeklyTaskExpansion,
+            displayItems: auction.displayItems,
+            outfitNames: auction.outfitNames,
+            mountNames: auction.mountNames,
+          } as any,
+        });
+        archived++;
+      }
+    } catch (err) {
+      console.error(`  Failed to archive ${auction.characterName}: ${(err as Error).message?.substring(0, 80)}`);
+    }
+  }
+
+  // Now deactivate them
+  await prisma.currentAuction.updateMany({
+    where: {
+      isActive: true,
+      externalId: { notIn: Array.from(seenIds) },
+    },
+    data: { isActive: false },
+  });
+
+  return archived;
+}
+
+// ── Parallel detail scraper ──────────────────────────────────────────────
+
+/**
+ * Scrape a single auction's detail page using the given tab.
+ * Returns the result immediately so it can be saved right away.
+ */
+async function scrapeDetailWithTab(
+  tab: Page,
+  listAuction: CurrentListAuction,
+  label: string,
+): Promise<{ list: CurrentListAuction; detail: ScrapedAuction | null }> {
+  try {
+    const detail = await scrapeSingleAuction(tab, listAuction.externalId);
+    return { list: listAuction, detail };
+  } catch (err) {
+    console.error(`    Failed detail for ${listAuction.characterName}: ${(err as Error).message?.substring(0, 60)}`);
+    return { list: listAuction, detail: null };
+  }
+}
+
+/**
+ * Process a batch of auctions across multiple tabs in parallel.
+ * Each auction is saved to DB immediately after its detail is scraped.
+ */
+async function scrapeDetailsInParallel(
+  context: any,
+  auctions: CurrentListAuction[],
+  existingIds: Set<string>,
+  stats: { newCount: number; updatedCount: number; savedCount: number },
+): Promise<void> {
+  // Separate auctions that need detail scraping vs bid-only updates
+  const needDetail: CurrentListAuction[] = [];
+  const bidOnly: CurrentListAuction[] = [];
+
+  for (const a of auctions) {
+    const isNew = !existingIds.has(a.externalId);
+    const needs = isNew || rescrape;
+
+    if (needs && !updateOnly) {
+      needDetail.push(a);
+    } else {
+      bidOnly.push(a);
+    }
+  }
+
+  // Process bid-only updates immediately (fast, no scraping needed)
+  if (!skipDb) {
+    for (const a of bidOnly) {
+      stats.updatedCount++;
+      try {
+        await updateBidOnly(a.externalId, a.minimumBid, a.currentBid, a.hasBeenBidOn);
+      } catch {
+        // Might not exist yet — insert it
+        await upsertCurrentAuction(a, null);
+        stats.newCount++;
+      }
+    }
+    if (bidOnly.length > 0) {
+      console.log(`  Updated bids for ${bidOnly.length} existing auctions`);
+    }
+  }
+
+  if (needDetail.length === 0) return;
+
+  // Create parallel tabs
+  const tabCount = Math.min(PARALLEL_TABS, needDetail.length);
+  console.log(`\n  Scraping ${needDetail.length} detail pages using ${tabCount} parallel tabs...`);
+
+  const tabs: Page[] = [];
+  for (let i = 0; i < tabCount; i++) {
+    try {
+      const tab = await context.newPage();
+      tabs.push(tab);
+    } catch {
+      console.error(`  Failed to create tab ${i + 1}`);
+    }
+  }
+
+  if (tabs.length === 0) {
+    console.error('  No tabs available — falling back to single tab');
+    // Use the main page as fallback
+    const mainPage = context.pages()[0];
+    if (mainPage) tabs.push(mainPage);
+    else return;
+  }
+
+  // Process auctions in parallel batches
+  let idx = 0;
+  while (idx < needDetail.length) {
+    if (maxCount && stats.newCount >= maxCount) break;
+
+    const batch = needDetail.slice(idx, idx + tabs.length);
+    idx += batch.length;
+
+    // Small stagger between parallel requests to avoid triggering Cloudflare
+    const promises = batch.map(async (auction, i) => {
+      if (i > 0) await sleep(300 * i); // stagger by 300ms per tab
+      stats.newCount++;
+      const isNew = !existingIds.has(auction.externalId);
+      const label = isNew ? 'NEW' : 'RESCRAPE';
+      const target = maxCount ?? needDetail.length;
+      console.log(`  [${label} ${stats.newCount}/${target}] ${auction.characterName} Lv${auction.level}`);
+      return scrapeDetailWithTab(tabs[i % tabs.length], auction, label);
+    });
+
+    const results = await Promise.allSettled(promises);
+
+    // Save each result immediately
+    for (const result of results) {
+      if (result.status === 'fulfilled') {
+        const { list, detail } = result.value;
+        if (!skipDb) {
+          try {
+            await upsertCurrentAuction(list, detail);
+            stats.savedCount++;
+          } catch (err) {
+            console.error(`    DB save failed for ${list.characterName}: ${(err as Error).message?.substring(0, 60)}`);
+          }
+        }
+      }
+    }
+
+    // Rate limit between batches
+    await rateLimit('fast');
+  }
+
+  // Close extra tabs (keep the first one for list page navigation)
+  for (let i = 1; i < tabs.length; i++) {
+    try { await tabs[i].close(); } catch {}
+  }
+}
+
 // ── Main ───────────────────────────────────────────────────────────────
 
 async function main() {
@@ -290,14 +546,14 @@ async function main() {
   console.log(`Found ${existingIds.size} existing active current auctions in DB`);
 
   // Launch browser
-  console.log(`\nLaunching browser (${BROWSER})...`);
+  console.log(`\nLaunching browser (${BROWSER}) with ${PARALLEL_TABS} parallel tabs...`);
   const context = await getBrowserContext({ headless, browser: BROWSER });
   let page = context.pages()[0] || await context.newPage();
 
   const baseUrl = `${RUBINOT_URLS.base}${RUBINOT_URLS.currentAuctions}`;
-  let newCount = 0;
-  let updatedCount = 0;
+  const stats = { newCount: 0, updatedCount: 0, savedCount: 0 };
   let totalFound = 0;
+  let archivedCount = 0;
   const seenIds = new Set<string>();
 
   try {
@@ -314,19 +570,19 @@ async function main() {
     const firstPageAuctions = parseCurrentAuctionListPage(firstPageHtml);
     console.log(`Page 1: ${firstPageAuctions.length} auctions, ${totalPages} total pages`);
 
-    // Process all pages
+    // Collect all list page data
     const allListAuctions: CurrentListAuction[] = [...firstPageAuctions];
 
     for (let p = 2; p <= totalPages; p++) {
-      if (maxCount && newCount >= maxCount) break;
+      if (maxCount && stats.newCount >= maxCount) break;
 
-      await rateLimit();
+      await rateLimit('fast');
       const pageUrl = `${RUBINOT_URLS.base}/?subtopic=currentcharactertrades&currentpage=${p}`;
       console.log(`Fetching page ${p}/${totalPages}...`);
 
       try {
         await navigateWithCloudflare(page, pageUrl);
-        await sleep(800 + Math.floor(Math.random() * 1200));
+        await sleep(600 + Math.floor(Math.random() * 800));
         const html = await page.content();
         const pageAuctions = parseCurrentAuctionListPage(html);
         console.log(`  Page ${p}: ${pageAuctions.length} auctions`);
@@ -342,71 +598,20 @@ async function main() {
     totalFound = allListAuctions.length;
     console.log(`\nTotal auctions found on site: ${totalFound}`);
 
-    // Track all seen IDs for deactivation
+    // Track all seen IDs for deactivation/archival
     for (const a of allListAuctions) {
       seenIds.add(a.externalId);
     }
 
-    // Process each auction
-    for (const listAuction of allListAuctions) {
-      if (maxCount && newCount >= maxCount) break;
+    // Scrape details in parallel and save as we go
+    await scrapeDetailsInParallel(context, allListAuctions, existingIds, stats);
 
-      const isNew = !existingIds.has(listAuction.externalId);
-      const needsDetail = isNew || rescrape;
-
-      if (needsDetail && !updateOnly) {
-        // New auction or rescrape — scrape detail page for full stats
-        newCount++;
-        await rateLimit();
-        const detailUrl = `${RUBINOT_URLS.base}/?currentcharactertrades/${listAuction.externalId}`;
-        const target = maxCount ?? '?';
-        const label = isNew ? 'NEW' : 'RESCRAPE';
-        console.log(`  [${label} ${newCount}/${target}] ${listAuction.characterName} Lv${listAuction.level} (${detailUrl})`);
-
-        let detail: ScrapedAuction | null = null;
-        try {
-          detail = await scrapeSingleAuction(page, listAuction.externalId);
-        } catch (err) {
-          console.error(`    Failed detail for ${listAuction.characterName}: ${(err as Error).message?.substring(0, 60)}`);
-          try { page = await getHealthyPage(BROWSER); } catch {}
-        }
-
-        if (!skipDb) {
-          await upsertCurrentAuction(listAuction, detail);
-        }
-      } else {
-        // Existing auction — just update bid
-        updatedCount++;
-        if (!skipDb) {
-          try {
-            await updateBidOnly(
-              listAuction.externalId,
-              listAuction.minimumBid,
-              listAuction.currentBid,
-              listAuction.hasBeenBidOn,
-            );
-          } catch {
-            // Might not exist yet if updateOnly mode — insert it
-            if (updateOnly && !skipDb) {
-              await upsertCurrentAuction(listAuction, null);
-              newCount++;
-            }
-          }
-        }
-      }
-    }
-
-    // Mark auctions that are no longer on the site as inactive
+    // Archive ended auctions to history, then deactivate
     if (!skipDb && !maxPages && !maxCount) {
-      const deactivated = await prisma.currentAuction.updateMany({
-        where: {
-          isActive: true,
-          externalId: { notIn: Array.from(seenIds) },
-        },
-        data: { isActive: false },
-      });
-      if (deactivated.count > 0) {
-        console.log(`\nDeactivated ${deactivated.count} auctions that are no longer on the site`);
+      console.log('\nArchiving ended auctions to history...');
+      archivedCount = await archiveEndedAuctions(seenIds);
+      if (archivedCount > 0) {
+        console.log(`  Archived ${archivedCount} ended auctions to history`);
       }
     }
   } finally {
@@ -415,8 +620,11 @@ async function main() {
   Current Auctions Scraper — Summary
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   Total found on site: ${totalFound}
-  New auctions scraped: ${newCount}
-  Existing updated: ${updatedCount}
+  Detail pages scraped: ${stats.newCount}
+  Successfully saved: ${stats.savedCount}
+  Bids updated: ${stats.updatedCount}
+  Archived to history: ${archivedCount}
+  Parallel tabs used: ${PARALLEL_TABS}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
 
     await prisma.$disconnect();

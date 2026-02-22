@@ -7,9 +7,8 @@ import { CurrentAuctionsClient } from './CurrentAuctionsClient';
 async function getCurrentAuctionData() {
   const [auctions, worlds, vocations, worldTypes] = await Promise.all([
     prisma.currentAuction.findMany({
-      where: { isActive: true },
       orderBy: { currentBid: 'desc' },
-      take: 500,
+      take: 2000,
     }),
     prisma.currentAuction.findMany({
       select: { world: true },

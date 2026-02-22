@@ -113,6 +113,8 @@ type SerializedCurrentAuction = {
   gems: string | null;
   weeklyTaskExpansion: boolean | null;
   displayItems: string | null;
+  outfitNames: string | null;
+  mountNames: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -132,7 +134,7 @@ interface CurrentAuctionsClientProps {
   initialSearch?: string;
 }
 
-type SortField = 'currentBid' | 'minimumBid' | 'level' | 'magicLevel' | 'charmPoints';
+type SortField = 'currentBid' | 'minimumBid' | 'level' | 'magicLevel' | 'charmPoints' | 'auctionEnd';
 type SortOrder = 'asc' | 'desc';
 
 const ITEMS_PER_PAGE = 24;
@@ -752,8 +754,6 @@ function AuctionDetailModal({
                 </div>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
                   {[
-                    { label: 'Outfits', value: rcResult.breakdown.outfits },
-                    { label: 'Mounts', value: rcResult.breakdown.mounts },
                     { label: 'Hirelings', value: rcResult.breakdown.hirelings },
                     { label: 'Charm Exp', value: rcResult.breakdown.charmExpansion },
                     { label: 'Prey Slot', value: rcResult.breakdown.extraPreySlot },
@@ -766,6 +766,26 @@ function AuctionDetailModal({
                     </div>
                   ))}
                 </div>
+                {(rcResult.matchedOutfits.length > 0 || rcResult.matchedMounts.length > 0) && (
+                  <div className="mt-1.5 pt-1.5" style={{ borderTop: '1px solid #3a3848' }}>
+                    {rcResult.matchedOutfits.map((o) => (
+                      <div key={o.name} className="flex items-center justify-between">
+                        <span className="text-[10px]" style={{ color: '#ec4899' }}>
+                          <Star className="inline h-2.5 w-2.5 mr-0.5" />{o.name.replace(/\s*\(.*\)/, '')}
+                        </span>
+                        <span className="text-[10px] font-semibold tabular-nums" style={{ color: '#d4d0e0' }}>{formatNumber(o.price)} RC</span>
+                      </div>
+                    ))}
+                    {rcResult.matchedMounts.map((m) => (
+                      <div key={m.name} className="flex items-center justify-between">
+                        <span className="text-[10px]" style={{ color: '#06b6d4' }}>
+                          <Footprints className="inline h-2.5 w-2.5 mr-0.5" />{m.name}
+                        </span>
+                        <span className="text-[10px] font-semibold tabular-nums" style={{ color: '#d4d0e0' }}>{formatNumber(m.price)} RC</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           ) : null;
@@ -1210,15 +1230,21 @@ export function CurrentAuctionsClient({
   const [selectedVocation, setSelectedVocation] = useState('');
   const [minLevel, setMinLevel] = useState('');
   const [maxLevel, setMaxLevel] = useState('');
-  const [sortField, setSortField] = useState<SortField>('currentBid');
-  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  const [sortField, setSortField] = useState<SortField>('auctionEnd');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
   const [page, setPage] = useState(1);
   const [showFilters, setShowFilters] = useState(false);
+  const [hideEnded, setHideEnded] = useState(true);
   const [detailAuction, setDetailAuction] = useState<SerializedCurrentAuction | null>(null);
   const tick = useCountdown();
 
   const filtered = useMemo(() => {
     let result = initialAuctions;
+
+    // Filter ended auctions unless explicitly showing them
+    if (hideEnded) {
+      result = result.filter((a) => a.isActive);
+    }
 
     if (search) {
       const q = search.toLowerCase();
@@ -1230,6 +1256,18 @@ export function CurrentAuctionsClient({
     if (maxLevel) result = result.filter((a) => (a.level || 0) <= parseInt(maxLevel));
 
     result.sort((a, b) => {
+      if (sortField === 'auctionEnd') {
+        // Parse auction end dates for chronological sorting
+        const parseEnd = (s: string | null) => {
+          if (!s) return Infinity;
+          const d = new Date(s.replace(/\s+(CET|CEST|BRT|BRST|UTC)$/, ''));
+          return isNaN(d.getTime()) ? Infinity : d.getTime();
+        };
+        const aVal = parseEnd(a.auctionEnd);
+        const bVal = parseEnd(b.auctionEnd);
+        return sortOrder === 'asc' ? aVal - bVal : bVal - aVal;
+      }
+
       const getVal = (auction: SerializedCurrentAuction) => {
         if (sortField === 'currentBid') return auction.currentBid ?? auction.minimumBid ?? 0;
         if (sortField === 'minimumBid') return auction.minimumBid ?? 0;
@@ -1241,7 +1279,7 @@ export function CurrentAuctionsClient({
     });
 
     return result;
-  }, [initialAuctions, search, selectedWorld, selectedVocation, minLevel, maxLevel, sortField, sortOrder]);
+  }, [initialAuctions, search, selectedWorld, selectedVocation, minLevel, maxLevel, sortField, sortOrder, hideEnded]);
 
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
   const paginated = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
@@ -1357,10 +1395,12 @@ export function CurrentAuctionsClient({
       {/* Sort Bar + Count */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
-          {filtered.length} active auction{filtered.length !== 1 ? 's' : ''}
+          {filtered.length} auction{filtered.length !== 1 ? 's' : ''}
+          {!hideEnded && <span className="text-muted-foreground/60"> (including ended)</span>}
         </p>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           {([
+            ['auctionEnd', 'Ending'],
             ['currentBid', 'Bid'],
             ['level', 'Level'],
             ['magicLevel', 'Magic Level'],
@@ -1377,6 +1417,14 @@ export function CurrentAuctionsClient({
               )}
             </button>
           ))}
+          <div className="h-5 w-px bg-border/50 mx-1" />
+          <button
+            onClick={() => { setHideEnded(!hideEnded); setPage(1); }}
+            className={`flex h-8 items-center gap-1 rounded-md px-3 text-xs transition-colors ${!hideEnded ? 'bg-amber-500/10 text-amber-400' : 'bg-secondary/50 text-muted-foreground hover:text-foreground'}`}
+          >
+            <Eye className="h-3 w-3" />
+            {hideEnded ? 'Show Ended' : 'Hide Ended'}
+          </button>
         </div>
       </div>
 

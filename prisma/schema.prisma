@@ -130,6 +130,26 @@ model Auction {
   primalOrdealAvailable    Boolean?   @map("primal_ordeal_available")
   soulWarAvailable         Boolean?   @map("soul_war_available")
   sanguineBloodAvailable   Boolean?   @map("sanguine_blood_available")
+  // Bid tracking (from current auctions archival)
+  minimumBid         Int?       @map("minimum_bid")
+  currentBid         Int?       @map("current_bid")
+  hasBeenBidOn       Boolean?   @default(false) @map("has_been_bid_on")
+  // Skill percentages
+  magicLevelPct    Float?   @map("magic_level_pct")
+  fistPct          Float?   @map("fist_pct")
+  clubPct          Float?   @map("club_pct")
+  swordPct         Float?   @map("sword_pct")
+  axePct           Float?   @map("axe_pct")
+  distancePct      Float?   @map("distance_pct")
+  shieldingPct     Float?   @map("shielding_pct")
+  fishingPct       Float?   @map("fishing_pct")
+  // Extra detail fields
+  outfitImageUrl   String?  @map("outfit_image_url") @db.VarChar(500)
+  gems             String?  @db.Text
+  weeklyTaskExpansion  Boolean?  @map("weekly_task_expansion")
+  displayItems     String?  @map("display_items") @db.Text
+  outfitNames      String?  @map("outfit_names") @db.Text
+  mountNames       String?  @map("mount_names") @db.Text
   // Timestamps
   createdAt          DateTime   @default(now()) @map("created_at")
   updatedAt          DateTime   @default(now()) @updatedAt @map("updated_at")
@@ -315,6 +335,9 @@ model CurrentAuction {
   weeklyTaskExpansion  Boolean?  @map("weekly_task_expansion")
   // Display items (JSON array of item image URLs)
   displayItems     String?  @map("display_items") @db.Text
+  // Outfit and mount names (JSON arrays of strings)
+  outfitNames      String?  @map("outfit_names") @db.Text
+  mountNames       String?  @map("mount_names") @db.Text
   // Timestamps
   createdAt          DateTime   @default(now()) @map("created_at")
   updatedAt          DateTime   @default(now()) @updatedAt @map("updated_at")

@@ -85,6 +85,9 @@ export interface ScrapedAuction {
   weeklyTaskExpansion: boolean | null;
   // Display items (JSON string of image URLs)
   displayItems: string | null;
+  // Outfit and mount names (JSON strings)
+  outfitNames: string | null;
+  mountNames: string | null;
   // Calculated
   coinsPerLevel: number | null;
   url: string;
@@ -276,6 +279,9 @@ interface DetailPageData {
   weeklyTaskExpansion: boolean | null;
   // Display items (JSON string)
   displayItems: string | null;
+  // Outfit and mount names (JSON strings)
+  outfitNames: string | null;
+  mountNames: string | null;
 }
 
 /**
@@ -308,6 +314,7 @@ function parseDetailPage(html: string): DetailPageData {
     magicLevelPct: null, fistPct: null, clubPct: null, swordPct: null,
     axePct: null, distancePct: null, shieldingPct: null, fishingPct: null,
     outfitImageUrl: null, gems: null, weeklyTaskExpansion: null, displayItems: null,
+    outfitNames: null, mountNames: null,
   };
 
   // Skills from the skill table (td.LabelColumn > b + td.LevelColumn + td.PercentageColumn)
@@ -454,6 +461,52 @@ function parseDetailPage(html: string): DetailPageData {
   });
   if (displayItems.length > 0) {
     data.displayItems = JSON.stringify(displayItems);
+  }
+
+  // Outfit names — from div.CVIcon[title] inside tr.tmp-container-Outfits
+  // Structure: <div class="CVIcon" title="Citizen (Base)"><img ...></div>
+  const outfitNames: string[] = [];
+  $('tr.tmp-container-Outfits div.CVIcon').each((_i, el) => {
+    const title = $(el).attr('title');
+    if (title) outfitNames.push(title);
+  });
+  // Fallback: find section by header text and scan CVIcon titles
+  if (outfitNames.length === 0) {
+    $('div.CaptionInnerContainer').each((_i, el) => {
+      const headerText = $(el).find('.Text').text().trim();
+      if (headerText === 'Outfits') {
+        const block = $(el).closest('.TableContainer, td').first();
+        block.find('div.CVIcon').each((_j, iconEl) => {
+          const title = $(iconEl).attr('title');
+          if (title) outfitNames.push(title);
+        });
+      }
+    });
+  }
+  if (outfitNames.length > 0) {
+    data.outfitNames = JSON.stringify(outfitNames);
+  }
+
+  // Mount names — from div.CVIcon[title] inside tr.tmp-container-Mounts
+  const mountNames: string[] = [];
+  $('tr.tmp-container-Mounts div.CVIcon').each((_i, el) => {
+    const title = $(el).attr('title');
+    if (title) mountNames.push(title);
+  });
+  if (mountNames.length === 0) {
+    $('div.CaptionInnerContainer').each((_i, el) => {
+      const headerText = $(el).find('.Text').text().trim();
+      if (headerText === 'Mounts') {
+        const block = $(el).closest('.TableContainer, td').first();
+        block.find('div.CVIcon').each((_j, iconEl) => {
+          const title = $(iconEl).attr('title');
+          if (title) mountNames.push(title);
+        });
+      }
+    });
+  }
+  if (mountNames.length > 0) {
+    data.mountNames = JSON.stringify(mountNames);
   }
 
   return data;
@@ -635,6 +688,7 @@ async function scrapeAuctionDetail(
     magicLevelPct: null, fistPct: null, clubPct: null, swordPct: null,
     axePct: null, distancePct: null, shieldingPct: null, fishingPct: null,
     outfitImageUrl: null, gems: null, weeklyTaskExpansion: null, displayItems: null,
+    outfitNames: null, mountNames: null,
   };
 
   try {
