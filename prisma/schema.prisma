@@ -234,3 +234,122 @@ model Watchlist {
   @@index([auctionId])
   @@map("watchlist")
 }
+
+// Current (live) auctions from currentcharactertrades
+model CurrentAuction {
+  id                 Int        @id @default(autoincrement())
+  externalId         String     @unique @map("external_id") @db.VarChar(100)
+  characterName      String     @map("character_name") @db.VarChar(255)
+  level              Int?
+  vocation           String?    @db.VarChar(50)
+  gender             String?    @db.VarChar(20)
+  world              String?    @db.VarChar(100)
+  auctionStart       String?    @map("auction_start") @db.VarChar(100)
+  auctionEnd         String?    @map("auction_end") @db.VarChar(100)
+  // Bid tracking
+  minimumBid         Int?       @map("minimum_bid")
+  currentBid         Int?       @map("current_bid")
+  hasBeenBidOn       Boolean    @default(false) @map("has_been_bid_on")
+  // Skills
+  magicLevel         Int?       @map("magic_level")
+  fist               Int?
+  club               Int?
+  sword              Int?
+  axe                Int?
+  distance           Int?
+  shielding          Int?
+  fishing            Int?
+  // General stats
+  hitPoints          Int?       @map("hit_points")
+  mana               Int?
+  capacity           Int?
+  speed              Int?
+  experience         String?    @db.VarChar(50)
+  creationDate       String?    @map("creation_date") @db.VarChar(100)
+  achievementPoints  Int?       @map("achievement_points")
+  mountsCount        Int?       @map("mounts_count")
+  outfitsCount       Int?       @map("outfits_count")
+  titlesCount        Int?       @map("titles_count")
+  linkedTasks        Int?       @map("linked_tasks")
+  dailyRewardStreak  Int?       @map("daily_reward_streak")
+  // Charm
+  charmExpansion     Boolean?   @map("charm_expansion")
+  charmPoints        Int?       @map("charm_points")
+  unusedCharmPoints  Int?       @map("unused_charm_points")
+  spentCharmPoints   Int?       @map("spent_charm_points")
+  // Prey & hunting
+  preySlots          Int?       @map("prey_slots")
+  preyWildcards      Int?       @map("prey_wildcards")
+  huntingTaskPoints  Int?       @map("hunting_task_points")
+  // Hirelings
+  hirelings          Int?
+  hirelingJobs       Int?       @map("hireling_jobs")
+  // Items
+  hasLootPouch       Boolean?   @map("has_loot_pouch")
+  storeItemsCount    Int?       @map("store_items_count")
+  // Other
+  bossPoints         Int?       @map("boss_points")
+  blessingsCount     Int?       @map("blessings_count")
+  exaltedDust        String?    @map("exalted_dust") @db.VarChar(50)
+  gold               Int?
+  bestiary           Int?
+  url                String?    @db.VarChar(500)
+  // Quest availability
+  primalOrdealAvailable    Boolean?   @map("primal_ordeal_available")
+  soulWarAvailable         Boolean?   @map("soul_war_available")
+  sanguineBloodAvailable   Boolean?   @map("sanguine_blood_available")
+  // Skill percentages (progress to next level)
+  magicLevelPct    Float?   @map("magic_level_pct")
+  fistPct          Float?   @map("fist_pct")
+  clubPct          Float?   @map("club_pct")
+  swordPct         Float?   @map("sword_pct")
+  axePct           Float?   @map("axe_pct")
+  distancePct      Float?   @map("distance_pct")
+  shieldingPct     Float?   @map("shielding_pct")
+  fishingPct       Float?   @map("fishing_pct")
+  // Outfit image
+  outfitImageUrl   String?  @map("outfit_image_url") @db.VarChar(500)
+  // Gems (JSON array of gem objects)
+  gems             String?  @db.Text
+  // Weekly task expansion
+  weeklyTaskExpansion  Boolean?  @map("weekly_task_expansion")
+  // Display items (JSON array of item image URLs)
+  displayItems     String?  @map("display_items") @db.Text
+  // Timestamps
+  createdAt          DateTime   @default(now()) @map("created_at")
+  updatedAt          DateTime   @default(now()) @updatedAt @map("updated_at")
+  // Track if auction has ended (moved to past auctions)
+  isActive           Boolean    @default(true) @map("is_active")
+
+  @@index([vocation])
+  @@index([level])
+  @@index([world])
+  @@index([currentBid])
+  @@index([isActive])
+  @@map("current_auctions")
+}
+
+// World types and transfer rules
+model WorldType {
+  id          Int      @id @default(autoincrement())
+  worldName   String   @unique @map("world_name") @db.VarChar(100)
+  pvpType     String   @map("pvp_type") @db.VarChar(50)   // "Optional PvP", "Open PvP", "Retro Open PvP"
+  isRtc       Boolean  @default(false) @map("is_rtc")      // Updated to RTC (Rubini Trading Coins)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("world_types")
+}
+
+// User feedback submissions
+model Feedback {
+  id        Int      @id @default(autoincrement())
+  type      String   @db.VarChar(50)   // "bug", "feature", "general"
+  message   String   @db.Text
+  page      String?  @db.VarChar(500)
+  email     String?  @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([type])
+  @@index([createdAt])
+  @@map("feedback")
+}
