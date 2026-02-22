@@ -1,16 +1,20 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useCallback } from 'react';
 import { Card } from '@/components/ui/card';
-import { Calculator, Swords, Target, Clock, Zap, Shield, Crown, Coins } from 'lucide-react';
+import { Calculator, Swords, Target, Clock, Zap, Shield, Crown, Coins, Info } from 'lucide-react';
 import { formatNumber } from '@/lib/utils/formatters';
 import {
   calculateWeaponsNeeded,
   calculateSkillGain,
+  getMultiplierForDisplay,
+  getVocationConstant,
   SKILL_CATEGORIES,
+  VOCATIONS,
   WEAPON_TYPES,
   SKILL_MULTIPLIERS,
   MAGIC_MULTIPLIERS,
+  type Vocation,
   type SkillCategory,
   type CalculatorModifiers,
   type WeaponsNeededResult,
@@ -21,14 +25,129 @@ type Mode = 'target' | 'weapons';
 
 const LOYALTY_OPTIONS = Array.from({ length: 11 }, (_, i) => i * 5);
 
+// --- Draggable Percentage Slider ---
+
+function PercentSlider({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (val: number) => void;
+}) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const dragging = useRef(false);
+
+  const updateFromPosition = useCallback(
+    (clientX: number) => {
+      if (!trackRef.current) return;
+      const rect = trackRef.current.getBoundingClientRect();
+      const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
+      const pct = Math.round((x / rect.width) * 10000) / 100; // 2 decimal places
+      onChange(Math.max(0, Math.min(99.99, pct)));
+    },
+    [onChange],
+  );
+
+  const onPointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      dragging.current = true;
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      updateFromPosition(e.clientX);
+    },
+    [updateFromPosition],
+  );
+
+  const onPointerMove = useCallback(
+    (e: React.PointerEvent) => {
+      if (!dragging.current) return;
+      updateFromPosition(e.clientX);
+    },
+    [updateFromPosition],
+  );
+
+  const onPointerUp = useCallback(() => {
+    dragging.current = false;
+  }, []);
+
+  const fillPct = Math.min(100, Math.max(0, value));
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between">
+        <label className="text-sm font-medium">% to Next Level</label>
+        <span className="text-sm font-bold tabular-nums text-primary">{value.toFixed(2)}%</span>
+      </div>
+      <div
+        ref={trackRef}
+        className="relative h-6 cursor-pointer select-none touch-none"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+      >
+        {/* Track background */}
+        <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 h-2 rounded-full bg-background border border-border/50" />
+        {/* Filled portion */}
+        <div
+          className="absolute top-1/2 -translate-y-1/2 left-0 h-2 rounded-full bg-primary/60"
+          style={{ width: `${fillPct}%` }}
+        />
+        {/* Thumb */}
+        <div
+          className="absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-primary border-2 border-primary-foreground shadow-md transition-shadow hover:shadow-lg"
+          style={{ left: `calc(${fillPct}% - 8px)` }}
+        />
+        {/* Tick marks */}
+        <div className="absolute top-full mt-0.5 left-0 right-0 flex justify-between px-0.5">
+          {[0, 25, 50, 75, 100].map((tick) => (
+            <span key={tick} className="text-[8px] text-muted-foreground/50 tabular-nums">{tick}</span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- Vocation Speed Indicator ---
+
+function VocationSpeedHint({ vocation, category }: { vocation: Vocation; category: SkillCategory }) {
+  const b = getVocationConstant(vocation, category);
+  let speed: string;
+  let color: string;
+  if (b <= 1.1) {
+    speed = 'Primary skill — fastest training';
+    color = 'text-emerald-400';
+  } else if (b <= 1.2) {
+    speed = 'Secondary skill — fast training';
+    color = 'text-green-400';
+  } else if (b <= 1.5) {
+    speed = 'Moderate training speed';
+    color = 'text-yellow-400';
+  } else if (b <= 2.0) {
+    speed = 'Slow training speed';
+    color = 'text-orange-400';
+  } else {
+    speed = 'Very slow training speed';
+    color = 'text-red-400';
+  }
+
+  return (
+    <div className="flex items-center gap-1.5 mt-1.5">
+      <Info className="w-3 h-3 text-muted-foreground/50 shrink-0" />
+      <span className={`text-xs ${color}`}>{speed}</span>
+      <span className="text-[10px] text-muted-foreground/50">(b={b})</span>
+    </div>
+  );
+}
+
 export default function CalculatorClient() {
   // Mode
   const [mode, setMode] = useState<Mode>('target');
 
   // Shared inputs
-  const [category, setCategory] = useState<SkillCategory>('magic');
+  const [vocation, setVocation] = useState<Vocation>('knight');
+  const [category, setCategory] = useState<SkillCategory>('sword');
   const [currentSkill, setCurrentSkill] = useState<string>('10');
-  const [percentToNext, setPercentToNext] = useState<string>('0');
+  const [percentToNext, setPercentToNext] = useState<number>(0);
   const [loyaltyPercent, setLoyaltyPercent] = useState<number>(0);
   const [doubleEvent, setDoubleEvent] = useState(false);
   const [privateDummy, setPrivateDummy] = useState(false);
@@ -49,21 +168,31 @@ export default function CalculatorClient() {
   };
 
   const current = parseInt(currentSkill, 10) || 0;
-  const percent = parseFloat(percentToNext) || 0;
   const target = parseInt(targetSkill, 10) || 0;
   const count = parseInt(weaponCount, 10) || 0;
+
+  // Auto-select a sensible default skill when vocation changes
+  const handleVocationChange = (v: Vocation) => {
+    setVocation(v);
+    // Set to the primary skill for the vocation
+    switch (v) {
+      case 'knight': setCategory('sword'); break;
+      case 'paladin': setCategory('distance'); break;
+      case 'sorcerer': case 'druid': setCategory('magic'); break;
+    }
+  };
 
   // Mode 1 result
   const weaponsResult: WeaponsNeededResult | null = useMemo(() => {
     if (mode !== 'target' || current <= 0 || target <= current) return null;
-    return calculateWeaponsNeeded(category, current, percent, target, modifiers);
-  }, [mode, category, current, percent, target, modifiers.loyaltyPercent, modifiers.doubleEvent, modifiers.privateDummy, modifiers.vip]);
+    return calculateWeaponsNeeded(category, vocation, current, percentToNext, target, modifiers);
+  }, [mode, category, vocation, current, percentToNext, target, modifiers.loyaltyPercent, modifiers.doubleEvent, modifiers.privateDummy, modifiers.vip]);
 
   // Mode 2 result
   const skillResult: SkillGainResult | null = useMemo(() => {
     if (mode !== 'weapons' || current <= 0 || count <= 0) return null;
-    return calculateSkillGain(category, weaponType, count, current, percent, modifiers);
-  }, [mode, category, weaponType, count, current, percent, modifiers.loyaltyPercent, modifiers.doubleEvent, modifiers.privateDummy, modifiers.vip]);
+    return calculateSkillGain(category, vocation, weaponType, count, current, percentToNext, modifiers);
+  }, [mode, category, vocation, weaponType, count, current, percentToNext, modifiers.loyaltyPercent, modifiers.doubleEvent, modifiers.privateDummy, modifiers.vip]);
 
   const multiplierTable = category === 'magic' ? MAGIC_MULTIPLIERS : SKILL_MULTIPLIERS;
 
@@ -106,24 +235,37 @@ export default function CalculatorClient() {
           </div>
 
           <div className="p-6 space-y-5">
-            {/* Skill Category */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Skill Type</label>
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value as SkillCategory)}
-                className="w-full px-3 py-2 bg-background border border-border/50 rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-              >
-                {SKILL_CATEGORIES.map((c) => (
-                  <option key={c.value} value={c.value}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Current Skill + Percent */}
+            {/* Vocation + Skill */}
             <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Vocation</label>
+                <select
+                  value={vocation}
+                  onChange={(e) => handleVocationChange(e.target.value as Vocation)}
+                  className="w-full px-3 py-2 bg-background border border-border/50 rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                >
+                  {VOCATIONS.map((v) => (
+                    <option key={v.value} value={v.value}>{v.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Skill</label>
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value as SkillCategory)}
+                  className="w-full px-3 py-2 bg-background border border-border/50 rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                >
+                  {SKILL_CATEGORIES.map((c) => (
+                    <option key={c.value} value={c.value}>{c.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <VocationSpeedHint vocation={vocation} category={category} />
+
+            {/* Current Skill + Slider */}
+            <div className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Current Skill</label>
                 <input
@@ -136,19 +278,7 @@ export default function CalculatorClient() {
                   className="w-full px-3 py-2 bg-background border border-border/50 rounded-md text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                 />
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">% to Next Level</label>
-                <input
-                  type="number"
-                  min={0}
-                  max={99.99}
-                  step={0.01}
-                  value={percentToNext}
-                  onChange={(e) => setPercentToNext(e.target.value)}
-                  placeholder="0"
-                  className="w-full px-3 py-2 bg-background border border-border/50 rounded-md text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                />
-              </div>
+              <PercentSlider value={percentToNext} onChange={setPercentToNext} />
             </div>
 
             {/* Mode-specific inputs */}
@@ -336,16 +466,24 @@ export default function CalculatorClient() {
                 {/* Summary */}
                 <div className="border-t border-border/30 pt-4 text-xs text-muted-foreground space-y-1">
                   <div className="flex justify-between">
+                    <span>Vocation</span>
+                    <span>{VOCATIONS.find(v => v.value === vocation)?.label}</span>
+                  </div>
+                  <div className="flex justify-between">
                     <span>From</span>
-                    <span>Skill {current} ({percent}%)</span>
+                    <span>Skill {current} ({percentToNext.toFixed(2)}%)</span>
                   </div>
                   <div className="flex justify-between">
                     <span>To</span>
                     <span>Skill {target}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Current multiplier</span>
+                    <span>Server multiplier</span>
                     <span>{getMultiplierForDisplay(current, category)}x</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Vocation rate</span>
+                    <span>b={getVocationConstant(vocation, category)}</span>
                   </div>
                 </div>
               </div>
@@ -390,6 +528,10 @@ export default function CalculatorClient() {
                 {/* Summary */}
                 <div className="border-t border-border/30 pt-4 text-xs text-muted-foreground space-y-1">
                   <div className="flex justify-between">
+                    <span>Vocation</span>
+                    <span>{VOCATIONS.find(v => v.value === vocation)?.label}</span>
+                  </div>
+                  <div className="flex justify-between">
                     <span>Weapon</span>
                     <span>
                       {count}x {WEAPON_TYPES[weaponType].name}
@@ -404,8 +546,12 @@ export default function CalculatorClient() {
                     <span>{WEAPON_TYPES[weaponType].rcCost} RC</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Current multiplier</span>
+                    <span>Server multiplier</span>
                     <span>{getMultiplierForDisplay(current, category)}x</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Vocation rate</span>
+                    <span>b={getVocationConstant(vocation, category)}</span>
                   </div>
                 </div>
               </div>
@@ -431,7 +577,7 @@ export default function CalculatorClient() {
         <div className="flex items-center gap-2 p-6 pb-0">
           <Zap className="w-5 h-5 text-primary" />
           <h2 className="text-lg font-semibold">
-            RubinOT {category === 'magic' ? 'Magic Level' : 'Skill'} Multiplier Rates
+            RubinOT {SKILL_CATEGORIES.find(c => c.value === category)?.label} Multiplier Rates
           </h2>
         </div>
         <div className="p-6">
@@ -461,14 +607,4 @@ export default function CalculatorClient() {
       </Card>
     </div>
   );
-}
-
-function getMultiplierForDisplay(skill: number, category: SkillCategory): number {
-  const table = category === 'magic' ? MAGIC_MULTIPLIERS : SKILL_MULTIPLIERS;
-  for (const range of table) {
-    if (skill >= range.from && skill <= range.to) {
-      return range.multiplier;
-    }
-  }
-  return table[table.length - 1].multiplier;
 }

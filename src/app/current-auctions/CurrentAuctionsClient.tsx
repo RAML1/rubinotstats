@@ -42,7 +42,6 @@ import {
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { formatNumber, getVocationColor, formatTimeRemaining } from '@/lib/utils/formatters';
-import { calculateRcInvested } from '@/lib/utils/rc-investment';
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -476,10 +475,12 @@ function WorldDropdown({
 function TransferSimulator({
   sourceWorld,
   characterLevel,
+  bidPrice,
   worldTypes,
 }: {
   sourceWorld: string;
   characterLevel: number;
+  bidPrice: number | null;
   worldTypes: WorldTypeInfo[];
 }) {
   const [targetWorld, setTargetWorld] = useState('');
@@ -578,6 +579,19 @@ function TransferSimulator({
                 </span>
               </div>
             )}
+            {bidPrice != null && bidPrice > 0 && (
+              <div className="col-span-2 rounded px-1.5 py-1 mt-0.5" style={{ backgroundColor: '#1a2a1a', border: '1px solid #2a4a2a' }}>
+                <div className="flex items-center justify-between">
+                  <span className="text-[8px] font-semibold uppercase tracking-wider" style={{ color: '#7a9a7a' }}>Total Cost</span>
+                  <span className="text-[10px] font-bold" style={{ color: '#4ade80' }}>
+                    {formatNumber(bidPrice + transferInfo.rubiniCoins)} RC
+                  </span>
+                </div>
+                <span className="text-[8px]" style={{ color: '#5a7a5a' }}>
+                  {formatNumber(bidPrice)} bid + {formatNumber(transferInfo.rubiniCoins)} transfer
+                </span>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -589,7 +603,8 @@ function TransferSimulator({
 
 function parseAuctionDate(dateStr: string | null): Date | null {
   if (!dateStr) return null;
-  const cleaned = dateStr.replace(/\s+[A-Z]{2,4}$/, '').trim();
+  // Strip timezone abbreviation (BRA, CET, CEST, BRT, BRST, UTC, etc.)
+  const cleaned = dateStr.replace(/\s+[A-Z]{2,5}$/, '').trim();
   const date = new Date(cleaned);
   if (isNaN(date.getTime())) return null;
   return date;
@@ -739,58 +754,6 @@ function AuctionDetailModal({
           </div>
         </div>
 
-        {/* RC Investment Estimate */}
-        {(() => {
-          const rcResult = calculateRcInvested(auction);
-          return rcResult.total > 0 ? (
-            <div className="px-5 pb-3">
-              <div className="rounded-lg px-4 py-3" style={{ backgroundColor: '#252333', border: '1px solid #3a3848' }}>
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-1.5">
-                    <Coins className="h-4 w-4" style={{ color: '#fbbf24' }} />
-                    <span className="text-xs font-semibold" style={{ color: '#fbbf24' }}>~{formatNumber(rcResult.total)} RC Invested</span>
-                  </div>
-                  <span className="text-[9px]" style={{ color: '#7a7690' }}>Estimated</span>
-                </div>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
-                  {[
-                    { label: 'Hirelings', value: rcResult.breakdown.hirelings },
-                    { label: 'Charm Exp', value: rcResult.breakdown.charmExpansion },
-                    { label: 'Prey Slot', value: rcResult.breakdown.extraPreySlot },
-                    { label: 'Weekly Task', value: rcResult.breakdown.weeklyTaskExpansion },
-                    { label: 'Loot Pouch', value: rcResult.breakdown.lootPouch },
-                  ].filter(item => item.value > 0).map((item) => (
-                    <div key={item.label} className="flex items-center justify-between">
-                      <span className="text-[10px]" style={{ color: '#7a7690' }}>{item.label}</span>
-                      <span className="text-[10px] font-semibold tabular-nums" style={{ color: '#d4d0e0' }}>{formatNumber(item.value)} RC</span>
-                    </div>
-                  ))}
-                </div>
-                {(rcResult.matchedOutfits.length > 0 || rcResult.matchedMounts.length > 0) && (
-                  <div className="mt-1.5 pt-1.5" style={{ borderTop: '1px solid #3a3848' }}>
-                    {rcResult.matchedOutfits.map((o) => (
-                      <div key={o.name} className="flex items-center justify-between">
-                        <span className="text-[10px]" style={{ color: '#ec4899' }}>
-                          <Star className="inline h-2.5 w-2.5 mr-0.5" />{o.name.replace(/\s*\(.*\)/, '')}
-                        </span>
-                        <span className="text-[10px] font-semibold tabular-nums" style={{ color: '#d4d0e0' }}>{formatNumber(o.price)} RC</span>
-                      </div>
-                    ))}
-                    {rcResult.matchedMounts.map((m) => (
-                      <div key={m.name} className="flex items-center justify-between">
-                        <span className="text-[10px]" style={{ color: '#06b6d4' }}>
-                          <Footprints className="inline h-2.5 w-2.5 mr-0.5" />{m.name}
-                        </span>
-                        <span className="text-[10px] font-semibold tabular-nums" style={{ color: '#d4d0e0' }}>{formatNumber(m.price)} RC</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : null;
-        })()}
-
         <div className="px-5 pb-5 space-y-4">
           {/* Transfer Simulator — prominent placement near top */}
           {auction.world && auction.level && (
@@ -799,6 +762,7 @@ function AuctionDetailModal({
               <TransferSimulator
                 sourceWorld={auction.world}
                 characterLevel={auction.level}
+                bidPrice={auction.currentBid ?? auction.minimumBid}
                 worldTypes={worldTypes}
               />
             </div>
@@ -1008,19 +972,19 @@ function DisplayItems({ items }: { items: string }) {
   } catch {
     // leave empty
   }
-  // Always render 4 slots, spread evenly across card width
+  // Always render 4 slots, compact row
   const slots = Array.from({ length: 4 }, (_, i) => itemUrls[i] || null);
   return (
-    <div className="grid grid-cols-4 gap-1">
+    <div className="flex gap-1">
       {slots.map((url, i) => (
         <div
           key={i}
-          className="aspect-square rounded flex items-center justify-center"
+          className="w-8 h-8 rounded flex items-center justify-center shrink-0"
           style={{ backgroundColor: '#252333', border: '1px solid #3a3848' }}
         >
           {url && (
             /* eslint-disable-next-line @next/next/no-img-element */
-            <img src={url} alt="" className="w-3/4 h-3/4 object-contain" loading="lazy" />
+            <img src={url} alt="" className="w-6 h-6 object-contain" loading="lazy" />
           )}
         </div>
       ))}
@@ -1166,13 +1130,6 @@ function CurrentAuctionCard({
             <BoolCell icon={CalendarCheck} iconColor="#10b981" label="Weekly Task" has={!!auction.weeklyTaskExpansion} />
             <StatCell icon={Users} iconColor="#4ade80" label="Hirelings" value={String(auction.hirelings || 0)} />
             <GemsCell gems={auction.gems} />
-            <div className="col-span-2 flex items-center gap-1 rounded px-1.5 py-0.5" style={{ backgroundColor: '#252333', border: '1px solid #3a3848' }}>
-              <Coins className="h-2.5 w-2.5 shrink-0" style={{ color: '#fbbf24' }} />
-              <span className="text-[8px] truncate" style={{ color: '#7a7690' }}>RC Invested</span>
-              <span className="text-[9px] font-bold ml-auto tabular-nums" style={{ color: '#fbbf24' }}>
-                ~{formatNumber(calculateRcInvested(auction).total)} RC
-              </span>
-            </div>
           </div>
         </div>
 
@@ -1207,6 +1164,7 @@ function CurrentAuctionCard({
             <TransferSimulator
               sourceWorld={auction.world}
               characterLevel={auction.level}
+              bidPrice={auction.currentBid ?? auction.minimumBid}
               worldTypes={worldTypes}
             />
           )}
@@ -1260,7 +1218,7 @@ export function CurrentAuctionsClient({
         // Parse auction end dates for chronological sorting
         const parseEnd = (s: string | null) => {
           if (!s) return Infinity;
-          const d = new Date(s.replace(/\s+(CET|CEST|BRT|BRST|UTC)$/, ''));
+          const d = new Date(s.replace(/\s+[A-Z]{2,5}$/, ''));
           return isNaN(d.getTime()) ? Infinity : d.getTime();
         };
         const aVal = parseEnd(a.auctionEnd);

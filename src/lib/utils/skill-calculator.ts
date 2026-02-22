@@ -1,7 +1,14 @@
 // Rubinot Exercise Weapon Skill Calculator
-// Multiplier tables and formulas specific to Rubinot server
+// Uses standard Tibia formulas with vocation-specific training rates
+// and Rubinot server multipliers.
+//
+// Base formula: tries(N) = A * b^(N - offset)
+// Where:
+//   A = skill constant (same for all vocations, varies by skill type)
+//   b = vocation constant (varies by vocation AND skill type)
+//   offset = 0 for magic level, 10 for all other skills
 
-// --- Multiplier Tables ---
+// --- Rubinot Server Multiplier Tables ---
 
 export const SKILL_MULTIPLIERS = [
   { from: 1, to: 80, multiplier: 10 },
@@ -18,6 +25,96 @@ export const MAGIC_MULTIPLIERS = [
   { from: 131, to: 300, multiplier: 2 },
 ] as const;
 
+// --- Vocations ---
+
+export type Vocation = 'knight' | 'paladin' | 'sorcerer' | 'druid';
+
+export const VOCATIONS: { value: Vocation; label: string }[] = [
+  { value: 'knight', label: 'Knight' },
+  { value: 'paladin', label: 'Paladin' },
+  { value: 'sorcerer', label: 'Sorcerer' },
+  { value: 'druid', label: 'Druid' },
+];
+
+// --- Skill Categories ---
+
+export type SkillCategory = 'magic' | 'sword' | 'axe' | 'club' | 'fist' | 'distance' | 'shielding';
+
+export const SKILL_CATEGORIES: { value: SkillCategory; label: string }[] = [
+  { value: 'magic', label: 'Magic Level' },
+  { value: 'sword', label: 'Sword Fighting' },
+  { value: 'axe', label: 'Axe Fighting' },
+  { value: 'club', label: 'Club Fighting' },
+  { value: 'distance', label: 'Distance Fighting' },
+  { value: 'shielding', label: 'Shielding' },
+  { value: 'fist', label: 'Fist Fighting' },
+];
+
+// --- Tibia Formula Constants ---
+
+// Skill constant A (same for all vocations)
+const SKILL_CONSTANTS: Record<SkillCategory, number> = {
+  magic: 1600,
+  shielding: 100,
+  sword: 50,
+  axe: 50,
+  club: 50,
+  fist: 50,
+  distance: 30,
+};
+
+// Skill offset (0 for magic, 10 for everything else)
+const SKILL_OFFSET: Record<SkillCategory, number> = {
+  magic: 0,
+  sword: 10,
+  axe: 10,
+  club: 10,
+  fist: 10,
+  distance: 10,
+  shielding: 10,
+};
+
+// Vocation constant b — lower = faster advancement
+// Source: TibiaWiki Formulae + TibiaPal open-source calculator
+const VOCATION_CONSTANTS: Record<Vocation, Record<SkillCategory, number>> = {
+  knight: {
+    magic: 3.0,
+    sword: 1.1,
+    axe: 1.1,
+    club: 1.1,
+    fist: 1.1,
+    distance: 1.4,
+    shielding: 1.1,
+  },
+  paladin: {
+    magic: 1.4,
+    sword: 1.2,
+    axe: 1.2,
+    club: 1.2,
+    fist: 1.2,
+    distance: 1.1,
+    shielding: 1.1,
+  },
+  sorcerer: {
+    magic: 1.1,
+    sword: 2.0,
+    axe: 2.0,
+    club: 2.0,
+    fist: 1.5,
+    distance: 2.0,
+    shielding: 1.5,
+  },
+  druid: {
+    magic: 1.1,
+    sword: 1.8,
+    axe: 1.8,
+    club: 1.8,
+    fist: 1.5,
+    distance: 1.8,
+    shielding: 1.5,
+  },
+};
+
 // --- Exercise Weapon Types ---
 
 export const WEAPON_TYPES = [
@@ -27,96 +124,74 @@ export const WEAPON_TYPES = [
   { name: 'Daily', charges: 45000, rcCost: 390 },
 ] as const;
 
-// --- Skill Categories ---
-
-export type SkillCategory = 'magic' | 'melee' | 'distance';
-
-export const SKILL_CATEGORIES: { value: SkillCategory; label: string }[] = [
-  { value: 'magic', label: 'Magic Level (Druid/Sorcerer)' },
-  { value: 'melee', label: 'Melee (Sword/Axe/Club/Fist)' },
-  { value: 'distance', label: 'Distance (Paladin)' },
-];
-
-// --- Tibia Base Formula Constants ---
-// In Tibia, the number of tries needed to advance from skill N to N+1:
-//   tries(N) = A * B^N
-// Where A and B depend on skill type and vocation.
-
-// For exercise weapons on a training dummy, each charge = 1 skill try
-// (on private dummy = slightly more effective)
-
-// Standard Tibia base values (adjusted by Rubinot multiplier):
-const SKILL_FORMULA: Record<SkillCategory, { A: number; B: number }> = {
-  // Magic Level: A=1600, B=1.1 (for druids/sorcerers with mana-based training)
-  // For exercise weapons, the formula is simpler: each try counts toward advancing
-  magic: { A: 1600, B: 1.1 },
-  // Melee skills (knight-focused): A=50, B=1.1
-  melee: { A: 50, B: 1.1 },
-  // Distance (paladin): A=30, B=1.1
-  distance: { A: 30, B: 1.1 },
-};
-
 // --- Core Calculation Functions ---
 
-function getMultiplier(skill: number, category: SkillCategory): number {
+function getRubinotMultiplier(skill: number, category: SkillCategory): number {
   const table = category === 'magic' ? MAGIC_MULTIPLIERS : SKILL_MULTIPLIERS;
   for (const range of table) {
     if (skill >= range.from && skill <= range.to) {
       return range.multiplier;
     }
   }
-  // Beyond table range, use lowest multiplier
   return table[table.length - 1].multiplier;
 }
 
 /**
- * Calculate base tries needed to advance from skill level `level` to `level + 1`
- * without any multipliers applied.
+ * Get the vocation constant b for a given vocation and skill.
  */
-function baseTriesForLevel(level: number, category: SkillCategory): number {
-  const { A, B } = SKILL_FORMULA[category];
-  return A * Math.pow(B, level);
+export function getVocationConstant(vocation: Vocation, category: SkillCategory): number {
+  return VOCATION_CONSTANTS[vocation][category];
 }
 
 /**
- * Calculate effective tries needed to advance from skill `level` to `level + 1`,
- * applying the Rubinot multiplier for that skill range.
- * The multiplier divides the required tries (higher multiplier = fewer tries needed).
+ * Base tries needed to advance from skill level `level` to `level + 1`
+ * for a specific vocation (without Rubinot multiplier).
  */
-function effectiveTriesForLevel(level: number, category: SkillCategory): number {
-  const base = baseTriesForLevel(level, category);
-  const multiplier = getMultiplier(level, category);
+function baseTriesForLevel(level: number, category: SkillCategory, vocation: Vocation): number {
+  const A = SKILL_CONSTANTS[category];
+  const b = VOCATION_CONSTANTS[vocation][category];
+  const offset = SKILL_OFFSET[category];
+  return A * Math.pow(b, level - offset);
+}
+
+/**
+ * Effective tries needed after applying Rubinot server multiplier.
+ */
+function effectiveTriesForLevel(level: number, category: SkillCategory, vocation: Vocation): number {
+  const base = baseTriesForLevel(level, category, vocation);
+  const multiplier = getRubinotMultiplier(level, category);
   return base / multiplier;
 }
 
 /**
- * Calculate total effective tries needed to go from `currentSkill` to `targetSkill`.
- * `percentToNext` is 0-100, representing progress toward the next level.
+ * Total effective tries to go from currentSkill (with percentToNext progress)
+ * to targetSkill.
  */
 function totalTriesNeeded(
   currentSkill: number,
   percentToNext: number,
   targetSkill: number,
-  category: SkillCategory
+  category: SkillCategory,
+  vocation: Vocation,
 ): number {
   if (targetSkill <= currentSkill) return 0;
 
   let total = 0;
 
   // Remaining tries for current level (subtract already-done percentage)
-  const currentLevelTries = effectiveTriesForLevel(currentSkill, category);
+  const currentLevelTries = effectiveTriesForLevel(currentSkill, category, vocation);
   total += currentLevelTries * (1 - percentToNext / 100);
 
   // Full levels from currentSkill+1 to targetSkill-1
   for (let level = currentSkill + 1; level < targetSkill; level++) {
-    total += effectiveTriesForLevel(level, category);
+    total += effectiveTriesForLevel(level, category, vocation);
   }
 
   return total;
 }
 
 /**
- * Apply modifier multipliers to get effective charges per actual charge.
+ * Apply modifier multipliers.
  * Each charge on a dummy = 1 skill try.
  * Modifiers increase the effective value of each charge.
  */
@@ -124,22 +199,13 @@ function chargesPerTry(
   loyaltyPercent: number,
   doubleEvent: boolean,
   privateDummy: boolean,
-  vip: boolean
+  vip: boolean,
 ): number {
   let modifier = 1;
-
-  // Loyalty bonus: adds percentage to skill gain
   modifier *= 1 + loyaltyPercent / 100;
-
-  // Double event: doubles skill gain
   if (doubleEvent) modifier *= 2;
-
-  // Private dummy: ~10% more effective (Tibia standard)
   if (privateDummy) modifier *= 1.1;
-
-  // VIP: 10% increase in exercise weapon speed
   if (vip) modifier *= 1.1;
-
   return modifier;
 }
 
@@ -166,21 +232,22 @@ export interface SkillGainResult {
 
 /**
  * Mode 1: Calculate how many exercise weapons are needed to go from
- * currentSkill to targetSkill.
+ * currentSkill to targetSkill for a given vocation.
  */
 export function calculateWeaponsNeeded(
   category: SkillCategory,
+  vocation: Vocation,
   currentSkill: number,
   percentToNext: number,
   targetSkill: number,
-  modifiers: CalculatorModifiers
+  modifiers: CalculatorModifiers,
 ): WeaponsNeededResult {
-  const tries = totalTriesNeeded(currentSkill, percentToNext, targetSkill, category);
+  const tries = totalTriesNeeded(currentSkill, percentToNext, targetSkill, category, vocation);
   const effectivePerCharge = chargesPerTry(
     modifiers.loyaltyPercent,
     modifiers.doubleEvent,
     modifiers.privateDummy,
-    modifiers.vip
+    modifiers.vip,
   );
 
   const totalCharges = Math.ceil(tries / effectivePerCharge);
@@ -191,29 +258,30 @@ export function calculateWeaponsNeeded(
   }));
 
   // Each charge takes ~2 seconds on a dummy
-  const secondsPerCharge = 2;
-  const estimatedHours = (totalCharges * secondsPerCharge) / 3600;
+  const estimatedHours = (totalCharges * 2) / 3600;
 
   return { totalCharges, weapons, estimatedHours };
 }
 
 /**
- * Mode 2: Calculate how much skill you gain from a given number of weapons.
+ * Mode 2: Calculate how much skill you gain from a given number of weapons
+ * for a given vocation.
  */
 export function calculateSkillGain(
   category: SkillCategory,
-  weaponType: number, // index into WEAPON_TYPES
+  vocation: Vocation,
+  weaponType: number,
   weaponCount: number,
   currentSkill: number,
   percentToNext: number,
-  modifiers: CalculatorModifiers
+  modifiers: CalculatorModifiers,
 ): SkillGainResult {
   const charges = WEAPON_TYPES[weaponType].charges * weaponCount;
   const effectivePerCharge = chargesPerTry(
     modifiers.loyaltyPercent,
     modifiers.doubleEvent,
     modifiers.privateDummy,
-    modifiers.vip
+    modifiers.vip,
   );
 
   let remainingTries = charges * effectivePerCharge;
@@ -221,7 +289,7 @@ export function calculateSkillGain(
   let percent = percentToNext;
 
   // Subtract what's already done on current level
-  const currentLevelTries = effectiveTriesForLevel(skill, category);
+  const currentLevelTries = effectiveTriesForLevel(skill, category, vocation);
   const remainingForCurrentLevel = currentLevelTries * (1 - percent / 100);
 
   if (remainingTries >= remainingForCurrentLevel) {
@@ -229,7 +297,6 @@ export function calculateSkillGain(
     skill++;
     percent = 0;
   } else {
-    // Not enough to level up — just add to percentage
     const progressAdded = (remainingTries / currentLevelTries) * 100;
     return {
       finalSkill: skill,
@@ -240,7 +307,7 @@ export function calculateSkillGain(
 
   // Keep leveling up while we have tries left
   while (remainingTries > 0 && skill < 300) {
-    const triesForThisLevel = effectiveTriesForLevel(skill, category);
+    const triesForThisLevel = effectiveTriesForLevel(skill, category, vocation);
     if (remainingTries >= triesForThisLevel) {
       remainingTries -= triesForThisLevel;
       skill++;
@@ -255,4 +322,27 @@ export function calculateSkillGain(
     finalPercent: Math.round(percent * 100) / 100,
     levelsGained: skill - currentSkill,
   };
+}
+
+/**
+ * Get the display multiplier for the current skill level.
+ */
+export function getMultiplierForDisplay(skill: number, category: SkillCategory): number {
+  return getRubinotMultiplier(skill, category);
+}
+
+/**
+ * Determine which skills are relevant for a given vocation.
+ * Returns them sorted by relevance (primary skill first).
+ */
+export function getRelevantSkills(vocation: Vocation): SkillCategory[] {
+  switch (vocation) {
+    case 'knight':
+      return ['sword', 'axe', 'club', 'shielding', 'magic', 'fist', 'distance'];
+    case 'paladin':
+      return ['distance', 'magic', 'shielding', 'sword', 'axe', 'club', 'fist'];
+    case 'sorcerer':
+    case 'druid':
+      return ['magic', 'shielding', 'distance', 'sword', 'axe', 'club', 'fist'];
+  }
 }
