@@ -454,10 +454,19 @@ function parseDetailPage(html: string): DetailPageData {
   }
 
   // Display items — the 4 items shown on the auction card
-  const displayItems: string[] = [];
-  $('.AuctionItemsViewBox .CVIcon.CVIconObject img, .AuctionItemsViewBox img.CVIcon').each((_i, el) => {
-    const src = $(el).attr('src');
-    if (src) displayItems.push(src);
+  // Extract URL, item name, and tier from each .CVIcon container
+  const displayItems: { url: string; name: string; tier: number }[] = [];
+  $('.AuctionItemsViewBox .CVIcon.CVIconObject').each((_i, el) => {
+    const img = $(el).find('img').first();
+    const src = img.attr('src');
+    if (!src) return;
+    const title = $(el).attr('title') || '';
+    // Parse tier from title like "Zaoan helmet (tier 2)"
+    const tierMatch = title.match(/\(tier\s+(\d+)\)/i);
+    const tier = tierMatch ? parseInt(tierMatch[1], 10) : 0;
+    // Item name without the tier suffix
+    const name = title.replace(/\s*\(tier\s+\d+\)/i, '').trim();
+    displayItems.push({ url: src, name, tier });
   });
   if (displayItems.length > 0) {
     data.displayItems = JSON.stringify(displayItems);
@@ -539,38 +548,87 @@ export interface ScrapeOptions {
 }
 
 /**
- * Scrape sold auction history. Processes page-by-page: for each list page,
- * immediately scrapes detail pages for new auctions before moving to the
- * next list page. Stops once maxAuctions new auctions have been scraped.
- * Recovers automatically if the browser context dies (Cloudflare, crash, etc.).
+ * Scrape sold auction history using parallel tabs for detail pages.
+ * Tab 0 browses list pages sequentially. When new auctions are found,
+ * tabs 1–DETAIL_TABS blast all detail pages in parallel (like highscores).
  */
 export async function scrapeAuctionHistory(
   page: Page,
   opts: ScrapeOptions = {},
 ): Promise<ScrapedAuction[]> {
+  const DETAIL_TABS = 10; // parallel tabs for detail pages
   const baseUrl = `${RUBINOT_URLS.base}${RUBINOT_URLS.pastAuctions}`;
   const fullAuctions: ScrapedAuction[] = [];
   let scraped = 0;
   let skippedTotal = 0;
   const browserName = opts.browserName ?? 'auctions';
 
-  // Mutable page ref — may be replaced if browser context dies
-  let currentPage = page;
+  // Tab 0 = list page browser, tabs 1..N = detail page pool
+  let listPage = page;
+  const context = page.context();
+  const detailTabs: Page[] = [];
+  for (let i = 0; i < DETAIL_TABS; i++) {
+    detailTabs.push(await context.newPage());
+  }
+  console.log(`  Using ${DETAIL_TABS} parallel tabs for detail pages`);
+
+  /**
+   * Blast detail pages for a batch of new auctions in parallel.
+   * Returns scraped auctions (with detail data where successful).
+   */
+  async function blastDetails(newAuctions: ListAuction[]): Promise<ScrapedAuction[]> {
+    const results: ScrapedAuction[] = [];
+    // Process in chunks of DETAIL_TABS
+    for (let i = 0; i < newAuctions.length; i += DETAIL_TABS) {
+      if (opts.maxAuctions && scraped >= opts.maxAuctions) break;
+      const chunk = newAuctions.slice(i, i + DETAIL_TABS);
+      const remaining = opts.maxAuctions ? opts.maxAuctions - scraped : chunk.length;
+      const batch = chunk.slice(0, remaining);
+
+      // Launch all detail fetches in parallel with stagger
+      const promises = batch.map(async (a, idx) => {
+        const tab = detailTabs[idx % detailTabs.length];
+        const detailUrl = `${RUBINOT_URLS.base}/?currentcharactertrades/${a.externalId}`;
+        await sleep(idx * 500); // 0.5s stagger
+        return scrapeAuctionDetail(tab, a, detailUrl, browserName);
+      });
+
+      const settled = await Promise.allSettled(promises);
+      for (let j = 0; j < settled.length; j++) {
+        scraped++;
+        const target = opts.maxAuctions ?? '?';
+        const a = batch[j];
+        if (settled[j].status === 'fulfilled') {
+          const auction = (settled[j] as PromiseFulfilledResult<ScrapedAuction>).value;
+          console.log(`  [${scraped}/${target}] ${a.characterName} Lv${a.level} (${a.world})`);
+          if (opts.onAuction) await opts.onAuction(auction);
+          results.push(auction);
+        } else {
+          // Detail failed — save with list data only
+          const auction = mergeListOnly(a);
+          console.log(`  [${scraped}/${target}] ${a.characterName} Lv${a.level} (${a.world}) — detail failed`);
+          if (opts.onAuction) await opts.onAuction(auction);
+          results.push(auction);
+        }
+      }
+    }
+    return results;
+  }
 
   // Fetch first page to get total page count
   console.log(`Fetching page 1: ${baseUrl}`);
   try {
-    await navigateWithCloudflare(currentPage, baseUrl);
+    await navigateWithCloudflare(listPage, baseUrl);
     await sleep(1200 + Math.floor(Math.random() * 1800));
   } catch {
     console.error('  Page died on first fetch — recovering browser...');
     await rateLimit('slow');
-    currentPage = await getHealthyPage(browserName);
-    await navigateWithCloudflare(currentPage, baseUrl);
+    listPage = await getHealthyPage(browserName);
+    await navigateWithCloudflare(listPage, baseUrl);
     await sleep(1200 + Math.floor(Math.random() * 1800));
   }
 
-  const firstPageHtml = await currentPage.content();
+  const firstPageHtml = await listPage.content();
   const totalPages = opts.maxPages
     ? Math.min(getTotalPages(firstPageHtml), opts.maxPages)
     : getTotalPages(firstPageHtml);
@@ -585,22 +643,12 @@ export async function scrapeAuctionHistory(
 
   console.log(`Page 1: ${firstPageAuctions.length} sold auctions (${newOnFirst.length} new, ${skippedFirst} skipped), ${totalPages} total pages`);
 
-  // Scrape details for new auctions on page 1
-  for (const a of newOnFirst) {
-    if (opts.maxAuctions && scraped >= opts.maxAuctions) break;
-    scraped++;
-    await rateLimit();
-    const detailUrl = `${RUBINOT_URLS.base}/?currentcharactertrades/${a.externalId}`;
-    const target = opts.maxAuctions ?? '?';
-    console.log(`  [${scraped}/${target}] ${a.characterName} (${detailUrl})`);
-
-    const auction = await scrapeAuctionDetail(currentPage, a, detailUrl, browserName);
-    if (opts.onAuction) await opts.onAuction(auction);
-    fullAuctions.push(auction);
+  if (newOnFirst.length > 0) {
+    const batch = await blastDetails(newOnFirst);
+    fullAuctions.push(...batch);
   }
 
   // Track consecutive fully-scraped pages to detect the end of new data
-  // When --count is specified, don't early-stop (user wants to go deeper into history)
   let consecutiveSkippedPages = newOnFirst.length === 0 && firstPageAuctions.length > 0 ? 1 : 0;
   const MAX_CONSECUTIVE_SKIPS = opts.maxAuctions ? Infinity : 3;
 
@@ -617,9 +665,9 @@ export async function scrapeAuctionHistory(
     console.log(`\nFetching page ${p}/${totalPages}...`);
 
     try {
-      await navigateWithCloudflare(currentPage, pageUrl);
+      await navigateWithCloudflare(listPage, pageUrl);
       await sleep(800 + Math.floor(Math.random() * 1200));
-      const html = await currentPage.content();
+      const html = await listPage.content();
       const pageAuctions = parseAuctionListPage(html);
       const newOnPage = opts.skipExternalIds
         ? pageAuctions.filter((a) => !opts.skipExternalIds!.has(a.externalId))
@@ -634,35 +682,74 @@ export async function scrapeAuctionHistory(
         console.log(`  No new auctions (${consecutiveSkippedPages}/${MAX_CONSECUTIVE_SKIPS} consecutive skips)`);
         continue;
       }
-      consecutiveSkippedPages = 0; // Reset when we find new auctions
+      consecutiveSkippedPages = 0;
 
-      // Immediately scrape details for new auctions on this page
-      for (const a of newOnPage) {
-        if (opts.maxAuctions && scraped >= opts.maxAuctions) break;
-        scraped++;
-        await rateLimit();
-        const detailUrl = `${RUBINOT_URLS.base}/?currentcharactertrades/${a.externalId}`;
-        const target = opts.maxAuctions ?? '?';
-        console.log(`  [${scraped}/${target}] ${a.characterName} (${detailUrl})`);
-
-        const auction = await scrapeAuctionDetail(currentPage, a, detailUrl, browserName);
-        if (opts.onAuction) await opts.onAuction(auction);
-        fullAuctions.push(auction);
-      }
+      // Blast detail pages in parallel
+      const batch = await blastDetails(newOnPage);
+      fullAuctions.push(...batch);
     } catch (err) {
       console.error(`  Failed page ${p} — recovering browser...`);
       try {
-        currentPage = await getHealthyPage(browserName);
+        listPage = await getHealthyPage(browserName);
       } catch {
         // Will be recovered on next page
       }
     }
   }
 
+  // Clean up detail tabs
+  for (const tab of detailTabs) {
+    try { await tab.close(); } catch {}
+  }
+
   if (skippedTotal > 0) console.log(`\nSkipped ${skippedTotal} already-scraped auctions total`);
   console.log(`Scraped ${fullAuctions.length} new auctions`);
 
   return fullAuctions;
+}
+
+/**
+ * Create a ScrapedAuction from list data only (when detail page fails).
+ */
+function mergeListOnly(a: ListAuction): ScrapedAuction {
+  const coinsPerLevel =
+    a.soldPrice && a.level && a.level > 0
+      ? Math.round((a.soldPrice / a.level) * 100) / 100
+      : null;
+  return {
+    externalId: a.externalId,
+    characterName: a.characterName,
+    level: a.level,
+    vocation: a.vocation,
+    gender: a.gender,
+    world: a.world,
+    auctionStart: a.auctionStart,
+    auctionEnd: a.auctionEnd,
+    auctionStatus: a.auctionStatus,
+    soldPrice: a.soldPrice,
+    magicLevel: null, fist: null, club: null, sword: null,
+    axe: null, distance: null, shielding: null, fishing: null,
+    hitPoints: null, mana: null, capacity: null, speed: null,
+    experience: null, creationDate: null, achievementPoints: null,
+    mountsCount: null, outfitsCount: null, titlesCount: null,
+    linkedTasks: null, charmExpansion: null, spentCharmPoints: null,
+    preySlots: null, preyWildcards: null, huntingTaskPoints: null,
+    hirelings: null, hirelingJobs: null, hasLootPouch: null, storeItemsCount: null,
+    blessingsCount: null, dailyRewardStreak: null,
+    primalOrdealAvailable: null, soulWarAvailable: null, sanguineBloodAvailable: null,
+    magicLevelPct: null, fistPct: null, clubPct: null, swordPct: null,
+    axePct: null, distancePct: null, shieldingPct: null, fishingPct: null,
+    outfitImageUrl: null, gems: null, weeklyTaskExpansion: null, displayItems: null,
+    outfitNames: null, mountNames: null,
+    charmPoints: a.charmPoints,
+    unusedCharmPoints: a.unusedCharmPoints,
+    bossPoints: a.bossPoints,
+    exaltedDust: a.exaltedDust,
+    gold: a.gold,
+    bestiary: a.bestiary,
+    coinsPerLevel,
+    url: `${RUBINOT_URLS.base}/?currentcharactertrades/${a.externalId}`,
+  };
 }
 
 /**

@@ -3,7 +3,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import {
   Search,
-  SlidersHorizontal,
   ChevronDown,
   ChevronUp,
   X,
@@ -41,7 +40,8 @@ import {
   Diamond,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
-import { formatNumber, getVocationColor, formatTimeRemaining } from '@/lib/utils/formatters';
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
+import { formatNumber, getVocationColor, formatTimeRemaining, getDealScoreInfo } from '@/lib/utils/formatters';
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -125,11 +125,19 @@ type WorldTypeInfo = {
   isRtc: boolean;
 };
 
+type ValuationData = {
+  estimatedValue: number;
+  minPrice: number;
+  maxPrice: number;
+  sampleSize: number;
+};
+
 interface CurrentAuctionsClientProps {
   initialAuctions: SerializedCurrentAuction[];
   worlds: string[];
   vocations: string[];
   worldTypes: WorldTypeInfo[];
+  valuations: Record<number, ValuationData>;
   initialSearch?: string;
 }
 
@@ -640,10 +648,12 @@ function useCountdown() {
 function AuctionDetailModal({
   auction,
   worldTypes,
+  valuation,
   onClose,
 }: {
   auction: SerializedCurrentAuction;
   worldTypes: WorldTypeInfo[];
+  valuation?: ValuationData;
   onClose: () => void;
 }) {
   const allSkills = getAllSkills(auction);
@@ -752,6 +762,31 @@ function AuctionDetailModal({
               )}
             </div>
           </div>
+
+          {/* Estimated Value — PREMIUM_GATE */}
+          {valuation && valuation.sampleSize >= 3 && (
+            <div className="rounded-lg px-4 py-3 mt-2" style={{ backgroundColor: '#1a2a1a', border: '1px solid #2a4a2a' }}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: '#5a8a5a' }}>
+                    Fair Price
+                  </p>
+                  <p className="text-lg font-bold" style={{ color: '#4ade80' }}>
+                    ~{formatNumber(valuation.estimatedValue)} TC
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[9px]" style={{ color: '#5a8a5a' }}>Range</p>
+                  <p className="text-xs font-semibold" style={{ color: '#8ac08a' }}>
+                    {formatNumber(valuation.minPrice)} – {formatNumber(valuation.maxPrice)} TC
+                  </p>
+                  <p className="text-[8px]" style={{ color: '#4a6a4a' }}>
+                    Based on {valuation.sampleSize} similar sales
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="px-5 pb-5 space-y-4">
@@ -777,6 +812,14 @@ function AuctionDetailModal({
               ))}
             </div>
           </div>
+
+          {/* Display Items (with tiers) */}
+          {auction.displayItems && (
+            <div>
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Display Items</p>
+              <DisplayItemsLarge items={auction.displayItems} />
+            </div>
+          )}
 
           {/* Stats */}
           <div>
@@ -964,27 +1007,65 @@ function resolveOutfitUrl(url: string): string {
   return `${RUBINOT_BASE}/${url.replace(/^\.\//, '')}`;
 }
 
-function DisplayItems({ items }: { items: string }) {
-  let itemUrls: string[] = [];
+interface DisplayItem {
+  url: string;
+  name: string;
+  tier: number;
+}
+
+function parseDisplayItems(items: string): DisplayItem[] {
   try {
-    const parsed = JSON.parse(items) as string[];
-    itemUrls = parsed.filter(url => url.startsWith('http')).slice(0, 4);
+    const parsed = JSON.parse(items);
+    if (!Array.isArray(parsed)) return [];
+    // New format: array of {url, name, tier} objects
+    if (parsed.length > 0 && typeof parsed[0] === 'object' && parsed[0].url) {
+      return parsed.slice(0, 4);
+    }
+    // Old format: array of URL strings — backward compatible
+    return parsed
+      .filter((u: unknown) => typeof u === 'string' && (u as string).startsWith('http'))
+      .slice(0, 4)
+      .map((url: string) => ({ url, name: '', tier: 0 }));
   } catch {
-    // leave empty
+    return [];
   }
-  // Always render 4 slots, compact row
-  const slots = Array.from({ length: 4 }, (_, i) => itemUrls[i] || null);
+}
+
+const TIER_COLORS = [
+  '', // tier 0 = no tier
+  '#6ba5e7', // tier 1 — blue
+  '#3dcc6e', // tier 2 — green
+  '#d4a017', // tier 3 — gold
+  '#c44dff', // tier 4 — purple
+  '#ff4444', // tier 5 — red
+];
+
+function DisplayItems({ items }: { items: string }) {
+  const displayItems = parseDisplayItems(items);
+  const slots = Array.from({ length: 4 }, (_, i) => displayItems[i] || null);
   return (
-    <div className="flex gap-1">
-      {slots.map((url, i) => (
+    <div className="grid grid-cols-4 gap-1">
+      {slots.map((item, i) => (
         <div
           key={i}
-          className="w-8 h-8 rounded flex items-center justify-center shrink-0"
-          style={{ backgroundColor: '#252333', border: '1px solid #3a3848' }}
+          className="relative h-8 rounded flex items-center justify-center group"
+          style={{
+            backgroundColor: '#252333',
+            border: item?.tier ? `1px solid ${TIER_COLORS[item.tier] || TIER_COLORS[1]}` : '1px solid #3a3848',
+          }}
+          title={item?.name ? `${item.name}${item.tier ? ` (T${item.tier})` : ''}` : undefined}
         >
-          {url && (
+          {item?.url && (
             /* eslint-disable-next-line @next/next/no-img-element */
-            <img src={url} alt="" className="w-6 h-6 object-contain" loading="lazy" />
+            <img src={item.url} alt={item.name || ''} className="w-6 h-6 object-contain" loading="lazy" />
+          )}
+          {item?.tier > 0 && (
+            <span
+              className="absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] flex items-center justify-center rounded-full text-[9px] font-bold leading-none text-white shadow-sm"
+              style={{ backgroundColor: TIER_COLORS[item.tier] || TIER_COLORS[1] }}
+            >
+              {item.tier}
+            </span>
           )}
         </div>
       ))}
@@ -992,14 +1073,67 @@ function DisplayItems({ items }: { items: string }) {
   );
 }
 
+function DisplayItemsLarge({ items }: { items: string }) {
+  const displayItems = parseDisplayItems(items);
+  if (displayItems.length === 0) return null;
+  return (
+    <div className="grid grid-cols-4 gap-2">
+      {displayItems.map((item, i) => (
+        <div
+          key={i}
+          className="relative flex flex-col items-center gap-1 rounded-lg p-2"
+          style={{
+            backgroundColor: '#252333',
+            border: item.tier ? `1px solid ${TIER_COLORS[item.tier] || TIER_COLORS[1]}` : '1px solid #3a3848',
+          }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={item.url} alt={item.name || ''} className="w-10 h-10 object-contain" loading="lazy" />
+          {item.tier > 0 && (
+            <span
+              className="absolute -top-1.5 -right-1.5 min-w-[16px] h-[16px] flex items-center justify-center rounded-full text-[10px] font-bold leading-none text-white shadow-sm"
+              style={{ backgroundColor: TIER_COLORS[item.tier] || TIER_COLORS[1] }}
+            >
+              {item.tier}
+            </span>
+          )}
+          {item.name && (
+            <p className="text-[9px] text-muted-foreground/70 text-center leading-tight truncate w-full" title={item.name}>
+              {item.name}
+            </p>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function getQualityHighlight(auction: SerializedCurrentAuction): { label: string; color: string } | null {
+  const level = auction.level || 0;
+  const mainSkill = Math.max(
+    auction.magicLevel || 0,
+    auction.sword || 0,
+    auction.axe || 0,
+    auction.club || 0,
+    auction.distance || 0,
+    auction.fist || 0,
+  );
+  if (level >= 800 && mainSkill >= 120) return { label: 'Elite Character', color: '#f59e0b' };
+  if (level >= 800) return { label: 'High Level', color: '#f59e0b' };
+  if (mainSkill >= 120) return { label: 'High Skills', color: '#a78bfa' };
+  return null;
+}
+
 function CurrentAuctionCard({
   auction,
   worldTypes,
+  valuation,
   onDetails,
   tick,
 }: {
   auction: SerializedCurrentAuction;
   worldTypes: WorldTypeInfo[];
+  valuation?: ValuationData;
   onDetails: (auction: SerializedCurrentAuction) => void;
   tick: number;
 }) {
@@ -1011,19 +1145,57 @@ function CurrentAuctionCard({
   const ended = isAuctionEnded(auction.auctionEnd);
   const hasAuctionEnd = parseAuctionDate(auction.auctionEnd) !== null;
 
+  // Deal score: how good is this auction relative to fair price?
+  const dealScore = useMemo(() => {
+    if (!valuation || valuation.sampleSize < 3) return null;
+    const price = auction.currentBid ?? auction.minimumBid;
+    if (!price || price <= 0) return null;
+    const score = ((valuation.estimatedValue - price) / valuation.estimatedValue) * 100;
+    return { score, info: getDealScoreInfo(score) };
+  }, [valuation, auction.currentBid, auction.minimumBid]);
+
+  // Quality highlight for special characters (no deal score needed)
+  const qualityHighlight = !dealScore ? getQualityHighlight(auction) : null;
+
+  // Card border style based on deal score or quality
+  const cardBorderStyle = useMemo(() => {
+    if (dealScore?.info.variant === 'great') {
+      return {
+        backgroundColor: '#302e3a',
+        border: '2px solid #10b981',
+        boxShadow: '0 0 20px rgba(16, 185, 129, 0.15), 0 0 40px rgba(16, 185, 129, 0.05)',
+      };
+    }
+    if (dealScore?.info.variant === 'good') {
+      return {
+        backgroundColor: '#302e3a',
+        border: '2px solid rgba(59, 130, 246, 0.25)',
+        boxShadow: '0 0 15px rgba(59, 130, 246, 0.1)',
+      };
+    }
+    if (qualityHighlight) {
+      return {
+        backgroundColor: '#302e3a',
+        border: `1px solid ${qualityHighlight.color}40`,
+        boxShadow: `0 0 12px ${qualityHighlight.color}10`,
+      };
+    }
+    return { backgroundColor: '#302e3a', border: '1px solid #4a4857' };
+  }, [dealScore, qualityHighlight]);
+
   return (
-    <Card className="transition-all hover:shadow-xl hover:shadow-black/20 group flex flex-col" style={{ backgroundColor: '#302e3a', border: '1px solid #4a4857' }}>
+    <Card className="transition-all hover:shadow-xl hover:shadow-black/20 group flex flex-col" style={cardBorderStyle}>
       <CardContent className="p-0 flex flex-col flex-1">
         {/* Header — outfit image + name + level/vocation + bid badge + eye */}
-        <div className="px-2.5 pt-2 pb-1">
-          <div className="flex items-start gap-2">
+        <div className="px-3.5 pt-3 pb-2">
+          <div className="flex items-start gap-3">
             {auction.outfitImageUrl && (
-              <div className="shrink-0 w-12 h-12 rounded overflow-hidden flex items-center justify-center" style={{ backgroundColor: '#252333' }}>
+              <div className="shrink-0 w-14 h-14 rounded-lg overflow-hidden flex items-center justify-center" style={{ backgroundColor: '#252333' }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={resolveOutfitUrl(auction.outfitImageUrl)}
                   alt={auction.characterName}
-                  className="w-10 h-10 object-contain"
+                  className="w-12 h-12 object-contain"
                   loading="lazy"
                 />
               </div>
@@ -1032,7 +1204,7 @@ function CurrentAuctionCard({
               <div className="flex items-start justify-between gap-1.5">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1">
-                    <span className="text-[13px] font-bold truncate" style={{ color: '#4ade80' }}>
+                    <span className="text-sm font-bold truncate" style={{ color: '#4ade80' }}>
                       {auction.characterName}
                     </span>
                     {auction.url && (
@@ -1041,7 +1213,7 @@ function CurrentAuctionCard({
                       </a>
                     )}
                   </div>
-                  <p className="text-[9px]" style={{ color: '#8a8698' }}>
+                  <p className="text-[10px] mt-0.5" style={{ color: '#8a8698' }}>
                     Level {auction.level || '?'} · {auction.vocation || 'Unknown'} · {auction.world || '?'}
                   </p>
                 </div>
@@ -1055,44 +1227,89 @@ function CurrentAuctionCard({
                       No bid
                     </span>
                   )}
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onDetails(auction); }}
-                    className="rounded-md p-0.5 hover:bg-white/5 transition-colors"
-                    style={{ color: '#7a7690' }}
-                    title="View details"
-                  >
-                    <Eye className="h-3.5 w-3.5" />
-                  </button>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
+        {/* Valuation group: Fair Price + Deal Score + Quality + Transfer Calculator */}
+        <div className="px-3.5 pb-2 space-y-1.5">
+          {/* Fair Price badge */}
+          {valuation && valuation.sampleSize >= 3 && (
+            <div
+              className="flex items-center justify-between rounded-md px-2.5 py-1.5"
+              style={{ backgroundColor: '#1a2a1a', border: '1px solid #2a4a2a' }}
+              title={`Range: ${formatNumber(valuation.minPrice)} – ${formatNumber(valuation.maxPrice)} TC (${valuation.sampleSize} sales)`}
+            >
+              <span className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: '#5a8a5a' }}>Fair Price</span>
+              <span className="text-xs font-bold" style={{ color: '#4ade80' }}>~{formatNumber(valuation.estimatedValue)} TC</span>
+            </div>
+          )}
+
+          {/* Deal Score badge */}
+          {dealScore && dealScore.info.variant !== 'fair' && dealScore.info.variant !== 'overpriced' && (
+            <div
+              className="flex items-center justify-between rounded-md px-2.5 py-1.5"
+              style={{ backgroundColor: `${dealScore.info.color}10`, border: `1px solid ${dealScore.info.color}30` }}
+            >
+              <span className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: `${dealScore.info.color}90` }}>
+                {dealScore.info.label}
+              </span>
+              <span className="text-xs font-bold" style={{ color: dealScore.info.color }}>
+                {Math.abs(Math.round(dealScore.score))}% {dealScore.score > 0 ? 'below' : 'above'} fair
+              </span>
+            </div>
+          )}
+
+          {/* Quality highlight for special characters */}
+          {qualityHighlight && !dealScore && (
+            <div
+              className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5"
+              style={{ backgroundColor: `${qualityHighlight.color}10`, border: `1px solid ${qualityHighlight.color}25` }}
+            >
+              <Crown className="h-3 w-3" style={{ color: qualityHighlight.color }} />
+              <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: qualityHighlight.color }}>
+                {qualityHighlight.label}
+              </span>
+            </div>
+          )}
+
+          {/* Transfer Fee Calculator */}
+          {auction.world && auction.level && (
+            <TransferSimulator
+              sourceWorld={auction.world}
+              characterLevel={auction.level}
+              bidPrice={auction.currentBid ?? auction.minimumBid}
+              worldTypes={worldTypes}
+            />
+          )}
+        </div>
+
         {/* Auction timer bar — prominent */}
-        <div className="px-2.5 pb-1.5">
-          <div className="flex items-center justify-between rounded-md px-2 py-1.5" style={{ backgroundColor: '#252333', border: '1px solid #3a3848' }}>
+        <div className="px-3.5 pb-2">
+          <div className="flex items-center justify-between rounded-md px-2.5 py-2" style={{ backgroundColor: '#252333', border: '1px solid #3a3848' }}>
             <div className="flex items-center gap-1.5">
               <Clock className="h-3.5 w-3.5 shrink-0" style={{ color: ended ? '#f87171' : '#fbbf24' }} />
               {hasAuctionEnd && !ended ? (
                 <div>
-                  <span className="text-[11px] font-bold" style={{ color: '#fbbf24' }}>{formatAuctionEnd(auction.auctionEnd)}</span>
+                  <span className="text-xs font-bold" style={{ color: '#fbbf24' }}>{formatAuctionEnd(auction.auctionEnd)}</span>
                   {auction.auctionEnd && (
-                    <span className="text-[8px] ml-1.5" style={{ color: '#7a7690' }}>
+                    <span className="text-[9px] ml-1.5" style={{ color: '#7a7690' }}>
                       {auction.auctionEnd.replace(/\s+[A-Z]{2,4}$/, '')}
                     </span>
                   )}
                 </div>
               ) : ended ? (
-                <span className="text-[11px] font-bold" style={{ color: '#f87171' }}>Ended</span>
+                <span className="text-xs font-bold" style={{ color: '#f87171' }}>Ended</span>
               ) : (
-                <span className="text-[11px] font-bold" style={{ color: '#4ade80' }}>Active</span>
+                <span className="text-xs font-bold" style={{ color: '#4ade80' }}>Active</span>
               )}
             </div>
             {bidPrice != null && bidPrice > 0 && (
-              <div className="flex items-center gap-0.5">
-                <Coins className="h-3 w-3" style={{ color: auction.hasBeenBidOn ? '#fbbf24' : '#4ade80' }} />
-                <span className="text-[11px] font-bold" style={{ color: auction.hasBeenBidOn ? '#fbbf24' : '#4ade80' }}>
+              <div className="flex items-center gap-1">
+                <Coins className="h-3.5 w-3.5" style={{ color: auction.hasBeenBidOn ? '#fbbf24' : '#4ade80' }} />
+                <span className="text-xs font-bold" style={{ color: auction.hasBeenBidOn ? '#fbbf24' : '#4ade80' }}>
                   {formatNumber(bidPrice)}
                 </span>
                 <PriceTooltip coins={bidPrice} />
@@ -1102,14 +1319,14 @@ function CurrentAuctionCard({
         </div>
 
         {/* Display Items — always 4 slots, right below timer like Exevo Pan */}
-        <div className="px-2.5 pb-1.5">
+        <div className="px-3.5 pb-2">
           <DisplayItems items={auction.displayItems || '[]'} />
         </div>
 
         {/* Skills */}
         {allSkills.length > 0 && (
-          <div className="px-2.5 pb-1.5">
-            <div className="grid grid-cols-2 gap-x-1.5 gap-y-0.5">
+          <div className="px-3.5 pb-2">
+            <div className="grid grid-cols-2 gap-x-2 gap-y-1">
               {allSkills.map(({ key, value, pct }) => (
                 <SkillBox key={key} skillKey={key} value={value} isTrained={value > SKILL_TRAINED_THRESHOLD} pct={pct} />
               ))}
@@ -1118,8 +1335,8 @@ function CurrentAuctionCard({
         )}
 
         {/* Standardized Stats Grid */}
-        <div className="px-2.5 pb-1.5">
-          <div className="grid grid-cols-2 gap-0.5">
+        <div className="px-3.5 pb-2">
+          <div className="grid grid-cols-2 gap-1">
             <StatCell icon={Sparkles} iconColor="#a78bfa" label="Charms" value={formatNumber(auction.charmPoints || 0)} />
             <StatCell icon={Skull} iconColor="#f87171" label="Boss" value={formatNumber(auction.bossPoints || 0)} />
             <StatCell icon={Star} iconColor="#ec4899" label="Outfits" value={String(auction.outfitsCount || 0)} />
@@ -1135,19 +1352,19 @@ function CurrentAuctionCard({
 
         {/* Tags */}
         {tags.length > 0 && (
-          <div className="px-2.5 pb-1">
-            <div className="flex flex-wrap gap-0.5">
+          <div className="px-3.5 pb-2">
+            <div className="flex flex-wrap gap-1">
               {tags.slice(0, 3).map((tag) => (
                 <span
                   key={tag.label}
-                  className="rounded-full px-1.5 py-px text-[9px] font-medium"
+                  className="rounded-full px-2 py-0.5 text-[9px] font-medium"
                   style={{ backgroundColor: `${tag.color}20`, color: tag.color }}
                 >
                   {tag.label}
                 </span>
               ))}
               {tags.length > 3 && (
-                <span className="rounded-full px-1.5 py-px text-[9px] font-medium" style={{ backgroundColor: '#3a3848', color: '#8a8698' }}>
+                <span className="rounded-full px-2 py-0.5 text-[9px] font-medium" style={{ backgroundColor: '#3a3848', color: '#8a8698' }}>
                   +{tags.length - 3}
                 </span>
               )}
@@ -1158,16 +1375,18 @@ function CurrentAuctionCard({
         {/* Spacer */}
         <div className="flex-1" />
 
-        {/* Transfer Fee Calculator — prominent CTA */}
-        <div className="px-2.5 pb-2">
-          {auction.world && auction.level && (
-            <TransferSimulator
-              sourceWorld={auction.world}
-              characterLevel={auction.level}
-              bidPrice={auction.currentBid ?? auction.minimumBid}
-              worldTypes={worldTypes}
-            />
-          )}
+        {/* View Details — prominent CTA */}
+        <div className="px-3.5 pb-3">
+          <button
+            onClick={(e) => { e.stopPropagation(); onDetails(auction); }}
+            className="flex items-center justify-center gap-1.5 w-full rounded-md px-3 py-2 text-xs font-semibold transition-colors"
+            style={{ backgroundColor: '#3b2e6e', border: '1px solid #5b4e9e', color: '#c4b5fd' }}
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#4c3d8f'; e.currentTarget.style.color = '#ddd6fe'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#3b2e6e'; e.currentTarget.style.color = '#c4b5fd'; }}
+          >
+            <Eye className="h-3.5 w-3.5" />
+            View Details
+          </button>
         </div>
       </CardContent>
     </Card>
@@ -1181,6 +1400,7 @@ export function CurrentAuctionsClient({
   worlds,
   vocations,
   worldTypes,
+  valuations,
   initialSearch = '',
 }: CurrentAuctionsClientProps) {
   const [search, setSearch] = useState(initialSearch);
@@ -1191,7 +1411,6 @@ export function CurrentAuctionsClient({
   const [sortField, setSortField] = useState<SortField>('auctionEnd');
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
   const [page, setPage] = useState(1);
-  const [showFilters, setShowFilters] = useState(false);
   const [hideEnded, setHideEnded] = useState(true);
   const [detailAuction, setDetailAuction] = useState<SerializedCurrentAuction | null>(null);
   const tick = useCountdown();
@@ -1265,90 +1484,84 @@ export function CurrentAuctionsClient({
 
   return (
     <div className="space-y-4">
-      {/* Search + Filter Controls */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search by character name..."
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            className="h-10 w-full rounded-lg border border-input bg-card/50 pl-10 pr-4 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          />
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className={`flex h-10 items-center gap-2 rounded-lg border px-4 text-sm transition-colors ${showFilters ? 'border-primary bg-primary/10 text-primary' : 'border-input bg-card/50 hover:bg-accent'}`}
-          >
-            <SlidersHorizontal className="h-4 w-4" />
-            Filters
+      {/* Filter Bar — always visible */}
+      <div className="space-y-3">
+        {/* Row 1: Search + World + Level Range + Clear */}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="relative flex-1 min-w-0">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search by character name..."
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              className="h-9 w-full rounded-lg border border-border/50 bg-secondary/50 pl-10 pr-4 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* World dropdown — Radix Select */}
+            <Select value={selectedWorld || '__all__'} onValueChange={(v) => { setSelectedWorld(v === '__all__' ? '' : v); setPage(1); }}>
+              <SelectTrigger className="h-9 w-[160px] bg-secondary/50 border-border/50 text-sm">
+                <Globe className="h-3.5 w-3.5 mr-1.5 shrink-0 text-muted-foreground" />
+                <SelectValue placeholder="All Worlds" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">All Worlds</SelectItem>
+                {worlds.sort().map((w) => (
+                  <SelectItem key={w} value={w}>{w}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {/* Level range */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-muted-foreground whitespace-nowrap">Lvl</span>
+              <input
+                type="number"
+                placeholder="Min"
+                value={minLevel}
+                onChange={(e) => { setMinLevel(e.target.value); setPage(1); }}
+                className="h-9 w-[70px] rounded-md border border-border/50 bg-secondary/50 px-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+              <span className="text-xs text-muted-foreground">to</span>
+              <input
+                type="number"
+                placeholder="Max"
+                value={maxLevel}
+                onChange={(e) => { setMaxLevel(e.target.value); setPage(1); }}
+                className="h-9 w-[70px] rounded-md border border-border/50 bg-secondary/50 px-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+            </div>
+            {/* Clear */}
             {hasActiveFilters && (
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
-                !
-              </span>
+              <button
+                onClick={clearFilters}
+                className="flex h-9 items-center gap-1 rounded-md border border-border/50 bg-secondary/50 px-3 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+              >
+                <X className="h-3 w-3" /> Clear
+              </button>
             )}
-          </button>
-          {hasActiveFilters && (
+          </div>
+        </div>
+
+        {/* Row 2: Vocation chips */}
+        <div className="flex flex-wrap gap-1.5">
+          {vocations.sort().map((v) => (
             <button
-              onClick={clearFilters}
-              className="flex h-10 items-center gap-1 rounded-lg border border-input bg-card/50 px-3 text-sm text-muted-foreground hover:bg-accent"
+              key={v}
+              onClick={() => { setSelectedVocation(selectedVocation === v ? '' : v); setPage(1); }}
+              className={`flex h-7 items-center gap-1 rounded-full px-3 text-[11px] font-medium transition-colors ${
+                selectedVocation === v
+                  ? 'text-white shadow-sm'
+                  : 'bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary'
+              }`}
+              style={selectedVocation === v ? { backgroundColor: getVocationColor(v) } : undefined}
             >
-              <X className="h-3 w-3" /> Clear
+              <Shield className="h-3 w-3" />
+              {v}
             </button>
-          )}
+          ))}
         </div>
       </div>
-
-      {/* Filter Panel */}
-      {showFilters && (
-        <Card className="border-border/50 bg-card/50 backdrop-blur">
-          <CardContent className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-3">
-            <div>
-              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">World</label>
-              <select
-                value={selectedWorld}
-                onChange={(e) => { setSelectedWorld(e.target.value); setPage(1); }}
-                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-              >
-                <option value="">All Worlds</option>
-                {worlds.sort().map((w) => <option key={w} value={w}>{w}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Vocation</label>
-              <select
-                value={selectedVocation}
-                onChange={(e) => { setSelectedVocation(e.target.value); setPage(1); }}
-                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-              >
-                <option value="">All Vocations</option>
-                {vocations.sort().map((v) => <option key={v} value={v}>{v}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Level Range</label>
-              <div className="flex gap-2">
-                <input
-                  type="number"
-                  placeholder="Min"
-                  value={minLevel}
-                  onChange={(e) => { setMinLevel(e.target.value); setPage(1); }}
-                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                />
-                <input
-                  type="number"
-                  placeholder="Max"
-                  value={maxLevel}
-                  onChange={(e) => { setMaxLevel(e.target.value); setPage(1); }}
-                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Sort Bar + Count */}
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1387,12 +1600,13 @@ export function CurrentAuctionsClient({
       </div>
 
       {/* Auction Card Grid */}
-      <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
+      <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
         {paginated.map((auction) => (
           <CurrentAuctionCard
             key={auction.id}
             auction={auction}
             worldTypes={worldTypes}
+            valuation={valuations[auction.id]}
             onDetails={setDetailAuction}
             tick={tick}
           />
@@ -1401,7 +1615,7 @@ export function CurrentAuctionsClient({
 
       {/* Detail Modal */}
       {detailAuction && (
-        <AuctionDetailModal auction={detailAuction} worldTypes={worldTypes} onClose={() => setDetailAuction(null)} />
+        <AuctionDetailModal auction={detailAuction} worldTypes={worldTypes} valuation={valuations[detailAuction.id]} onClose={() => setDetailAuction(null)} />
       )}
 
       {/* Empty State */}
