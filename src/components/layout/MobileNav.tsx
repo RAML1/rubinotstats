@@ -15,7 +15,7 @@ import { Logo } from "@/components/brand/Logo";
 const navItems = [
   { href: "/", label: "Home", icon: Home },
   { href: "/current-auctions", label: "Current Auctions", icon: Zap },
-  { href: "/market", label: "Market", icon: Store },
+  { href: "/market", label: "Item Market", icon: Store },
   { href: "/progression", label: "Progression", icon: TrendingUp },
   { href: "/calculator", label: "Calculator", icon: Calculator },
 ];

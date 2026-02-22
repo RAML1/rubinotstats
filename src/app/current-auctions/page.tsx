@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent } from '@/components/ui/card';
 import prisma from '@/lib/db/prisma';
+import { computeValuations } from '@/lib/utils/valuation';
 import { CurrentAuctionsClient } from './CurrentAuctionsClient';
 
 async function getCurrentAuctionData() {
@@ -31,6 +32,9 @@ async function getCurrentAuctionData() {
     updatedAt: a.updatedAt.toISOString(),
   }));
 
+  // PREMIUM_GATE: Valuations are available to all users now.
+  const valuations = await computeValuations(auctions);
+
   return {
     auctions: serialized,
     worlds: worlds.map((w) => w.world).filter(Boolean) as string[],
@@ -40,6 +44,7 @@ async function getCurrentAuctionData() {
       pvpType: wt.pvpType,
       isRtc: wt.isRtc,
     })),
+    valuations,
   };
 }
 
@@ -51,6 +56,7 @@ async function CurrentAuctionsContent({ initialSearch }: { initialSearch: string
       worlds={data.worlds}
       vocations={data.vocations}
       worldTypes={data.worldTypes}
+      valuations={data.valuations}
       initialSearch={initialSearch}
     />
   );
@@ -85,7 +91,6 @@ export default async function CurrentAuctionsPage({
     <div className="container mx-auto space-y-6 px-4 py-8">
       <div>
         <h1 className="text-3xl font-bold">Current Auctions</h1>
-        <p className="text-muted-foreground">Live character auctions on RubinOT — track bids in real-time</p>
         <p className="text-xs text-muted-foreground/60 mt-1">Current bid values may differ from actual due to data loading delays</p>
       </div>
       <Suspense fallback={<CurrentAuctionsSkeleton />}>

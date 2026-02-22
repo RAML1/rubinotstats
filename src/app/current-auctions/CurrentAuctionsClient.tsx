@@ -41,7 +41,7 @@ import {
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
-import { formatNumber, getVocationColor, formatTimeRemaining, getDealScoreInfo } from '@/lib/utils/formatters';
+import { formatNumber, getVocationColor, formatTimeRemaining } from '@/lib/utils/formatters';
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -1108,7 +1108,7 @@ function DisplayItemsLarge({ items }: { items: string }) {
   );
 }
 
-function getQualityHighlight(auction: SerializedCurrentAuction): { label: string; color: string } | null {
+function getTopAuctionHighlight(auction: SerializedCurrentAuction): { label: string; reason: string; color: string } | null {
   const level = auction.level || 0;
   const mainSkill = Math.max(
     auction.magicLevel || 0,
@@ -1118,9 +1118,18 @@ function getQualityHighlight(auction: SerializedCurrentAuction): { label: string
     auction.distance || 0,
     auction.fist || 0,
   );
-  if (level >= 800 && mainSkill >= 120) return { label: 'Elite Character', color: '#f59e0b' };
-  if (level >= 800) return { label: 'High Level', color: '#f59e0b' };
-  if (mainSkill >= 120) return { label: 'High Skills', color: '#a78bfa' };
+  const storeItems = auction.storeItemsCount || 0;
+
+  // Multiple criteria met = top auction
+  const criteria: string[] = [];
+  if (level >= 1200) criteria.push('High Level');
+  if (mainSkill >= 120) criteria.push('High Skills');
+  if (storeItems >= 50) criteria.push('Store Items');
+
+  if (criteria.length >= 2) return { label: 'Top Auction', reason: criteria.join(' · '), color: '#f59e0b' };
+  if (level >= 1200) return { label: 'Top Auction', reason: 'Level ' + level, color: '#f59e0b' };
+  if (mainSkill >= 130) return { label: 'Top Auction', reason: 'Skill ' + mainSkill, color: '#a78bfa' };
+  if (storeItems >= 100) return { label: 'Top Auction', reason: storeItems + ' Store Items', color: '#60a5fa' };
   return null;
 }
 
@@ -1145,57 +1154,34 @@ function CurrentAuctionCard({
   const ended = isAuctionEnded(auction.auctionEnd);
   const hasAuctionEnd = parseAuctionDate(auction.auctionEnd) !== null;
 
-  // Deal score: how good is this auction relative to fair price?
-  const dealScore = useMemo(() => {
-    if (!valuation || valuation.sampleSize < 3) return null;
-    const price = auction.currentBid ?? auction.minimumBid;
-    if (!price || price <= 0) return null;
-    const score = ((valuation.estimatedValue - price) / valuation.estimatedValue) * 100;
-    return { score, info: getDealScoreInfo(score) };
-  }, [valuation, auction.currentBid, auction.minimumBid]);
+  // Top auction highlight based on skills, level, store items
+  const topHighlight = getTopAuctionHighlight(auction);
 
-  // Quality highlight for special characters (no deal score needed)
-  const qualityHighlight = !dealScore ? getQualityHighlight(auction) : null;
-
-  // Card border style based on deal score or quality
+  // Card border style based on top auction status
   const cardBorderStyle = useMemo(() => {
-    if (dealScore?.info.variant === 'great') {
+    if (topHighlight) {
       return {
         backgroundColor: '#302e3a',
-        border: '2px solid #10b981',
-        boxShadow: '0 0 20px rgba(16, 185, 129, 0.15), 0 0 40px rgba(16, 185, 129, 0.05)',
-      };
-    }
-    if (dealScore?.info.variant === 'good') {
-      return {
-        backgroundColor: '#302e3a',
-        border: '2px solid rgba(59, 130, 246, 0.25)',
-        boxShadow: '0 0 15px rgba(59, 130, 246, 0.1)',
-      };
-    }
-    if (qualityHighlight) {
-      return {
-        backgroundColor: '#302e3a',
-        border: `1px solid ${qualityHighlight.color}40`,
-        boxShadow: `0 0 12px ${qualityHighlight.color}10`,
+        border: `2px solid ${topHighlight.color}50`,
+        boxShadow: `0 0 20px ${topHighlight.color}15, 0 0 40px ${topHighlight.color}08`,
       };
     }
     return { backgroundColor: '#302e3a', border: '1px solid #4a4857' };
-  }, [dealScore, qualityHighlight]);
+  }, [topHighlight]);
 
   return (
     <Card className="transition-all hover:shadow-xl hover:shadow-black/20 group flex flex-col" style={cardBorderStyle}>
       <CardContent className="p-0 flex flex-col flex-1">
-        {/* Header — outfit image + name + level/vocation + bid badge + eye */}
-        <div className="px-3.5 pt-3 pb-2">
+        {/* Header — outfit image + name + level/vocation + bid badge */}
+        <div className="px-4 pt-4 pb-3">
           <div className="flex items-start gap-3">
             {auction.outfitImageUrl && (
-              <div className="shrink-0 w-14 h-14 rounded-lg overflow-hidden flex items-center justify-center" style={{ backgroundColor: '#252333' }}>
+              <div className="shrink-0 w-16 h-16 rounded-lg overflow-hidden flex items-center justify-center" style={{ backgroundColor: '#252333' }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={resolveOutfitUrl(auction.outfitImageUrl)}
                   alt={auction.characterName}
-                  className="w-12 h-12 object-contain"
+                  className="w-14 h-14 object-contain"
                   loading="lazy"
                 />
               </div>
@@ -1203,7 +1189,7 @@ function CurrentAuctionCard({
             <div className="min-w-0 flex-1">
               <div className="flex items-start justify-between gap-1.5">
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1.5">
                     <span className="text-sm font-bold truncate" style={{ color: '#4ade80' }}>
                       {auction.characterName}
                     </span>
@@ -1213,17 +1199,17 @@ function CurrentAuctionCard({
                       </a>
                     )}
                   </div>
-                  <p className="text-[10px] mt-0.5" style={{ color: '#8a8698' }}>
+                  <p className="text-[11px] mt-1" style={{ color: '#8a8698' }}>
                     Level {auction.level || '?'} · {auction.vocation || 'Unknown'} · {auction.world || '?'}
                   </p>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   {auction.hasBeenBidOn ? (
-                    <span className="rounded-full px-1.5 py-px text-[8px] font-bold uppercase" style={{ backgroundColor: '#fbbf2420', color: '#fbbf24' }}>
+                    <span className="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase" style={{ backgroundColor: '#fbbf2420', color: '#fbbf24' }}>
                       Bid
                     </span>
                   ) : (
-                    <span className="rounded-full px-1.5 py-px text-[8px] font-bold uppercase" style={{ backgroundColor: '#4a485720', color: '#7a7690' }}>
+                    <span className="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase" style={{ backgroundColor: '#4a485720', color: '#7a7690' }}>
                       No bid
                     </span>
                   )}
@@ -1233,62 +1219,51 @@ function CurrentAuctionCard({
           </div>
         </div>
 
-        {/* Valuation group: Fair Price + Deal Score + Quality + Transfer Calculator */}
-        <div className="px-3.5 pb-2 space-y-1.5">
-          {/* Fair Price badge */}
+        {/* Top Auction badge */}
+        {topHighlight && (
+          <div className="px-4 pb-2">
+            <div
+              className="flex items-center gap-1.5 rounded-md px-3 py-2"
+              style={{ backgroundColor: `${topHighlight.color}10`, border: `1px solid ${topHighlight.color}25` }}
+            >
+              <Crown className="h-3.5 w-3.5" style={{ color: topHighlight.color }} />
+              <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: topHighlight.color }}>
+                {topHighlight.label}
+              </span>
+              <span className="text-[10px] ml-auto" style={{ color: `${topHighlight.color}90` }}>
+                {topHighlight.reason}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Fair Price + Transfer Fee Calculator — side by side */}
+        <div className="px-4 pb-3 flex gap-2">
           {valuation && valuation.sampleSize >= 3 && (
             <div
-              className="flex items-center justify-between rounded-md px-2.5 py-1.5"
+              className="flex items-center gap-1.5 rounded-md px-2.5 py-2 flex-1 min-w-0"
               style={{ backgroundColor: '#1a2a1a', border: '1px solid #2a4a2a' }}
               title={`Range: ${formatNumber(valuation.minPrice)} – ${formatNumber(valuation.maxPrice)} TC (${valuation.sampleSize} sales)`}
             >
-              <span className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: '#5a8a5a' }}>Fair Price</span>
+              <span className="text-[9px] font-semibold uppercase tracking-wider shrink-0" style={{ color: '#5a8a5a' }}>Fair</span>
               <span className="text-xs font-bold" style={{ color: '#4ade80' }}>~{formatNumber(valuation.estimatedValue)} TC</span>
             </div>
           )}
-
-          {/* Deal Score badge */}
-          {dealScore && dealScore.info.variant !== 'fair' && dealScore.info.variant !== 'overpriced' && (
-            <div
-              className="flex items-center justify-between rounded-md px-2.5 py-1.5"
-              style={{ backgroundColor: `${dealScore.info.color}10`, border: `1px solid ${dealScore.info.color}30` }}
-            >
-              <span className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: `${dealScore.info.color}90` }}>
-                {dealScore.info.label}
-              </span>
-              <span className="text-xs font-bold" style={{ color: dealScore.info.color }}>
-                {Math.abs(Math.round(dealScore.score))}% {dealScore.score > 0 ? 'below' : 'above'} fair
-              </span>
-            </div>
-          )}
-
-          {/* Quality highlight for special characters */}
-          {qualityHighlight && !dealScore && (
-            <div
-              className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5"
-              style={{ backgroundColor: `${qualityHighlight.color}10`, border: `1px solid ${qualityHighlight.color}25` }}
-            >
-              <Crown className="h-3 w-3" style={{ color: qualityHighlight.color }} />
-              <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: qualityHighlight.color }}>
-                {qualityHighlight.label}
-              </span>
-            </div>
-          )}
-
-          {/* Transfer Fee Calculator */}
           {auction.world && auction.level && (
-            <TransferSimulator
-              sourceWorld={auction.world}
-              characterLevel={auction.level}
-              bidPrice={auction.currentBid ?? auction.minimumBid}
-              worldTypes={worldTypes}
-            />
+            <div className="flex-1 min-w-0">
+              <TransferSimulator
+                sourceWorld={auction.world}
+                characterLevel={auction.level}
+                bidPrice={auction.currentBid ?? auction.minimumBid}
+                worldTypes={worldTypes}
+              />
+            </div>
           )}
         </div>
 
-        {/* Auction timer bar — prominent */}
-        <div className="px-3.5 pb-2">
-          <div className="flex items-center justify-between rounded-md px-2.5 py-2" style={{ backgroundColor: '#252333', border: '1px solid #3a3848' }}>
+        {/* Auction timer bar */}
+        <div className="px-4 pb-3">
+          <div className="flex items-center justify-between rounded-md px-3 py-2.5" style={{ backgroundColor: '#252333', border: '1px solid #3a3848' }}>
             <div className="flex items-center gap-1.5">
               <Clock className="h-3.5 w-3.5 shrink-0" style={{ color: ended ? '#f87171' : '#fbbf24' }} />
               {hasAuctionEnd && !ended ? (
@@ -1318,15 +1293,15 @@ function CurrentAuctionCard({
           </div>
         </div>
 
-        {/* Display Items — always 4 slots, right below timer like Exevo Pan */}
-        <div className="px-3.5 pb-2">
+        {/* Display Items */}
+        <div className="px-4 pb-3">
           <DisplayItems items={auction.displayItems || '[]'} />
         </div>
 
         {/* Skills */}
         {allSkills.length > 0 && (
-          <div className="px-3.5 pb-2">
-            <div className="grid grid-cols-2 gap-x-2 gap-y-1">
+          <div className="px-4 pb-3">
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
               {allSkills.map(({ key, value, pct }) => (
                 <SkillBox key={key} skillKey={key} value={value} isTrained={value > SKILL_TRAINED_THRESHOLD} pct={pct} />
               ))}
@@ -1334,9 +1309,9 @@ function CurrentAuctionCard({
           </div>
         )}
 
-        {/* Standardized Stats Grid */}
-        <div className="px-3.5 pb-2">
-          <div className="grid grid-cols-2 gap-1">
+        {/* Stats Grid */}
+        <div className="px-4 pb-3">
+          <div className="grid grid-cols-2 gap-1.5">
             <StatCell icon={Sparkles} iconColor="#a78bfa" label="Charms" value={formatNumber(auction.charmPoints || 0)} />
             <StatCell icon={Skull} iconColor="#f87171" label="Boss" value={formatNumber(auction.bossPoints || 0)} />
             <StatCell icon={Star} iconColor="#ec4899" label="Outfits" value={String(auction.outfitsCount || 0)} />
@@ -1352,19 +1327,19 @@ function CurrentAuctionCard({
 
         {/* Tags */}
         {tags.length > 0 && (
-          <div className="px-3.5 pb-2">
-            <div className="flex flex-wrap gap-1">
+          <div className="px-4 pb-3">
+            <div className="flex flex-wrap gap-1.5">
               {tags.slice(0, 3).map((tag) => (
                 <span
                   key={tag.label}
-                  className="rounded-full px-2 py-0.5 text-[9px] font-medium"
+                  className="rounded-full px-2.5 py-0.5 text-[9px] font-medium"
                   style={{ backgroundColor: `${tag.color}20`, color: tag.color }}
                 >
                   {tag.label}
                 </span>
               ))}
               {tags.length > 3 && (
-                <span className="rounded-full px-2 py-0.5 text-[9px] font-medium" style={{ backgroundColor: '#3a3848', color: '#8a8698' }}>
+                <span className="rounded-full px-2.5 py-0.5 text-[9px] font-medium" style={{ backgroundColor: '#3a3848', color: '#8a8698' }}>
                   +{tags.length - 3}
                 </span>
               )}
@@ -1376,10 +1351,10 @@ function CurrentAuctionCard({
         <div className="flex-1" />
 
         {/* View Details — prominent CTA */}
-        <div className="px-3.5 pb-3">
+        <div className="px-4 pb-4">
           <button
             onClick={(e) => { e.stopPropagation(); onDetails(auction); }}
-            className="flex items-center justify-center gap-1.5 w-full rounded-md px-3 py-2 text-xs font-semibold transition-colors"
+            className="flex items-center justify-center gap-1.5 w-full rounded-md px-3 py-2.5 text-xs font-semibold transition-colors"
             style={{ backgroundColor: '#3b2e6e', border: '1px solid #5b4e9e', color: '#c4b5fd' }}
             onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#4c3d8f'; e.currentTarget.style.color = '#ddd6fe'; }}
             onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#3b2e6e'; e.currentTarget.style.color = '#c4b5fd'; }}
@@ -1600,7 +1575,7 @@ export function CurrentAuctionsClient({
       </div>
 
       {/* Auction Card Grid */}
-      <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
+      <div className="grid gap-5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))' }}>
         {paginated.map((auction) => (
           <CurrentAuctionCard
             key={auction.id}

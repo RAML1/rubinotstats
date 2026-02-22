@@ -376,3 +376,26 @@ model Feedback {
   @@index([createdAt])
   @@map("feedback")
 }
+
+// Player-to-player item marketplace listings
+model ItemListing {
+  id            Int      @id @default(autoincrement())
+  itemName      String   @map("item_name") @db.VarChar(255)
+  tier          Int?
+  price         Int
+  quantity      Int      @default(1)
+  characterName String   @map("character_name") @db.VarChar(255)
+  world         String   @db.VarChar(100)
+  contactInfo   String?  @map("contact_info") @db.VarChar(500)
+  description   String?  @db.Text
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at")
+  expiresAt     DateTime @map("expires_at")
+
+  @@index([itemName])
+  @@index([world])
+  @@index([isActive])
+  @@index([expiresAt])
+  @@map("item_listings")
+}

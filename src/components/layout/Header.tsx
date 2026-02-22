@@ -19,7 +19,7 @@ import { MobileNav } from "./MobileNav";
 const navItems = [
   { href: "/", label: "Home", icon: Home },
   { href: "/current-auctions", label: "Current Auctions", icon: Zap },
-  { href: "/market", label: "Market", icon: Store },
+  { href: "/market", label: "Item Market", icon: Store },
   { href: "/progression", label: "Progression", icon: TrendingUp },
   { href: "/calculator", label: "Calculator", icon: Calculator },
 ];
@@ -43,10 +43,10 @@ export function Header() {
 
           {/* Ad Banner — center */}
           <div className="hidden md:flex flex-1 items-center justify-center">
-            <div className="flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-1">
-              <Megaphone className="h-3.5 w-3.5 text-white/50" />
-              <span className="text-xs text-white/60">
-                Advertise here — reach the RubinOT community
+            <div className="flex items-center gap-2.5 rounded-lg border border-amber-400/30 bg-amber-400/10 px-5 py-1.5 animate-pulse">
+              <Megaphone className="h-4 w-4 text-amber-400" />
+              <span className="text-sm font-medium text-amber-200">
+                Your awesome reseller page here, travecos also welcome to advertise
               </span>
             </div>
           </div>
@@ -57,7 +57,7 @@ export function Header() {
             <div className="hidden lg:flex items-center gap-1.5 rounded-full bg-amber-400/15 border border-amber-400/25 px-3 py-1">
               <Heart className="h-3 w-3 text-amber-400 fill-amber-400" />
               <span className="text-[11px] text-amber-300">
-                Send Rubinicoins to <strong>Super Bonk Lee</strong>
+                Want to show love? Tip <strong>Super Bonk Lee</strong> so he can stop using plate set
               </span>
             </div>
 
