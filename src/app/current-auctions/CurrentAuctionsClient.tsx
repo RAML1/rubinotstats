@@ -42,6 +42,7 @@ import {
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { formatNumber, getVocationColor, formatTimeRemaining } from '@/lib/utils/formatters';
+import { calculateRcInvested } from '@/lib/utils/rc-investment';
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -736,6 +737,40 @@ function AuctionDetailModal({
           </div>
         </div>
 
+        {/* RC Investment Estimate */}
+        {(() => {
+          const rcResult = calculateRcInvested(auction);
+          return rcResult.total > 0 ? (
+            <div className="px-5 pb-3">
+              <div className="rounded-lg px-4 py-3" style={{ backgroundColor: '#252333', border: '1px solid #3a3848' }}>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-1.5">
+                    <Coins className="h-4 w-4" style={{ color: '#fbbf24' }} />
+                    <span className="text-xs font-semibold" style={{ color: '#fbbf24' }}>~{formatNumber(rcResult.total)} RC Invested</span>
+                  </div>
+                  <span className="text-[9px]" style={{ color: '#7a7690' }}>Estimated</span>
+                </div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+                  {[
+                    { label: 'Outfits', value: rcResult.breakdown.outfits },
+                    { label: 'Mounts', value: rcResult.breakdown.mounts },
+                    { label: 'Hirelings', value: rcResult.breakdown.hirelings },
+                    { label: 'Charm Exp', value: rcResult.breakdown.charmExpansion },
+                    { label: 'Prey Slot', value: rcResult.breakdown.extraPreySlot },
+                    { label: 'Weekly Task', value: rcResult.breakdown.weeklyTaskExpansion },
+                    { label: 'Loot Pouch', value: rcResult.breakdown.lootPouch },
+                  ].filter(item => item.value > 0).map((item) => (
+                    <div key={item.label} className="flex items-center justify-between">
+                      <span className="text-[10px]" style={{ color: '#7a7690' }}>{item.label}</span>
+                      <span className="text-[10px] font-semibold tabular-nums" style={{ color: '#d4d0e0' }}>{formatNumber(item.value)} RC</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : null;
+        })()}
+
         <div className="px-5 pb-5 space-y-4">
           {/* Transfer Simulator — prominent placement near top */}
           {auction.world && auction.level && (
@@ -1111,6 +1146,13 @@ function CurrentAuctionCard({
             <BoolCell icon={CalendarCheck} iconColor="#10b981" label="Weekly Task" has={!!auction.weeklyTaskExpansion} />
             <StatCell icon={Users} iconColor="#4ade80" label="Hirelings" value={String(auction.hirelings || 0)} />
             <GemsCell gems={auction.gems} />
+            <div className="col-span-2 flex items-center gap-1 rounded px-1.5 py-0.5" style={{ backgroundColor: '#252333', border: '1px solid #3a3848' }}>
+              <Coins className="h-2.5 w-2.5 shrink-0" style={{ color: '#fbbf24' }} />
+              <span className="text-[8px] truncate" style={{ color: '#7a7690' }}>RC Invested</span>
+              <span className="text-[9px] font-bold ml-auto tabular-nums" style={{ color: '#fbbf24' }}>
+                ~{formatNumber(calculateRcInvested(auction).total)} RC
+              </span>
+            </div>
           </div>
         </div>
 

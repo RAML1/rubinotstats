@@ -21,10 +21,10 @@ export const MAGIC_MULTIPLIERS = [
 // --- Exercise Weapon Types ---
 
 export const WEAPON_TYPES = [
-  { name: 'Regular', charges: 500 },
-  { name: 'Durable', charges: 1800 },
-  { name: 'Lasting', charges: 14400 },
-  { name: 'Daily', charges: 45000 },
+  { name: 'Regular', charges: 500, rcCost: 40 },
+  { name: 'Durable', charges: 1800, rcCost: 80 },
+  { name: 'Lasting', charges: 14400, rcCost: 190 },
+  { name: 'Daily', charges: 45000, rcCost: 390 },
 ] as const;
 
 // --- Skill Categories ---
