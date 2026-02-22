@@ -89,7 +89,6 @@ async function upsertAuction(a: ScrapedAuction): Promise<void> {
     world: a.world,
     auctionStart: a.auctionStart,
     auctionEnd: a.auctionEnd,
-    auctionStatus: a.auctionStatus,
     soldPrice: a.soldPrice,
     coinsPerLevel: a.coinsPerLevel,
     magicLevel: a.magicLevel,
@@ -121,16 +120,12 @@ async function upsertAuction(a: ScrapedAuction): Promise<void> {
     huntingTaskPoints: a.huntingTaskPoints,
     hirelings: a.hirelings,
     hirelingJobs: a.hirelingJobs,
-    hasLootPouch: a.hasLootPouch,
     storeItemsCount: a.storeItemsCount,
     bossPoints: a.bossPoints,
     blessingsCount: a.blessingsCount,
     exaltedDust: a.exaltedDust,
     gold: a.gold,
     bestiary: a.bestiary,
-    primalOrdealAvailable: a.primalOrdealAvailable,
-    soulWarAvailable: a.soulWarAvailable,
-    sanguineBloodAvailable: a.sanguineBloodAvailable,
     url: a.url,
   };
   await prisma.auction.upsert({
@@ -274,10 +269,6 @@ function printAuctionTable(a: ScrapedAuction) {
     ['exaltedDust', a.exaltedDust],
     ['gold', a.gold],
     ['bestiary', a.bestiary],
-    // Quest availability
-    ['primalOrdeal', a.primalOrdealAvailable === true ? 'AVAILABLE' : a.primalOrdealAvailable === false ? 'completed' : null],
-    ['soulWar', a.soulWarAvailable === true ? 'AVAILABLE' : a.soulWarAvailable === false ? 'completed' : null],
-    ['sanguineBlood', a.sanguineBloodAvailable === true ? 'AVAILABLE' : a.sanguineBloodAvailable === false ? 'completed' : null],
     ['url', a.url],
   ];
 
@@ -295,8 +286,6 @@ function printSummary(auctions: ScrapedAuction[]) {
   const worldCounts: Record<string, number> = {};
   let totalPrice = 0;
   let priceCount = 0;
-  let primalAvail = 0, soulWarAvail = 0, sanguineAvail = 0;
-  let questDataCount = 0;
 
   for (const a of auctions) {
     if (a.vocation) vocCounts[a.vocation] = (vocCounts[a.vocation] || 0) + 1;
@@ -304,12 +293,6 @@ function printSummary(auctions: ScrapedAuction[]) {
     if (a.soldPrice && a.soldPrice > 0) {
       totalPrice += a.soldPrice;
       priceCount++;
-    }
-    if (a.primalOrdealAvailable !== null) {
-      questDataCount++;
-      if (a.primalOrdealAvailable) primalAvail++;
-      if (a.soulWarAvailable) soulWarAvail++;
-      if (a.sanguineBloodAvailable) sanguineAvail++;
     }
   }
 
@@ -332,11 +315,6 @@ ${Object.entries(worldCounts)
   .slice(0, 5)
   .map(([w, c]) => `    ${w}: ${c}`)
   .join('\n')}
-
-  Quest Availability (of ${questDataCount} with data):
-    Primal Ordeal available: ${primalAvail}
-    Soul War available: ${soulWarAvail}
-    Sanguine/Rotten Blood available: ${sanguineAvail}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
 }
 

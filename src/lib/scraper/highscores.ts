@@ -1,9 +1,7 @@
 /**
- * Highscores scraper for RubinOT.
- * Scrapes the leaderboard for all worlds × all categories × all professions × all pages.
- * Characters may appear across multiple categories (e.g. a knight could be
- * on the Experience, Sword Fighting, and Shielding lists). This is expected
- * and is what lets us correlate a character with their skill progression.
+ * Experience Points highscores scraper for RubinOT.
+ * Scrapes the leaderboard for all worlds × all vocations (experience only).
+ * Strategy: 20 tabs blast all pages of one combo simultaneously, then move to next.
  */
 import * as cheerio from 'cheerio';
 import {
@@ -11,14 +9,11 @@ import {
   WORLDS,
   HIGHSCORE_CATEGORIES,
   HIGHSCORE_PROFESSIONS,
-  DAILY_CATEGORIES,
-  DAILY_PROFESSIONS,
-  PROFESSION_SKIP_CATEGORIES,
-  type HighscoreCategory,
   type HighscoreProfession,
 } from '../utils/constants';
-import type { Page } from 'playwright';
-import { navigateWithCloudflare, rateLimit, getHealthyPage } from './browser';
+import type { Page, BrowserContext } from 'playwright';
+import { navigateWithCloudflare, rateLimit, getHealthyPage, getBrowserContext, closeBrowser, sleep } from './browser';
+import type { BrowserName } from './browser';
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -30,7 +25,7 @@ export interface ScrapedHighscoreEntry {
   level: number;
   score: bigint;
   category: string;
-  profession: string; // The profession filter used (e.g. "Knights", "All")
+  profession: string;
 }
 
 export interface HighscorePageResult {
@@ -41,39 +36,30 @@ export interface HighscorePageResult {
 
 export interface ScrapeHighscoresOptions {
   worlds?: string[];
-  categories?: HighscoreCategory[];
   professions?: HighscoreProfession[];
   maxPages?: number;
+  headless?: boolean;
+  browser?: BrowserName;
   onEntry?: (entry: ScrapedHighscoreEntry) => Promise<void>;
-  onPageDone?: (world: string, category: string, profession: string, page: number, totalPages: number, count: number) => void;
+  onPageDone?: (world: string, profession: string, page: number, totalPages: number, count: number) => void;
   onComboDone?: (comboKey: string) => void;
   completedCombos?: Set<string>;
 }
 
 // ── Combo key ─────────────────────────────────────────────────────────
 
-export function comboKey(world: string, category: string, profession: string): string {
-  return `${world}|${category}|${profession}`;
-}
-
-// ── Should-skip logic ─────────────────────────────────────────────────
-
-export function shouldSkipCombo(category: HighscoreCategory, profession: HighscoreProfession): boolean {
-  const skipList = PROFESSION_SKIP_CATEGORIES[profession];
-  if (!skipList) return false;
-  return skipList.includes(category);
+export function comboKey(world: string, profession: string): string {
+  return `${world}|${profession}`;
 }
 
 // ── Parser ─────────────────────────────────────────────────────────────
 
-/**
- * Parse a highscores HTML page into structured entries.
- */
-export function parseHighscorePage(html: string, category: string, profession: string): HighscorePageResult {
+const CATEGORY = 'Experience Points';
+
+export function parseHighscorePage(html: string, profession: string): HighscorePageResult {
   const $ = cheerio.load(html);
   const entries: ScrapedHighscoreEntry[] = [];
 
-  // Parse data rows from table — rows with bgcolor are data rows
   $('table.TableContent tr[bgcolor]').each((_i, el) => {
     const tds = $(el).find('td');
     if (tds.length < 6) return;
@@ -95,19 +81,17 @@ export function parseHighscorePage(html: string, category: string, profession: s
       world,
       level: isNaN(level) ? 0 : level,
       score,
-      category,
+      category: CATEGORY,
       profession,
     });
   });
 
-  // Parse pagination — find the highest page number
   let totalPages = 1;
   $('span.PageLink a, span.CurrentPageLink').each((_i, el) => {
     const pageNum = parseInt($(el).text().trim(), 10);
     if (!isNaN(pageNum) && pageNum > totalPages) totalPages = pageNum;
   });
 
-  // Parse total results from "Results: X"
   let totalResults = entries.length;
   const resultsText = $('td.PageNavigation').first().text();
   const resultsMatch = resultsText.match(/Results:\s*(\d+)/);
@@ -120,183 +104,211 @@ export function parseHighscorePage(html: string, category: string, profession: s
 
 // ── URL builder ────────────────────────────────────────────────────────
 
-function buildHighscoreUrl(world: string, categoryValue: string, professionValue: string, page: number): string {
+const EXP_CATEGORY_VALUE = HIGHSCORE_CATEGORIES['Experience Points'];
+
+function buildHighscoreUrl(world: string, professionValue: string, page: number): string {
   const params = new URLSearchParams({
     subtopic: 'highscores',
     world,
     beprotection: '-1',
-    category: categoryValue,
+    category: EXP_CATEGORY_VALUE,
     profession: professionValue,
     currentpage: page.toString(),
   });
   return `${RUBINOT_URLS.base}/?${params.toString()}`;
 }
 
-// ── Full scraper ───────────────────────────────────────────────────────
+// ── Blast scraper: 20 tabs per combo ──────────────────────────────────
 
-/**
- * Scrape highscores for specified worlds, categories, and professions.
- * Iterates world × category × profession × page, parsing each page with Cheerio.
- * Supports resume via completedCombos set and skip rules per vocation.
- */
+const TAB_COUNT = 20;
+
 export async function scrapeHighscores(
-  page: Page,
+  context: BrowserContext,
   opts: ScrapeHighscoresOptions = {},
 ): Promise<ScrapedHighscoreEntry[]> {
   const worlds = opts.worlds ?? [...WORLDS];
-  const categories = opts.categories ?? DAILY_CATEGORIES;
-  const professions = opts.professions ?? DAILY_PROFESSIONS;
+  const professions = opts.professions ?? ['Knights', 'Paladins', 'Sorcerers', 'Druids', 'Monks'] as HighscoreProfession[];
   const completed = opts.completedCombos ?? new Set<string>();
   const allEntries: ScrapedHighscoreEntry[] = [];
+  const browserName = opts.browser ?? 'highscores';
+  const headless = opts.headless ?? false;
 
-  // Mutable page ref — may be replaced if browser context dies
-  let currentPage = page;
+  let ctx = context;
 
-  // Build full combo list and count relevant ones
-  let totalCombinations = 0;
-  let skippedIrrelevant = 0;
-  let skippedResume = 0;
-  for (const _w of worlds) {
-    for (const cat of categories) {
-      for (const prof of professions) {
-        if (shouldSkipCombo(cat, prof)) {
-          skippedIrrelevant++;
-        } else {
-          totalCombinations++;
-        }
-      }
-    }
-  }
-
-  // Count already-completed from resume
-  for (const _w of worlds) {
-    for (const cat of categories) {
-      for (const prof of professions) {
-        if (!shouldSkipCombo(cat, prof) && completed.has(comboKey(_w, cat, prof))) {
-          skippedResume++;
-        }
-      }
-    }
-  }
-
-  const remaining = totalCombinations - skippedResume;
-  console.log(`  Relevant combos: ${totalCombinations} (skipped ${skippedIrrelevant} irrelevant)`);
-  if (skippedResume > 0) {
-    console.log(`  Resuming: ${skippedResume} already done, ${remaining} remaining`);
-  }
-
-  let completedCount = skippedResume;
-
+  // Build combo queue (skip completed)
+  const queue: { world: string; profession: HighscoreProfession }[] = [];
   for (const world of worlds) {
-    for (const category of categories) {
-      const categoryValue = HIGHSCORE_CATEGORIES[category];
+    for (const profession of professions) {
+      if (!completed.has(comboKey(world, profession))) {
+        queue.push({ world, profession });
+      }
+    }
+  }
 
-      for (const profession of professions) {
-        // Skip irrelevant vocation/category combos
-        if (shouldSkipCombo(category, profession)) continue;
+  const totalCombinations = worlds.length * professions.length;
+  const alreadyDone = totalCombinations - queue.length;
+  console.log(`  Total combos: ${totalCombinations} (${TAB_COUNT} tabs per combo)`);
+  if (alreadyDone > 0) {
+    console.log(`  Resuming: ${alreadyDone} already done, ${queue.length} remaining`);
+  }
 
-        const key = comboKey(world, category, profession);
+  // Build tab pool
+  const tabs: Page[] = [];
+  const existingPages = ctx.pages();
+  for (let i = 0; i < TAB_COUNT; i++) {
+    tabs.push(existingPages[i] || (await ctx.newPage()));
+  }
 
-        // Skip already-completed combos (resume)
-        if (completed.has(key)) continue;
+  async function rebuildTabs(): Promise<void> {
+    const newPages = ctx.pages();
+    for (let t = 0; t < TAB_COUNT; t++) {
+      tabs[t] = newPages[t] || (await ctx.newPage());
+    }
+  }
 
-        completedCount++;
-        const professionValue = HIGHSCORE_PROFESSIONS[profession];
+  async function restartBrowser(cooldownSec: number): Promise<void> {
+    console.log(`  Restarting browser (${cooldownSec}s cooldown)...`);
+    await sleep(cooldownSec * 1000);
+    try { await closeBrowser(browserName); } catch {}
+    ctx = await getBrowserContext({ headless, browser: browserName });
+    await rebuildTabs();
+    console.log(`  Browser restarted`);
+  }
 
-        // Fetch page 1 to get total pages
-        const firstUrl = buildHighscoreUrl(world, categoryValue, professionValue, 1);
-        console.log(`\n[${completedCount}/${totalCombinations}] ${world} / ${category} / ${profession}`);
+  let completedCount = alreadyDone;
 
-        let firstResult!: HighscorePageResult;
-        try {
-          await rateLimit();
-          await navigateWithCloudflare(currentPage, firstUrl);
-          await new Promise((r) => setTimeout(r, 300 + Math.floor(Math.random() * 500)));
+  for (const { world, profession } of queue) {
+    const key = comboKey(world, profession);
+    const professionValue = HIGHSCORE_PROFESSIONS[profession];
+    completedCount++;
 
-          const firstHtml = await currentPage.content();
-          firstResult = parseHighscorePage(firstHtml, category, profession);
-        } catch (err) {
-          // Page/browser context died — wait for Cloudflare cooldown, then retry
-          let recovered = false;
-          for (let attempt = 1; attempt <= 3; attempt++) {
-            const cooldown = attempt * 30; // 30s, 60s, 90s
-            console.error(`  Page died — waiting ${cooldown}s before retry ${attempt}/3...`);
-            await new Promise((r) => setTimeout(r, cooldown * 1000));
-            try {
-              currentPage = await getHealthyPage();
-              await navigateWithCloudflare(currentPage, firstUrl);
-              await new Promise((r) => setTimeout(r, 300 + Math.floor(Math.random() * 500)));
+    console.log(`\n[${completedCount}/${totalCombinations}] ${world} / ${profession}`);
 
-              const firstHtml = await currentPage.content();
-              firstResult = parseHighscorePage(firstHtml, category, profession);
-              recovered = true;
-              console.log(`  Recovered on attempt ${attempt}`);
-              break;
-            } catch {
-              // Try again with longer cooldown
-            }
-          }
-          if (!recovered) {
-            console.error(`  All recovery attempts failed — skipping combo`);
-            continue;
-          }
+    // Step 1: Load page 1 to discover totalPages
+    let firstResult: HighscorePageResult | null = null;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        await rateLimit();
+        await navigateWithCloudflare(tabs[0], buildHighscoreUrl(world, professionValue, 1), attempt > 1 ? 30_000 : 15_000);
+        await sleep(300 + Math.floor(Math.random() * 500));
+        const html = await tabs[0].content();
+        firstResult = parseHighscorePage(html, profession);
+        break;
+      } catch (err) {
+        console.error(`  Page 1 failed (attempt ${attempt}/3): ${(err as Error).message?.substring(0, 60)}`);
+        if (attempt < 3) {
+          const cooldown = attempt === 1 ? 20 + Math.floor(Math.random() * 20) : 60 + Math.floor(Math.random() * 60);
+          if (attempt >= 2) await restartBrowser(cooldown);
+          else await sleep(cooldown * 1000);
         }
+      }
+    }
 
-        const maxPages = opts.maxPages
-          ? Math.min(firstResult.totalPages, opts.maxPages)
-          : firstResult.totalPages;
+    if (!firstResult) {
+      console.error(`  All attempts failed — skipping ${world}/${profession}`);
+      continue;
+    }
 
-        console.log(`  ${firstResult.totalResults} results, ${firstResult.totalPages} pages (scraping ${maxPages})`);
+    const maxPages = opts.maxPages
+      ? Math.min(firstResult.totalPages, opts.maxPages)
+      : firstResult.totalPages;
 
-        // Skip empty combos
-        if (firstResult.entries.length === 0) {
-          console.log('  No entries, skipping');
-          opts.onComboDone?.(key);
-          continue;
-        }
+    console.log(`  ${firstResult.totalResults} results, ${maxPages} pages — blasting all at once`);
 
-        // Process page 1 entries
-        for (const entry of firstResult.entries) {
-          if (opts.onEntry) await opts.onEntry(entry);
-          allEntries.push(entry);
-        }
-        opts.onPageDone?.(world, category, profession, 1, maxPages, firstResult.entries.length);
+    if (firstResult.entries.length === 0) {
+      opts.onComboDone?.(key);
+      continue;
+    }
 
-        // Process remaining pages
-        for (let p = 2; p <= maxPages; p++) {
-          await rateLimit('fast');
-          const pageUrl = buildHighscoreUrl(world, categoryValue, professionValue, p);
+    // Process page 1 entries
+    for (const entry of firstResult.entries) {
+      if (opts.onEntry) await opts.onEntry(entry);
+      allEntries.push(entry);
+    }
+    opts.onPageDone?.(world, profession, 1, maxPages, firstResult.entries.length);
+
+    if (maxPages <= 1) {
+      opts.onComboDone?.(key);
+      continue;
+    }
+
+    // Step 2: Blast remaining pages (2..maxPages) across all tabs
+    const remainingPages = Array.from({ length: maxPages - 1 }, (_, i) => i + 2);
+    let pageQueue = [...remainingPages];
+    let pageIdx = 0;
+    let failedPages: number[] = [];
+
+    // Scrape a batch of pages in parallel
+    async function blastPages(pages: number[], cfTimeout: number): Promise<{ succeeded: number[]; failed: number[] }> {
+      const succeeded: number[] = [];
+      const failed: number[] = [];
+
+      // Assign pages to tabs (up to TAB_COUNT at a time)
+      const batches: number[][] = [];
+      for (let i = 0; i < pages.length; i += TAB_COUNT) {
+        batches.push(pages.slice(i, i + TAB_COUNT));
+      }
+
+      for (const batch of batches) {
+        // Stagger launches within a batch
+        const promises = batch.map(async (pageNum, tabIdx) => {
+          await sleep(tabIdx * 500); // 0.5s stagger between tabs
+          const tab = tabs[tabIdx];
+          const url = buildHighscoreUrl(world, professionValue, pageNum);
 
           try {
-            await navigateWithCloudflare(currentPage, pageUrl);
-            await new Promise((r) => setTimeout(r, 300 + Math.floor(Math.random() * 500)));
-
-            const html = await currentPage.content();
-            const result = parseHighscorePage(html, category, profession);
+            await navigateWithCloudflare(tab, url, cfTimeout);
+            await sleep(200 + Math.floor(Math.random() * 300));
+            const html = await tab.content();
+            const result = parseHighscorePage(html, profession);
 
             for (const entry of result.entries) {
               if (opts.onEntry) await opts.onEntry(entry);
               allEntries.push(entry);
             }
-            opts.onPageDone?.(world, category, profession, p, maxPages, result.entries.length);
-          } catch (err) {
-            console.error(`  Cloudflare blocked page ${p} for ${world}/${category}/${profession} — skipping rest of combo`);
-            // Wait 30s and recover page for the next combo
-            console.error(`  Cooling down 30s before next combo...`);
-            await new Promise((r) => setTimeout(r, 30_000));
-            try {
-              currentPage = await getHealthyPage();
-            } catch {
-              // Will be recovered on next combo's first fetch
-            }
-            break;
+            opts.onPageDone?.(world, profession, pageNum, maxPages, result.entries.length);
+            succeeded.push(pageNum);
+          } catch {
+            failed.push(pageNum);
           }
-        }
+        });
 
-        // Mark combo as done
-        opts.onComboDone?.(key);
+        await Promise.all(promises);
+
+        // If any failed in this batch, stop blasting (Cloudflare is hot)
+        if (failed.length > 0) break;
+
+        // Brief pause between batches
+        if (batches.indexOf(batch) < batches.length - 1) {
+          await sleep(1000 + Math.floor(Math.random() * 1000));
+        }
+      }
+
+      return { succeeded, failed };
+    }
+
+    // First blast: try all remaining pages
+    const result1 = await blastPages(remainingPages, 15_000);
+    console.log(`  Blast: ${result1.succeeded.length} pages OK, ${result1.failed.length} failed`);
+
+    // If some pages failed, restart browser and retry just those
+    if (result1.failed.length > 0) {
+      const cooldown = 60 + Math.floor(Math.random() * 60);
+      await restartBrowser(cooldown);
+
+      const result2 = await blastPages(result1.failed, 30_000);
+      console.log(`  Retry: ${result2.succeeded.length} pages OK, ${result2.failed.length} still failed`);
+
+      if (result2.failed.length > 0) {
+        console.log(`  ${result2.failed.length} pages could not be scraped: [${result2.failed.join(', ')}]`);
+        // Still mark combo as done — we got most of the data
       }
     }
+
+    opts.onComboDone?.(key);
+
+    // Brief cooldown between combos to keep Cloudflare happy
+    await sleep(2000 + Math.floor(Math.random() * 3000));
   }
 
   return allEntries;

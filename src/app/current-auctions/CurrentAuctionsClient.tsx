@@ -1,0 +1,1406 @@
+'use client';
+
+import { useState, useMemo, useRef, useEffect } from 'react';
+import {
+  Search,
+  SlidersHorizontal,
+  ChevronDown,
+  ChevronUp,
+  X,
+  Swords,
+  Shield,
+  Crosshair,
+  Wand2,
+  ExternalLink,
+  Info,
+  Sparkles,
+  Trophy,
+  Skull,
+  Fish,
+  Hand,
+  Check,
+  Clock,
+  Eye,
+  Coins,
+  ArrowRightLeft,
+  Globe,
+  Timer,
+  Heart,
+  Zap,
+  Package,
+  Footprints,
+  ScrollText,
+  Crown,
+  Star,
+  Users,
+  Target,
+  CircleDot,
+  Flame,
+  Gem,
+  CalendarCheck,
+  Diamond,
+} from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { formatNumber, getVocationColor, formatTimeRemaining } from '@/lib/utils/formatters';
+
+// ── Types ──────────────────────────────────────────────────────────────
+
+type SerializedCurrentAuction = {
+  id: number;
+  externalId: string;
+  characterName: string;
+  level: number | null;
+  vocation: string | null;
+  gender: string | null;
+  world: string | null;
+  auctionStart: string | null;
+  auctionEnd: string | null;
+  minimumBid: number | null;
+  currentBid: number | null;
+  hasBeenBidOn: boolean;
+  magicLevel: number | null;
+  fist: number | null;
+  club: number | null;
+  sword: number | null;
+  axe: number | null;
+  distance: number | null;
+  shielding: number | null;
+  fishing: number | null;
+  hitPoints: number | null;
+  mana: number | null;
+  capacity: number | null;
+  speed: number | null;
+  experience: string | null;
+  creationDate: string | null;
+  achievementPoints: number | null;
+  mountsCount: number | null;
+  outfitsCount: number | null;
+  titlesCount: number | null;
+  linkedTasks: number | null;
+  dailyRewardStreak: number | null;
+  charmExpansion: boolean | null;
+  charmPoints: number | null;
+  unusedCharmPoints: number | null;
+  spentCharmPoints: number | null;
+  preySlots: number | null;
+  preyWildcards: number | null;
+  huntingTaskPoints: number | null;
+  hirelings: number | null;
+  hirelingJobs: number | null;
+  storeItemsCount: number | null;
+  bossPoints: number | null;
+  blessingsCount: number | null;
+  exaltedDust: string | null;
+  gold: number | null;
+  bestiary: number | null;
+  hasLootPouch: boolean | null;
+  url: string | null;
+  primalOrdealAvailable: boolean | null;
+  soulWarAvailable: boolean | null;
+  sanguineBloodAvailable: boolean | null;
+  // Skill percentages
+  magicLevelPct: number | null;
+  fistPct: number | null;
+  clubPct: number | null;
+  swordPct: number | null;
+  axePct: number | null;
+  distancePct: number | null;
+  shieldingPct: number | null;
+  fishingPct: number | null;
+  // Outfit, gems, weekly task, display items
+  outfitImageUrl: string | null;
+  gems: string | null;
+  weeklyTaskExpansion: boolean | null;
+  displayItems: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type WorldTypeInfo = {
+  worldName: string;
+  pvpType: string;
+  isRtc: boolean;
+};
+
+interface CurrentAuctionsClientProps {
+  initialAuctions: SerializedCurrentAuction[];
+  worlds: string[];
+  vocations: string[];
+  worldTypes: WorldTypeInfo[];
+  initialSearch?: string;
+}
+
+type SortField = 'currentBid' | 'minimumBid' | 'level' | 'magicLevel' | 'charmPoints';
+type SortOrder = 'asc' | 'desc';
+
+const ITEMS_PER_PAGE = 24;
+
+// ── Currency conversion ────────────────────────────────────────────────
+
+// 1000 TC ≈ R$ 100 → 1 TC ≈ R$ 0.10
+const BRL_PER_COIN = 0.10;
+const CURRENCY_RATES: Record<string, { symbol: string; rate: number; code: string }> = {
+  BRL: { symbol: 'R$', rate: 1, code: 'BRL' },
+  USD: { symbol: '$', rate: 0.17, code: 'USD' },
+  MXN: { symbol: '$', rate: 3.45, code: 'MXN' },
+  VES: { symbol: 'Bs.', rate: 63.0, code: 'VES' },
+};
+
+function convertPrice(coins: number): Record<string, number> {
+  const brlValue = coins * BRL_PER_COIN;
+  const conversions: Record<string, number> = {};
+  for (const [key, { rate }] of Object.entries(CURRENCY_RATES)) {
+    conversions[key] = brlValue * rate;
+  }
+  return conversions;
+}
+
+function formatCurrency(value: number): string {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
+  return value.toFixed(2);
+}
+
+// ── Skill configuration ────────────────────────────────────────────────
+
+const SKILL_CONFIG: Record<string, { label: string; icon: React.ElementType; color: string; maxRef: number }> = {
+  magicLevel: { label: 'Magic', icon: Wand2, color: '#c084fc', maxRef: 130 },
+  sword: { label: 'Sword', icon: Swords, color: '#f87171', maxRef: 130 },
+  axe: { label: 'Axe', icon: Swords, color: '#fb923c', maxRef: 130 },
+  club: { label: 'Club', icon: Swords, color: '#f87171', maxRef: 130 },
+  distance: { label: 'Distance', icon: Crosshair, color: '#fbbf24', maxRef: 130 },
+  shielding: { label: 'Shielding', icon: Shield, color: '#60a5fa', maxRef: 130 },
+  fist: { label: 'Fist', icon: Hand, color: '#a78bfa', maxRef: 130 },
+  fishing: { label: 'Fishing', icon: Fish, color: '#94a3b8', maxRef: 130 },
+};
+
+const SKILL_TRAINED_THRESHOLD = 20;
+
+const SKILL_PCT_MAP: Record<string, keyof SerializedCurrentAuction> = {
+  magicLevel: 'magicLevelPct',
+  fist: 'fistPct',
+  club: 'clubPct',
+  sword: 'swordPct',
+  axe: 'axePct',
+  distance: 'distancePct',
+  shielding: 'shieldingPct',
+  fishing: 'fishingPct',
+};
+
+function getAllSkills(auction: SerializedCurrentAuction): Array<{ key: string; value: number; pct: number | null }> {
+  const voc = auction.vocation || '';
+  const skills: Array<{ key: string; value: number; pct: number | null }> = [];
+
+  const push = (key: string, value: number | null) => {
+    if (!value) return;
+    const pctKey = SKILL_PCT_MAP[key];
+    const pct = pctKey ? (auction[pctKey] as number | null) : null;
+    skills.push({ key, value, pct });
+  };
+
+  if (voc.includes('Sorcerer') || voc.includes('Druid')) {
+    push('magicLevel', auction.magicLevel);
+    push('shielding', auction.shielding);
+    push('distance', auction.distance);
+    push('fist', auction.fist);
+    push('sword', auction.sword);
+    push('axe', auction.axe);
+    push('club', auction.club);
+    push('fishing', auction.fishing);
+  } else if (voc.includes('Paladin')) {
+    push('distance', auction.distance);
+    push('magicLevel', auction.magicLevel);
+    push('shielding', auction.shielding);
+    push('fist', auction.fist);
+    push('sword', auction.sword);
+    push('axe', auction.axe);
+    push('club', auction.club);
+    push('fishing', auction.fishing);
+  } else if (voc.includes('Knight')) {
+    const melee = [
+      { key: 'sword', value: auction.sword || 0 },
+      { key: 'axe', value: auction.axe || 0 },
+      { key: 'club', value: auction.club || 0 },
+    ].sort((a, b) => b.value - a.value);
+    melee.filter((s) => s.value > 0).forEach((s) => push(s.key, s.value));
+    push('shielding', auction.shielding);
+    push('magicLevel', auction.magicLevel);
+    push('distance', auction.distance);
+    push('fist', auction.fist);
+    push('fishing', auction.fishing);
+  } else {
+    push('magicLevel', auction.magicLevel);
+    push('shielding', auction.shielding);
+    push('distance', auction.distance);
+    push('fist', auction.fist);
+    push('sword', auction.sword);
+    push('axe', auction.axe);
+    push('club', auction.club);
+    push('fishing', auction.fishing);
+  }
+
+  return skills;
+}
+
+function getCharacterTags(auction: SerializedCurrentAuction): Array<{ label: string; color: string }> {
+  const tags: Array<{ label: string; color: string }> = [];
+  if ((auction.charmPoints || 0) >= 2000) tags.push({ label: 'Many charms', color: '#10b981' });
+  if ((auction.mountsCount || 0) >= 15) tags.push({ label: 'Many mounts', color: '#06b6d4' });
+  if ((auction.outfitsCount || 0) >= 15) tags.push({ label: 'Many outfits', color: '#a78bfa' });
+  if (auction.soulWarAvailable) tags.push({ label: 'Soul War available', color: '#f59e0b' });
+  if (auction.primalOrdealAvailable) tags.push({ label: 'Primal Ordeal available', color: '#f97316' });
+  if (auction.sanguineBloodAvailable) tags.push({ label: 'Sanguine available', color: '#ef4444' });
+  if (auction.hasLootPouch) tags.push({ label: 'Loot Pouch', color: '#f59e0b' });
+  if ((auction.storeItemsCount || 0) >= 10) tags.push({ label: 'Store cosmetics', color: '#ec4899' });
+  return tags;
+}
+
+// ── Shared UI Components ───────────────────────────────────────────────
+
+function SkillBox({ skillKey, value, isTrained, pct }: { skillKey: string; value: number; isTrained: boolean; pct?: number | null }) {
+  const config = SKILL_CONFIG[skillKey];
+  if (!config) return null;
+
+  // Use real percentage from scraper if available, otherwise estimate from value/maxRef
+  const fillPct = pct != null
+    ? Math.min(100, Math.max(0, pct))
+    : Math.min(100, Math.max(0, (value / config.maxRef) * 100));
+
+  const boxStyle = isTrained
+    ? { backgroundColor: '#2a5a2a', color: '#4ade80', border: '1px solid #3a7a3a' }
+    : { backgroundColor: '#604a1e', color: '#d4a84a', border: '1px solid #7a5f2a' };
+
+  const barColor = isTrained ? config.color : '#7a5f2a';
+
+  return (
+    <div className="flex items-center gap-1">
+      <div
+        className="flex h-[22px] w-7 items-center justify-center rounded text-[10px] font-bold tabular-nums shrink-0"
+        style={boxStyle}
+      >
+        {value}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-baseline gap-1">
+          <span className="text-[10px] leading-none" style={{ color: isTrained ? '#b0b0c0' : '#8a8698' }}>{config.label}</span>
+          {pct != null && (
+            <span className="text-[8px] tabular-nums" style={{ color: '#5a5870' }}>{pct.toFixed(1)}%</span>
+          )}
+        </div>
+        <div className="h-[3px] w-full rounded-full mt-0.5" style={{ backgroundColor: '#1e1c2a' }}>
+          <div
+            className="h-full rounded-full transition-all"
+            style={{ width: `${fillPct}%`, backgroundColor: barColor, opacity: isTrained ? 0.8 : 0.4 }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FieldsetBox({ label, children, className = '' }: { label: string; children: React.ReactNode; className?: string }) {
+  return (
+    <div className={`relative rounded px-2 pt-2.5 pb-1.5 ${className}`} style={{ border: '1px solid #4a4857', backgroundColor: '#2a2836' }}>
+      <span className="absolute -top-2 left-2 px-1 text-[8px] font-semibold uppercase tracking-wider" style={{ backgroundColor: '#302e3a', color: '#7a7690' }}>
+        {label}
+      </span>
+      {children}
+    </div>
+  );
+}
+
+function PriceTooltip({ coins }: { coins: number }) {
+  const [show, setShow] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const conversions = convertPrice(coins);
+
+  useEffect(() => {
+    if (show && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      const tooltipW = 224; // w-56 = 14rem = 224px
+      const tooltipH = 180; // approximate height
+      // Try to position above the icon, centered horizontally
+      let top = rect.top - tooltipH - 8;
+      let left = rect.left + rect.width / 2 - tooltipW / 2;
+      // If it would go off the top, position below instead
+      if (top < 8) top = rect.bottom + 8;
+      // Clamp horizontal
+      if (left < 8) left = 8;
+      if (left + tooltipW > window.innerWidth - 8) left = window.innerWidth - tooltipW - 8;
+      setPos({ top, left });
+    }
+  }, [show]);
+
+  return (
+    <div className="relative inline-block">
+      <button
+        ref={btnRef}
+        onMouseEnter={() => setShow(true)}
+        onMouseLeave={() => setShow(false)}
+        onClick={(e) => { e.stopPropagation(); setShow(!show); }}
+        className="ml-1 inline-flex items-center text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+      >
+        <Info className="h-3.5 w-3.5" />
+      </button>
+
+      {show && pos && (
+        <div
+          ref={tooltipRef}
+          className="fixed z-[9999] w-56 rounded-lg p-3 shadow-2xl animate-in fade-in-0 zoom-in-95 duration-100"
+          style={{
+            backgroundColor: '#1a1a2e',
+            border: '1px solid #3a3858',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+            top: pos.top,
+            left: pos.left,
+          }}
+          onMouseEnter={() => setShow(true)}
+          onMouseLeave={() => setShow(false)}
+        >
+          <p className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider mb-2">
+            Approximate Value
+          </p>
+          <div className="space-y-1.5">
+            {Object.entries(CURRENCY_RATES).map(([key, { symbol, code }]) => (
+              <div key={key} className="flex items-center justify-between text-xs">
+                <span className="font-medium" style={{ color: '#9a96b0' }}>{symbol} {code}</span>
+                <span className="font-bold" style={{ color: '#e4e0f0' }}>
+                  ~ {symbol} {formatCurrency(conversions[key])}
+                </span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-2 pt-2" style={{ borderTop: '1px solid #3a3858' }}>
+            <p className="text-[10px] text-center" style={{ color: '#7a7690' }}>
+              Based on 1 TC ≈ R$ {BRL_PER_COIN}
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Transfer Cost Simulator ────────────────────────────────────────────
+
+// Transfer rules from the game:
+// Same PvP type → 990 Rubini Coins, 7 days wait
+// Different PvP type → 1890 Rubini Coins, 21 days wait
+// Updated to RTC → Former RTC: +500,000 gold per level additional tax
+
+// ── Custom Dropdown for world selection ────────────────────────────────
+
+function WorldDropdown({
+  value,
+  onChange,
+  options,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  options: { value: string; label: string }[];
+}) {
+  const [open, setOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const selectedLabel = options.find(o => o.value === value)?.label || 'Select world...';
+
+  return (
+    <div className="relative flex-1 min-w-0" ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
+        className="flex items-center justify-between w-full h-6 rounded px-1.5 text-[9px] transition-colors"
+        style={{
+          backgroundColor: '#1e1c2a',
+          border: `1px solid ${open ? '#6c63ff' : '#3a3848'}`,
+          color: value ? '#d4d0e0' : '#7a7690',
+        }}
+      >
+        <span className="truncate">{selectedLabel}</span>
+        <ChevronDown className={`h-2.5 w-2.5 shrink-0 ml-1 transition-transform ${open ? 'rotate-180' : ''}`} style={{ color: '#7a7690' }} />
+      </button>
+
+      {open && (
+        <div
+          className="absolute z-[100] mt-1 w-full max-h-48 overflow-y-auto rounded-md py-1 shadow-xl"
+          style={{
+            backgroundColor: '#1e1c2a',
+            border: '1px solid #3a3858',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => { onChange(''); setOpen(false); }}
+            className="flex w-full items-center px-2 py-1.5 text-[9px] transition-colors hover:bg-white/5"
+            style={{ color: !value ? '#6c63ff' : '#7a7690' }}
+          >
+            {!value && <Check className="h-2.5 w-2.5 mr-1.5 shrink-0" style={{ color: '#6c63ff' }} />}
+            <span className={!value ? '' : 'pl-4'}>Select world...</span>
+          </button>
+          {options.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => { onChange(opt.value); setOpen(false); }}
+              className="flex w-full items-center px-2 py-1.5 text-[9px] transition-colors hover:bg-white/5"
+              style={{ color: value === opt.value ? '#d4d0e0' : '#9a96b0' }}
+            >
+              {value === opt.value && <Check className="h-2.5 w-2.5 mr-1.5 shrink-0" style={{ color: '#6c63ff' }} />}
+              <span className={value === opt.value ? '' : 'pl-4'}>{opt.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TransferSimulator({
+  sourceWorld,
+  characterLevel,
+  worldTypes,
+}: {
+  sourceWorld: string;
+  characterLevel: number;
+  worldTypes: WorldTypeInfo[];
+}) {
+  const [targetWorld, setTargetWorld] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+
+  const sourceType = worldTypes.find(w => w.worldName === sourceWorld);
+  const targetType = worldTypes.find(w => w.worldName === targetWorld);
+
+  const transferInfo = useMemo(() => {
+    if (!sourceType || !targetType || sourceWorld === targetWorld) return null;
+
+    const samePvpType = sourceType.pvpType === targetType.pvpType;
+    const rubiniCoins = samePvpType ? 990 : 1890;
+    const waitDays = samePvpType ? 7 : 21;
+
+    let goldTax = 0;
+    if (sourceType.isRtc && !targetType.isRtc) {
+      goldTax = characterLevel * 500000;
+    }
+
+    return { rubiniCoins, waitDays, goldTax, samePvpType };
+  }, [sourceType, targetType, sourceWorld, targetWorld, characterLevel]);
+
+  const worldOptions = worldTypes
+    .filter(w => w.worldName !== sourceWorld)
+    .map(w => ({ value: w.worldName, label: `${w.worldName} (${w.pvpType})` }));
+
+  if (!isOpen) {
+    return (
+      <button
+        onClick={(e) => { e.stopPropagation(); setIsOpen(true); }}
+        className="flex items-center justify-center gap-1.5 w-full rounded-md px-3 py-1.5 text-[10px] font-semibold transition-colors"
+        style={{ backgroundColor: '#252333', border: '1px solid #3a3848', color: '#a09cb0' }}
+        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#2d2b3d'; e.currentTarget.style.color = '#d4d0e0'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#252333'; e.currentTarget.style.color = '#a09cb0'; }}
+      >
+        <ArrowRightLeft className="h-3 w-3" />
+        Calculate Transfer Fee
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-1" onClick={(e) => e.stopPropagation()}>
+      <div className="rounded px-2 py-1.5" style={{ backgroundColor: '#252333', border: '1px solid #3a3848' }}>
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-[8px] font-semibold uppercase tracking-wider" style={{ color: '#7a7690' }}>
+            Transfer Simulator
+          </span>
+          <button onClick={() => setIsOpen(false)} className="text-muted-foreground/50 hover:text-muted-foreground">
+            <X className="h-3 w-3" />
+          </button>
+        </div>
+
+        <div className="flex items-center gap-1.5 mb-1.5">
+          <div className="flex items-center gap-1 flex-1 min-w-0">
+            <Globe className="h-2.5 w-2.5 shrink-0" style={{ color: '#7a7690' }} />
+            <span className="text-[9px] truncate" style={{ color: '#8a8698' }}>{sourceWorld}</span>
+          </div>
+          <ArrowRightLeft className="h-2.5 w-2.5 shrink-0" style={{ color: '#4a4857' }} />
+          <WorldDropdown value={targetWorld} onChange={setTargetWorld} options={worldOptions} />
+        </div>
+
+        {transferInfo && (
+          <div className="grid grid-cols-2 gap-1">
+            <div className="rounded px-1.5 py-1" style={{ backgroundColor: '#302e3a' }}>
+              <div className="flex items-center gap-0.5">
+                <Coins className="h-2.5 w-2.5" style={{ color: '#c8a052' }} />
+                <span className="text-[9px] font-bold" style={{ color: '#d4a84a' }}>
+                  {formatNumber(transferInfo.rubiniCoins)} RC
+                </span>
+              </div>
+              <span className="text-[8px]" style={{ color: '#7a7690' }}>
+                {transferInfo.samePvpType ? 'Same PvP' : 'Diff PvP'}
+              </span>
+            </div>
+            <div className="rounded px-1.5 py-1" style={{ backgroundColor: '#302e3a' }}>
+              <div className="flex items-center gap-0.5">
+                <Timer className="h-2.5 w-2.5" style={{ color: '#60a5fa' }} />
+                <span className="text-[9px] font-bold" style={{ color: '#60a5fa' }}>
+                  {transferInfo.waitDays} days
+                </span>
+              </div>
+              <span className="text-[8px]" style={{ color: '#7a7690' }}>Wait time</span>
+            </div>
+            {transferInfo.goldTax > 0 && (
+              <div className="col-span-2 rounded px-1.5 py-1" style={{ backgroundColor: '#3a2020' }}>
+                <div className="flex items-center gap-0.5">
+                  <Coins className="h-2.5 w-2.5" style={{ color: '#f87171' }} />
+                  <span className="text-[9px] font-bold" style={{ color: '#f87171' }}>
+                    {formatNumber(transferInfo.goldTax)} gold tax
+                  </span>
+                </div>
+                <span className="text-[8px]" style={{ color: '#a08080' }}>
+                  RTC → Former RTC ({formatNumber(500000)}/lvl × {characterLevel})
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Auction Date Helpers ───────────────────────────────────────────────
+
+function parseAuctionDate(dateStr: string | null): Date | null {
+  if (!dateStr) return null;
+  const cleaned = dateStr.replace(/\s+[A-Z]{2,4}$/, '').trim();
+  const date = new Date(cleaned);
+  if (isNaN(date.getTime())) return null;
+  return date;
+}
+
+function formatAuctionEnd(dateStr: string | null): string {
+  const date = parseAuctionDate(dateStr);
+  if (!date) return '—';
+  const now = new Date();
+  if (date <= now) return 'Ended';
+  return formatTimeRemaining(date);
+}
+
+function isAuctionEnded(dateStr: string | null): boolean {
+  const date = parseAuctionDate(dateStr);
+  if (!date) return false;
+  return date <= new Date();
+}
+
+// ── Live Countdown Hook ──────────────────────────────────────────────
+
+function useCountdown() {
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 30_000); // update every 30s
+    return () => clearInterval(id);
+  }, []);
+  return tick;
+}
+
+// ── Detail Modal ───────────────────────────────────────────────────────
+
+function AuctionDetailModal({
+  auction,
+  worldTypes,
+  onClose,
+}: {
+  auction: SerializedCurrentAuction;
+  worldTypes: WorldTypeInfo[];
+  onClose: () => void;
+}) {
+  const allSkills = getAllSkills(auction);
+  const tags = getCharacterTags(auction);
+  const vocColor = getVocationColor(auction.vocation || '');
+  const bidPrice = auction.currentBid ?? auction.minimumBid;
+  const ended = isAuctionEnded(auction.auctionEnd);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150" />
+
+      <div
+        className="relative z-10 w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-xl animate-in fade-in zoom-in-95 duration-150"
+        style={{ backgroundColor: '#1e1c2a', border: '1px solid #4a4857', boxShadow: '0 12px 48px rgba(0,0,0,0.6)' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-3 z-10 rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
+        >
+          <X className="h-4 w-4" />
+        </button>
+
+        {/* Header */}
+        <div className="px-5 pt-5 pb-3">
+          <div className="flex items-center gap-1.5 mb-1">
+            <span className="text-lg font-bold" style={{ color: vocColor }}>
+              {auction.characterName}
+            </span>
+            {auction.url && (
+              <a href={auction.url} target="_blank" rel="noopener noreferrer" className="text-muted-foreground/50 hover:text-muted-foreground">
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            )}
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Level {auction.level || '?'} · {auction.vocation || 'Unknown'}
+            {auction.gender && <span className="text-muted-foreground/60"> · {auction.gender}</span>}
+          </p>
+        </div>
+
+        {/* Info fieldsets */}
+        <div className="px-5 pb-3">
+          <div className="grid grid-cols-2 gap-2 mb-2">
+            <FieldsetBox label="Server">
+              <p className="text-sm font-medium">{auction.world || '—'}</p>
+            </FieldsetBox>
+            <FieldsetBox label={ended ? 'Ended' : 'Time Left'}>
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <Clock className="h-3.5 w-3.5 text-muted-foreground/60" />
+                  <p className="text-sm font-medium">
+                    {ended ? 'Ended' : formatAuctionEnd(auction.auctionEnd)}
+                  </p>
+                </div>
+                {auction.auctionEnd && (
+                  <p className="text-[10px] mt-0.5 pl-5" style={{ color: '#7a7690' }}>
+                    {auction.auctionEnd.replace(/\s+[A-Z]{2,4}$/, '')}
+                  </p>
+                )}
+              </div>
+            </FieldsetBox>
+          </div>
+
+          {/* Bid bar */}
+          <div className="rounded-lg px-4 py-3" style={{ backgroundColor: '#252333', border: '1px solid #3a3848' }}>
+            <div className="flex items-center justify-between">
+              <div>
+                {bidPrice != null && bidPrice > 0 ? (
+                  <>
+                    <div className="flex items-center">
+                      <Coins className="h-4 w-4 mr-1.5" style={{ color: auction.hasBeenBidOn ? '#fbbf24' : '#4ade80' }} />
+                      <p className="text-xl font-bold" style={{ color: auction.hasBeenBidOn ? '#fbbf24' : '#4ade80' }}>{formatNumber(bidPrice)} TC</p>
+                      <PriceTooltip coins={bidPrice} />
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <p className="text-[11px]" style={{ color: '#8a8698' }}>
+                        {auction.hasBeenBidOn ? 'Current Bid' : 'Minimum Bid'}
+                      </p>
+                      {auction.hasBeenBidOn ? (
+                        <span className="rounded-full px-1.5 py-px text-[9px] font-bold" style={{ backgroundColor: '#fbbf2420', color: '#fbbf24' }}>
+                          Has bids
+                        </span>
+                      ) : (
+                        <span className="rounded-full px-1.5 py-px text-[9px] font-bold" style={{ backgroundColor: '#4a485720', color: '#7a7690' }}>
+                          No bids yet
+                        </span>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-sm" style={{ color: '#7a7690' }}>No bid information</p>
+                )}
+              </div>
+              {auction.url && (
+                <a
+                  href={auction.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 rounded-md bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20 transition-colors"
+                >
+                  Bid Now
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="px-5 pb-5 space-y-4">
+          {/* Transfer Simulator — prominent placement near top */}
+          {auction.world && auction.level && (
+            <div>
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Transfer Simulator</p>
+              <TransferSimulator
+                sourceWorld={auction.world}
+                characterLevel={auction.level}
+                worldTypes={worldTypes}
+              />
+            </div>
+          )}
+
+          {/* Skills */}
+          <div>
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Skills</p>
+            <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+              {allSkills.map(({ key, value, pct }) => (
+                <SkillBox key={key} skillKey={key} value={value} isTrained={value > SKILL_TRAINED_THRESHOLD} pct={pct} />
+              ))}
+            </div>
+          </div>
+
+          {/* Stats */}
+          <div>
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Character Stats</p>
+            <div className="grid grid-cols-2 gap-1.5">
+              {auction.hitPoints != null && (
+                <div className="flex items-center gap-2 rounded-md bg-secondary/25 px-2.5 py-1.5">
+                  <Heart className="h-3.5 w-3.5 text-red-400 shrink-0" />
+                  <div>
+                    <p className="text-[9px] text-muted-foreground leading-none">HP</p>
+                    <p className="text-xs font-semibold leading-tight">{formatNumber(auction.hitPoints)}</p>
+                  </div>
+                </div>
+              )}
+              {auction.mana != null && (
+                <div className="flex items-center gap-2 rounded-md bg-secondary/25 px-2.5 py-1.5">
+                  <Zap className="h-3.5 w-3.5 text-blue-400 shrink-0" />
+                  <div>
+                    <p className="text-[9px] text-muted-foreground leading-none">Mana</p>
+                    <p className="text-xs font-semibold leading-tight">{formatNumber(auction.mana)}</p>
+                  </div>
+                </div>
+              )}
+              {auction.capacity != null && (
+                <div className="flex items-center gap-2 rounded-md bg-secondary/25 px-2.5 py-1.5">
+                  <Package className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                  <div>
+                    <p className="text-[9px] text-muted-foreground leading-none">Capacity</p>
+                    <p className="text-xs font-semibold leading-tight">{formatNumber(auction.capacity)}</p>
+                  </div>
+                </div>
+              )}
+              {auction.speed != null && (
+                <div className="flex items-center gap-2 rounded-md bg-secondary/25 px-2.5 py-1.5">
+                  <Footprints className="h-3.5 w-3.5 text-cyan-400 shrink-0" />
+                  <div>
+                    <p className="text-[9px] text-muted-foreground leading-none">Speed</p>
+                    <p className="text-xs font-semibold leading-tight">{auction.speed}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Features & Quests */}
+          <div>
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Features & Quests</p>
+            <div className="grid grid-cols-2 gap-1">
+              {[
+                { label: 'Charm Expansion', has: auction.charmExpansion },
+                { label: 'Prey Slot', has: (auction.preySlots || 0) >= 3 },
+                { label: 'Loot Pouch', has: auction.hasLootPouch },
+                { label: 'Soul War', has: auction.soulWarAvailable },
+                { label: 'Primal Ordeal', has: auction.primalOrdealAvailable },
+                { label: 'Sanguine Blood', has: auction.sanguineBloodAvailable },
+              ].filter(item => item.has != null).map((item) => (
+                <div key={item.label} className="flex items-center gap-1.5 py-1">
+                  {item.has ? (
+                    <Check className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                  ) : (
+                    <X className="h-3.5 w-3.5 text-muted-foreground/30 shrink-0" />
+                  )}
+                  <span className={`text-xs ${item.has ? 'text-foreground' : 'text-muted-foreground/40'}`}>
+                    {item.label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Additional Info */}
+          <div>
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Additional Info</p>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+              {[
+                { icon: Crown, color: 'text-amber-400', label: 'Boss Points', value: auction.bossPoints },
+                { icon: Trophy, color: 'text-amber-400', label: 'Achievements', value: auction.achievementPoints },
+                { icon: ScrollText, color: 'text-emerald-400', label: 'Bestiary', value: auction.bestiary },
+                { icon: Footprints, color: 'text-blue-400', label: 'Mounts', value: auction.mountsCount },
+                { icon: Star, color: 'text-pink-400', label: 'Outfits', value: auction.outfitsCount },
+                { icon: Crown, color: 'text-amber-400', label: 'Titles', value: auction.titlesCount },
+                { icon: Package, color: 'text-sky-400', label: 'Store Items', value: auction.storeItemsCount },
+                { icon: Users, color: 'text-green-400', label: 'Hirelings', value: auction.hirelings },
+                { icon: Target, color: 'text-cyan-400', label: 'Prey Wildcards', value: auction.preyWildcards },
+                { icon: Flame, color: 'text-orange-400', label: 'Blessings', value: auction.blessingsCount },
+                { icon: Coins, color: 'text-yellow-400', label: 'Gold', value: auction.gold },
+                { icon: CircleDot, color: 'text-orange-400', label: 'Hunting Tasks', value: auction.huntingTaskPoints },
+              ].filter(item => item.value != null && item.value > 0).map((item) => {
+                const Icon = item.icon;
+                return (
+                  <div key={item.label} className="flex items-center gap-1.5">
+                    <Icon className={`h-3 w-3 ${item.color} shrink-0`} />
+                    <span className="text-[11px] text-muted-foreground">{item.label}:</span>
+                    <span className="text-[11px] font-semibold ml-auto tabular-nums">
+                      {typeof item.value === 'number' ? formatNumber(item.value) : item.value}
+                    </span>
+                  </div>
+                );
+              })}
+              {auction.exaltedDust && (
+                <div className="flex items-center gap-1.5">
+                  <Gem className="h-3 w-3 text-violet-400 shrink-0" />
+                  <span className="text-[11px] text-muted-foreground">Exalted Dust:</span>
+                  <span className="text-[11px] font-semibold ml-auto tabular-nums">{auction.exaltedDust}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Tags */}
+          {tags.length > 0 && (
+            <div className="flex flex-wrap gap-1 pt-1">
+              {tags.map((tag) => (
+                <span
+                  key={tag.label}
+                  className="rounded-full px-2.5 py-0.5 text-[10px] font-medium"
+                  style={{ backgroundColor: `${tag.color}20`, color: tag.color }}
+                >
+                  {tag.label}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {auction.creationDate && !auction.creationDate.includes('1969') && (
+            <div className="text-[10px] text-muted-foreground/60 text-center pt-1 border-t border-border/20">
+              Created: {auction.creationDate}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Auction Card ───────────────────────────────────────────────────────
+
+function StatCell({ icon: Icon, iconColor, label, value }: { icon: React.ElementType; iconColor: string; label: string; value: string }) {
+  return (
+    <div className="flex items-center gap-1 rounded px-1.5 py-0.5" style={{ backgroundColor: '#252333' }}>
+      <Icon className="h-2.5 w-2.5 shrink-0" style={{ color: iconColor }} />
+      <span className="text-[8px] truncate" style={{ color: '#7a7690' }}>{label}</span>
+      <span className="text-[9px] font-bold ml-auto tabular-nums" style={{ color: '#d4d0e0' }}>{value}</span>
+    </div>
+  );
+}
+
+function BoolCell({ icon: Icon, iconColor, label, has }: { icon: React.ElementType; iconColor: string; label: string; has: boolean }) {
+  return (
+    <div className="flex items-center gap-1 rounded px-1.5 py-0.5" style={{ backgroundColor: '#252333' }}>
+      <Icon className="h-2.5 w-2.5 shrink-0" style={{ color: has ? iconColor : '#4a4857' }} />
+      <span className="text-[8px] truncate" style={{ color: has ? '#d4d0e0' : '#5a5870' }}>{label}</span>
+      {has ? (
+        <Check className="h-2.5 w-2.5 ml-auto shrink-0" style={{ color: '#4ade80' }} />
+      ) : (
+        <X className="h-2.5 w-2.5 ml-auto shrink-0" style={{ color: '#4a4857' }} />
+      )}
+    </div>
+  );
+}
+
+function GemsCell({ gems }: { gems: string | null }) {
+  let count = 0;
+  if (gems) {
+    try {
+      const parsed = JSON.parse(gems) as Array<{ type: string; mods: string[] }>;
+      count = parsed.length;
+    } catch {
+      // leave as 0
+    }
+  }
+  return (
+    <div className="flex items-center gap-1 rounded px-1.5 py-0.5" style={{ backgroundColor: '#252333' }}>
+      <Diamond className="h-2.5 w-2.5 shrink-0" style={{ color: count > 0 ? '#22d3ee' : '#4a4857' }} />
+      <span className="text-[8px] truncate" style={{ color: '#7a7690' }}>Gems</span>
+      <span className="text-[9px] font-bold ml-auto tabular-nums" style={{ color: count > 0 ? '#22d3ee' : '#5a5870' }}>{count}</span>
+    </div>
+  );
+}
+
+const RUBINOT_BASE = 'https://rubinot.com.br';
+
+function resolveOutfitUrl(url: string): string {
+  if (url.startsWith('http')) return url;
+  return `${RUBINOT_BASE}/${url.replace(/^\.\//, '')}`;
+}
+
+function DisplayItems({ items }: { items: string }) {
+  let itemUrls: string[] = [];
+  try {
+    const parsed = JSON.parse(items) as string[];
+    itemUrls = parsed.filter(url => url.startsWith('http')).slice(0, 4);
+  } catch {
+    // leave empty
+  }
+  // Always render 4 slots, spread evenly across card width
+  const slots = Array.from({ length: 4 }, (_, i) => itemUrls[i] || null);
+  return (
+    <div className="grid grid-cols-4 gap-1">
+      {slots.map((url, i) => (
+        <div
+          key={i}
+          className="aspect-square rounded flex items-center justify-center"
+          style={{ backgroundColor: '#252333', border: '1px solid #3a3848' }}
+        >
+          {url && (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img src={url} alt="" className="w-3/4 h-3/4 object-contain" loading="lazy" />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CurrentAuctionCard({
+  auction,
+  worldTypes,
+  onDetails,
+  tick,
+}: {
+  auction: SerializedCurrentAuction;
+  worldTypes: WorldTypeInfo[];
+  onDetails: (auction: SerializedCurrentAuction) => void;
+  tick: number;
+}) {
+  // tick forces re-render for live countdown
+  void tick;
+  const allSkills = getAllSkills(auction);
+  const tags = getCharacterTags(auction);
+  const bidPrice = auction.currentBid ?? auction.minimumBid;
+  const ended = isAuctionEnded(auction.auctionEnd);
+  const hasAuctionEnd = parseAuctionDate(auction.auctionEnd) !== null;
+
+  return (
+    <Card className="transition-all hover:shadow-xl hover:shadow-black/20 group flex flex-col" style={{ backgroundColor: '#302e3a', border: '1px solid #4a4857' }}>
+      <CardContent className="p-0 flex flex-col flex-1">
+        {/* Header — outfit image + name + level/vocation + bid badge + eye */}
+        <div className="px-2.5 pt-2 pb-1">
+          <div className="flex items-start gap-2">
+            {auction.outfitImageUrl && (
+              <div className="shrink-0 w-12 h-12 rounded overflow-hidden flex items-center justify-center" style={{ backgroundColor: '#252333' }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={resolveOutfitUrl(auction.outfitImageUrl)}
+                  alt={auction.characterName}
+                  className="w-10 h-10 object-contain"
+                  loading="lazy"
+                />
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-start justify-between gap-1.5">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1">
+                    <span className="text-[13px] font-bold truncate" style={{ color: '#4ade80' }}>
+                      {auction.characterName}
+                    </span>
+                    {auction.url && (
+                      <a href={auction.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="shrink-0 text-muted-foreground/50 hover:text-muted-foreground transition-colors">
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    )}
+                  </div>
+                  <p className="text-[9px]" style={{ color: '#8a8698' }}>
+                    Level {auction.level || '?'} · {auction.vocation || 'Unknown'} · {auction.world || '?'}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  {auction.hasBeenBidOn ? (
+                    <span className="rounded-full px-1.5 py-px text-[8px] font-bold uppercase" style={{ backgroundColor: '#fbbf2420', color: '#fbbf24' }}>
+                      Bid
+                    </span>
+                  ) : (
+                    <span className="rounded-full px-1.5 py-px text-[8px] font-bold uppercase" style={{ backgroundColor: '#4a485720', color: '#7a7690' }}>
+                      No bid
+                    </span>
+                  )}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onDetails(auction); }}
+                    className="rounded-md p-0.5 hover:bg-white/5 transition-colors"
+                    style={{ color: '#7a7690' }}
+                    title="View details"
+                  >
+                    <Eye className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Auction timer bar — prominent */}
+        <div className="px-2.5 pb-1.5">
+          <div className="flex items-center justify-between rounded-md px-2 py-1.5" style={{ backgroundColor: '#252333', border: '1px solid #3a3848' }}>
+            <div className="flex items-center gap-1.5">
+              <Clock className="h-3.5 w-3.5 shrink-0" style={{ color: ended ? '#f87171' : '#fbbf24' }} />
+              {hasAuctionEnd && !ended ? (
+                <div>
+                  <span className="text-[11px] font-bold" style={{ color: '#fbbf24' }}>{formatAuctionEnd(auction.auctionEnd)}</span>
+                  {auction.auctionEnd && (
+                    <span className="text-[8px] ml-1.5" style={{ color: '#7a7690' }}>
+                      {auction.auctionEnd.replace(/\s+[A-Z]{2,4}$/, '')}
+                    </span>
+                  )}
+                </div>
+              ) : ended ? (
+                <span className="text-[11px] font-bold" style={{ color: '#f87171' }}>Ended</span>
+              ) : (
+                <span className="text-[11px] font-bold" style={{ color: '#4ade80' }}>Active</span>
+              )}
+            </div>
+            {bidPrice != null && bidPrice > 0 && (
+              <div className="flex items-center gap-0.5">
+                <Coins className="h-3 w-3" style={{ color: auction.hasBeenBidOn ? '#fbbf24' : '#4ade80' }} />
+                <span className="text-[11px] font-bold" style={{ color: auction.hasBeenBidOn ? '#fbbf24' : '#4ade80' }}>
+                  {formatNumber(bidPrice)}
+                </span>
+                <PriceTooltip coins={bidPrice} />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Display Items — always 4 slots, right below timer like Exevo Pan */}
+        <div className="px-2.5 pb-1.5">
+          <DisplayItems items={auction.displayItems || '[]'} />
+        </div>
+
+        {/* Skills */}
+        {allSkills.length > 0 && (
+          <div className="px-2.5 pb-1.5">
+            <div className="grid grid-cols-2 gap-x-1.5 gap-y-0.5">
+              {allSkills.map(({ key, value, pct }) => (
+                <SkillBox key={key} skillKey={key} value={value} isTrained={value > SKILL_TRAINED_THRESHOLD} pct={pct} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Standardized Stats Grid */}
+        <div className="px-2.5 pb-1.5">
+          <div className="grid grid-cols-2 gap-0.5">
+            <StatCell icon={Sparkles} iconColor="#a78bfa" label="Charms" value={formatNumber(auction.charmPoints || 0)} />
+            <StatCell icon={Skull} iconColor="#f87171" label="Boss" value={formatNumber(auction.bossPoints || 0)} />
+            <StatCell icon={Star} iconColor="#ec4899" label="Outfits" value={String(auction.outfitsCount || 0)} />
+            <StatCell icon={Footprints} iconColor="#06b6d4" label="Mounts" value={String(auction.mountsCount || 0)} />
+            <BoolCell icon={Package} iconColor="#f59e0b" label="Loot Pouch" has={!!auction.hasLootPouch} />
+            <BoolCell icon={Gem} iconColor="#a78bfa" label="Charm Exp" has={!!auction.charmExpansion} />
+            <BoolCell icon={Target} iconColor="#60a5fa" label="Extra Prey Slot" has={(auction.preySlots || 0) >= 3} />
+            <BoolCell icon={CalendarCheck} iconColor="#10b981" label="Weekly Task" has={!!auction.weeklyTaskExpansion} />
+            <StatCell icon={Users} iconColor="#4ade80" label="Hirelings" value={String(auction.hirelings || 0)} />
+            <GemsCell gems={auction.gems} />
+          </div>
+        </div>
+
+        {/* Tags */}
+        {tags.length > 0 && (
+          <div className="px-2.5 pb-1">
+            <div className="flex flex-wrap gap-0.5">
+              {tags.slice(0, 3).map((tag) => (
+                <span
+                  key={tag.label}
+                  className="rounded-full px-1.5 py-px text-[9px] font-medium"
+                  style={{ backgroundColor: `${tag.color}20`, color: tag.color }}
+                >
+                  {tag.label}
+                </span>
+              ))}
+              {tags.length > 3 && (
+                <span className="rounded-full px-1.5 py-px text-[9px] font-medium" style={{ backgroundColor: '#3a3848', color: '#8a8698' }}>
+                  +{tags.length - 3}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Spacer */}
+        <div className="flex-1" />
+
+        {/* Transfer Fee Calculator — prominent CTA */}
+        <div className="px-2.5 pb-2">
+          {auction.world && auction.level && (
+            <TransferSimulator
+              sourceWorld={auction.world}
+              characterLevel={auction.level}
+              worldTypes={worldTypes}
+            />
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── Main Client Component ──────────────────────────────────────────────
+
+export function CurrentAuctionsClient({
+  initialAuctions,
+  worlds,
+  vocations,
+  worldTypes,
+  initialSearch = '',
+}: CurrentAuctionsClientProps) {
+  const [search, setSearch] = useState(initialSearch);
+  const [selectedWorld, setSelectedWorld] = useState('');
+  const [selectedVocation, setSelectedVocation] = useState('');
+  const [minLevel, setMinLevel] = useState('');
+  const [maxLevel, setMaxLevel] = useState('');
+  const [sortField, setSortField] = useState<SortField>('currentBid');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  const [page, setPage] = useState(1);
+  const [showFilters, setShowFilters] = useState(false);
+  const [detailAuction, setDetailAuction] = useState<SerializedCurrentAuction | null>(null);
+  const tick = useCountdown();
+
+  const filtered = useMemo(() => {
+    let result = initialAuctions;
+
+    if (search) {
+      const q = search.toLowerCase();
+      result = result.filter((a) => a.characterName.toLowerCase().includes(q));
+    }
+    if (selectedWorld) result = result.filter((a) => a.world === selectedWorld);
+    if (selectedVocation) result = result.filter((a) => a.vocation === selectedVocation);
+    if (minLevel) result = result.filter((a) => (a.level || 0) >= parseInt(minLevel));
+    if (maxLevel) result = result.filter((a) => (a.level || 0) <= parseInt(maxLevel));
+
+    result.sort((a, b) => {
+      const getVal = (auction: SerializedCurrentAuction) => {
+        if (sortField === 'currentBid') return auction.currentBid ?? auction.minimumBid ?? 0;
+        if (sortField === 'minimumBid') return auction.minimumBid ?? 0;
+        return auction[sortField] || 0;
+      };
+      const aVal = getVal(a);
+      const bVal = getVal(b);
+      return sortOrder === 'desc' ? Number(bVal) - Number(aVal) : Number(aVal) - Number(bVal);
+    });
+
+    return result;
+  }, [initialAuctions, search, selectedWorld, selectedVocation, minLevel, maxLevel, sortField, sortOrder]);
+
+  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
+  const paginated = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+
+  const clearFilters = () => {
+    setSearch('');
+    setSelectedWorld('');
+    setSelectedVocation('');
+    setMinLevel('');
+    setMaxLevel('');
+    setPage(1);
+  };
+
+  const hasActiveFilters = search || selectedWorld || selectedVocation || minLevel || maxLevel;
+
+  const toggleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortOrder((o) => (o === 'desc' ? 'asc' : 'desc'));
+    } else {
+      setSortField(field);
+      setSortOrder('desc');
+    }
+    setPage(1);
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Search + Filter Controls */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Search by character name..."
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            className="h-10 w-full rounded-lg border border-input bg-card/50 pl-10 pr-4 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className={`flex h-10 items-center gap-2 rounded-lg border px-4 text-sm transition-colors ${showFilters ? 'border-primary bg-primary/10 text-primary' : 'border-input bg-card/50 hover:bg-accent'}`}
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+            Filters
+            {hasActiveFilters && (
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
+                !
+              </span>
+            )}
+          </button>
+          {hasActiveFilters && (
+            <button
+              onClick={clearFilters}
+              className="flex h-10 items-center gap-1 rounded-lg border border-input bg-card/50 px-3 text-sm text-muted-foreground hover:bg-accent"
+            >
+              <X className="h-3 w-3" /> Clear
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Filter Panel */}
+      {showFilters && (
+        <Card className="border-border/50 bg-card/50 backdrop-blur">
+          <CardContent className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">World</label>
+              <select
+                value={selectedWorld}
+                onChange={(e) => { setSelectedWorld(e.target.value); setPage(1); }}
+                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="">All Worlds</option>
+                {worlds.sort().map((w) => <option key={w} value={w}>{w}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Vocation</label>
+              <select
+                value={selectedVocation}
+                onChange={(e) => { setSelectedVocation(e.target.value); setPage(1); }}
+                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="">All Vocations</option>
+                {vocations.sort().map((v) => <option key={v} value={v}>{v}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Level Range</label>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  placeholder="Min"
+                  value={minLevel}
+                  onChange={(e) => { setMinLevel(e.target.value); setPage(1); }}
+                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                />
+                <input
+                  type="number"
+                  placeholder="Max"
+                  value={maxLevel}
+                  onChange={(e) => { setMaxLevel(e.target.value); setPage(1); }}
+                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Sort Bar + Count */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-muted-foreground">
+          {filtered.length} active auction{filtered.length !== 1 ? 's' : ''}
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {([
+            ['currentBid', 'Bid'],
+            ['level', 'Level'],
+            ['magicLevel', 'Magic Level'],
+            ['charmPoints', 'Charm'],
+          ] as [SortField, string][]).map(([field, label]) => (
+            <button
+              key={field}
+              onClick={() => toggleSort(field)}
+              className={`flex h-8 items-center gap-1 rounded-md px-3 text-xs transition-colors ${sortField === field ? 'bg-primary/10 text-primary' : 'bg-secondary/50 text-muted-foreground hover:text-foreground'}`}
+            >
+              {label}
+              {sortField === field && (
+                sortOrder === 'desc' ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Auction Card Grid */}
+      <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
+        {paginated.map((auction) => (
+          <CurrentAuctionCard
+            key={auction.id}
+            auction={auction}
+            worldTypes={worldTypes}
+            onDetails={setDetailAuction}
+            tick={tick}
+          />
+        ))}
+      </div>
+
+      {/* Detail Modal */}
+      {detailAuction && (
+        <AuctionDetailModal auction={detailAuction} worldTypes={worldTypes} onClose={() => setDetailAuction(null)} />
+      )}
+
+      {/* Empty State */}
+      {paginated.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <Search className="mb-4 h-12 w-12 text-muted-foreground/30" />
+          <p className="text-lg font-medium">No current auctions found</p>
+          <p className="text-sm text-muted-foreground">Try adjusting your filters or check back later</p>
+        </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 pt-4">
+          <button
+            onClick={() => setPage(1)}
+            disabled={page === 1}
+            className="rounded-md border border-input bg-card/50 px-3 py-1.5 text-sm disabled:opacity-30"
+          >
+            First
+          </button>
+          <button
+            onClick={() => setPage(page - 1)}
+            disabled={page === 1}
+            className="rounded-md border border-input bg-card/50 px-3 py-1.5 text-sm disabled:opacity-30"
+          >
+            Prev
+          </button>
+          <span className="px-3 text-sm text-muted-foreground">
+            Page {page} of {totalPages}
+          </span>
+          <button
+            onClick={() => setPage(page + 1)}
+            disabled={page === totalPages}
+            className="rounded-md border border-input bg-card/50 px-3 py-1.5 text-sm disabled:opacity-30"
+          >
+            Next
+          </button>
+          <button
+            onClick={() => setPage(totalPages)}
+            disabled={page === totalPages}
+            className="rounded-md border border-input bg-card/50 px-3 py-1.5 text-sm disabled:opacity-30"
+          >
+            Last
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}

@@ -68,6 +68,23 @@ export interface ScrapedAuction {
   primalOrdealAvailable: boolean | null;
   soulWarAvailable: boolean | null;
   sanguineBloodAvailable: boolean | null;
+  // Skill percentages (progress to next level)
+  magicLevelPct: number | null;
+  fistPct: number | null;
+  clubPct: number | null;
+  swordPct: number | null;
+  axePct: number | null;
+  distancePct: number | null;
+  shieldingPct: number | null;
+  fishingPct: number | null;
+  // Outfit image
+  outfitImageUrl: string | null;
+  // Gems (JSON string)
+  gems: string | null;
+  // Weekly task expansion
+  weeklyTaskExpansion: boolean | null;
+  // Display items (JSON string of image URLs)
+  displayItems: string | null;
   // Calculated
   coinsPerLevel: number | null;
   url: string;
@@ -242,6 +259,23 @@ interface DetailPageData {
   primalOrdealAvailable: boolean | null;
   soulWarAvailable: boolean | null;
   sanguineBloodAvailable: boolean | null;
+  // Skill percentages
+  magicLevelPct: number | null;
+  fistPct: number | null;
+  clubPct: number | null;
+  swordPct: number | null;
+  axePct: number | null;
+  distancePct: number | null;
+  shieldingPct: number | null;
+  fishingPct: number | null;
+  // Outfit image
+  outfitImageUrl: string | null;
+  // Gems (JSON string)
+  gems: string | null;
+  // Weekly task expansion
+  weeklyTaskExpansion: boolean | null;
+  // Display items (JSON string)
+  displayItems: string | null;
 }
 
 /**
@@ -271,27 +305,38 @@ function parseDetailPage(html: string): DetailPageData {
     hirelings: null, hirelingJobs: null, hasLootPouch: null, storeItemsCount: null,
     blessingsCount: null, dailyRewardStreak: null,
     primalOrdealAvailable: null, soulWarAvailable: null, sanguineBloodAvailable: null,
+    magicLevelPct: null, fistPct: null, clubPct: null, swordPct: null,
+    axePct: null, distancePct: null, shieldingPct: null, fishingPct: null,
+    outfitImageUrl: null, gems: null, weeklyTaskExpansion: null, displayItems: null,
   };
 
-  // Skills from the skill table (td.LabelColumn > b + td.LevelColumn)
-  const skillMap: Record<string, keyof DetailPageData> = {
-    'magic level': 'magicLevel',
-    'fist fighting': 'fist',
-    'club fighting': 'club',
-    'sword fighting': 'sword',
-    'axe fighting': 'axe',
-    'distance fighting': 'distance',
-    'shielding': 'shielding',
-    'fishing': 'fishing',
+  // Skills from the skill table (td.LabelColumn > b + td.LevelColumn + td.PercentageColumn)
+  const skillMap: Record<string, { level: keyof DetailPageData; pct: keyof DetailPageData }> = {
+    'magic level': { level: 'magicLevel', pct: 'magicLevelPct' },
+    'fist fighting': { level: 'fist', pct: 'fistPct' },
+    'club fighting': { level: 'club', pct: 'clubPct' },
+    'sword fighting': { level: 'sword', pct: 'swordPct' },
+    'axe fighting': { level: 'axe', pct: 'axePct' },
+    'distance fighting': { level: 'distance', pct: 'distancePct' },
+    'shielding': { level: 'shielding', pct: 'shieldingPct' },
+    'fishing': { level: 'fishing', pct: 'fishingPct' },
   };
 
   $('td.LabelColumn b').each((_i, el) => {
     const name = $(el).text().trim().toLowerCase();
-    const key = skillMap[name];
-    if (key) {
-      const valueCell = $(el).closest('tr').find('td.LevelColumn').text().trim();
+    const mapping = skillMap[name];
+    if (mapping) {
+      const row = $(el).closest('tr');
+      const valueCell = row.find('td.LevelColumn').text().trim();
       const value = parseInt(valueCell, 10);
-      if (!isNaN(value)) (data as any)[key] = value;
+      if (!isNaN(value)) (data as any)[mapping.level] = value;
+      // Extract percentage from PercentageColumn
+      const pctText = row.find('td.PercentageColumn .PercentageString').text().trim();
+      const pctMatch = pctText.match(/([\d.]+)/);
+      if (pctMatch) {
+        const pctVal = parseFloat(pctMatch[1]);
+        if (!isNaN(pctVal)) (data as any)[mapping.pct] = pctVal;
+      }
     }
   });
 
@@ -317,6 +362,7 @@ function parseDetailPage(html: string): DetailPageData {
     'hirelings:': { key: 'hirelings', type: 'number' },
     'hireling jobs:': { key: 'hirelingJobs', type: 'number' },
     'daily reward streak:': { key: 'dailyRewardStreak', type: 'number' },
+    'permanent weekly task expansion:': { key: 'weeklyTaskExpansion', type: 'boolean' },
   };
 
   $('span.LabelV').each((_i, el) => {
@@ -368,6 +414,46 @@ function parseDetailPage(html: string): DetailPageData {
       );
       (data as any)[field] = !completed;
     }
+  }
+
+  // Outfit image URL — resolve relative paths to absolute
+  const outfitImg = $('img.AuctionOutfitImage').attr('src');
+  if (outfitImg) {
+    if (outfitImg.startsWith('http')) {
+      data.outfitImageUrl = outfitImg;
+    } else {
+      // Resolve relative path (e.g. "./AnimatedOutfits/...") to absolute
+      const cleaned = outfitImg.replace(/^\.\//, '');
+      data.outfitImageUrl = `${RUBINOT_URLS.base}/${cleaned}`;
+    }
+  }
+
+  // Gems — parse from #RevealedGems section
+  const gemsContainer = $('#RevealedGems');
+  if (gemsContainer.length) {
+    const gemsList: { type: string; mods: string[] }[] = [];
+    gemsContainer.find('.Gem').each((_i, gemEl) => {
+      const gemType = $(gemEl).attr('title') || $(gemEl).find('.GemName').text().trim() || 'Unknown';
+      const mods: string[] = [];
+      $(gemEl).find('.ModEffectRow, .ModEffect').each((_j, modEl) => {
+        const modText = $(modEl).text().trim();
+        if (modText) mods.push(modText);
+      });
+      gemsList.push({ type: gemType, mods });
+    });
+    if (gemsList.length > 0) {
+      data.gems = JSON.stringify(gemsList);
+    }
+  }
+
+  // Display items — the 4 items shown on the auction card
+  const displayItems: string[] = [];
+  $('.AuctionItemsViewBox .CVIcon.CVIconObject img, .AuctionItemsViewBox img.CVIcon').each((_i, el) => {
+    const src = $(el).attr('src');
+    if (src) displayItems.push(src);
+  });
+  if (displayItems.length > 0) {
+    data.displayItems = JSON.stringify(displayItems);
   }
 
   return data;
@@ -546,6 +632,9 @@ async function scrapeAuctionDetail(
     hirelings: null, hirelingJobs: null, hasLootPouch: null, storeItemsCount: null,
     blessingsCount: null, dailyRewardStreak: null,
     primalOrdealAvailable: null, soulWarAvailable: null, sanguineBloodAvailable: null,
+    magicLevelPct: null, fistPct: null, clubPct: null, swordPct: null,
+    axePct: null, distancePct: null, shieldingPct: null, fishingPct: null,
+    outfitImageUrl: null, gems: null, weeklyTaskExpansion: null, displayItems: null,
   };
 
   try {

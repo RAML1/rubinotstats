@@ -12,9 +12,11 @@
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
-    "scrape": "tsx scripts/scrape.ts",
-    "scrape:ids": "tsx scripts/scrape-by-id.ts",
-    "scrape:highscores": "tsx scripts/scrape-highscores.ts"
+    "scrape:auctions": "tsx scripts/scrape-by-id.ts",
+    "scrape:history": "tsx scripts/scrape-auction-history.ts",
+    "scrape:highscores": "tsx scripts/scrape-highscores.ts",
+    "scrape:current": "tsx scripts/scrape-current-auctions.ts",
+    "update:bids": "tsx scripts/update-bids.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
