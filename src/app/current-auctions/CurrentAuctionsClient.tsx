@@ -1201,7 +1201,7 @@ export function CurrentAuctionsClient({
 
     // Filter ended auctions unless explicitly showing them
     if (hideEnded) {
-      result = result.filter((a) => a.isActive);
+      result = result.filter((a) => !isAuctionEnded(a.auctionEnd));
     }
 
     if (search) {
