@@ -10,6 +10,8 @@ import {
   TrendingUp,
   Calculator,
   Zap,
+  Megaphone,
+  Heart,
 } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
 import { MobileNav } from "./MobileNav";
@@ -28,43 +30,37 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-30">
-      {/* Main navigation bar — colored background like ExevoPan */}
+      {/* Top bar — logo, ad banner, tip message */}
       <div className="bg-primary">
-        <div className="container mx-auto flex h-14 items-center gap-4 px-4">
+        <div className="container mx-auto flex h-12 items-center gap-4 px-4">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 text-white">
+          <Link href="/" className="flex items-center gap-2 text-white shrink-0">
             <Logo size="sm" showText={false} />
             <span className="text-lg font-bold tracking-tight hidden sm:inline">
               RubinOT Stats
             </span>
           </Link>
 
-          {/* Desktop Navigation — icon + label pills */}
-          <nav className="hidden items-center gap-1 md:flex ml-4">
-            {navItems.map(({ href, label, icon: Icon }) => {
-              const isActive =
-                href === "/"
-                  ? pathname === "/"
-                  : pathname.startsWith(href);
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
-                    isActive
-                      ? "bg-white/20 text-white"
-                      : "text-white/75 hover:bg-white/10 hover:text-white"
-                  }`}
-                >
-                  <Icon className="h-4 w-4" />
-                  {label}
-                </Link>
-              );
-            })}
-          </nav>
+          {/* Ad Banner — center */}
+          <div className="hidden md:flex flex-1 items-center justify-center">
+            <div className="flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-1">
+              <Megaphone className="h-3.5 w-3.5 text-white/50" />
+              <span className="text-xs text-white/60">
+                Advertise here — reach the RubinOT community
+              </span>
+            </div>
+          </div>
 
-          {/* Right side */}
-          <div className="ml-auto flex items-center gap-2">
+          {/* Right side — tip + mobile menu */}
+          <div className="ml-auto flex items-center gap-3">
+            {/* Tip message */}
+            <div className="hidden lg:flex items-center gap-1.5 rounded-full bg-amber-400/15 border border-amber-400/25 px-3 py-1">
+              <Heart className="h-3 w-3 text-amber-400 fill-amber-400" />
+              <span className="text-[11px] text-amber-300">
+                Send Rubinicoins to <strong>Super Bonk Lee</strong>
+              </span>
+            </div>
+
             {/* Mobile menu button */}
             <button
               onClick={() => setIsMobileNavOpen(true)}
@@ -74,6 +70,34 @@ export function Header() {
               <Menu className="h-5 w-5" />
             </button>
           </div>
+        </div>
+      </div>
+
+      {/* Navigation bar — below the top bar */}
+      <div className="border-b border-border/50 bg-card/80 backdrop-blur-sm">
+        <div className="container mx-auto px-4">
+          <nav className="hidden items-center gap-1 md:flex h-10">
+            {navItems.map(({ href, label, icon: Icon }) => {
+              const isActive =
+                href === "/"
+                  ? pathname === "/"
+                  : pathname.startsWith(href);
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                    isActive
+                      ? "bg-primary/15 text-primary"
+                      : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                  {label}
+                </Link>
+              );
+            })}
+          </nav>
         </div>
       </div>
 

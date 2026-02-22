@@ -2,19 +2,52 @@ export const dynamic = 'force-dynamic';
 
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { Zap, TrendingUp, Calculator, ArrowRight, Megaphone, Heart } from 'lucide-react';
+import { Zap, TrendingUp, Calculator, ArrowRight, Flame, Crown, Globe } from 'lucide-react';
 import { LogoIcon } from '@/components/brand/Logo';
-import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import prisma from '@/lib/db/prisma';
-import { formatNumber } from '@/lib/utils/formatters';
+import { formatNumber, getVocationColor } from '@/lib/utils/formatters';
 
-async function getQuickStats() {
-  const [liveAuctions, trackedCharacters] = await Promise.all([
+interface TopGainer {
+  character_name: string;
+  world: string;
+  vocation: string;
+  current_level: number;
+  exp_gained: bigint;
+}
+
+async function getHomeData() {
+  const [liveAuctions, trackedCharacters, topGainersRaw] = await Promise.all([
     prisma.currentAuction.count({ where: { isActive: true } }),
     prisma.character.count(),
+    prisma.$queryRaw<TopGainer[]>`
+      WITH date_range AS (
+        SELECT character_name, world, vocation, level, score, captured_date,
+          ROW_NUMBER() OVER (PARTITION BY character_name, world ORDER BY captured_date ASC) as rn_first,
+          ROW_NUMBER() OVER (PARTITION BY character_name, world ORDER BY captured_date DESC) as rn_last
+        FROM highscore_entries
+        WHERE category = 'Experience Points'
+          AND captured_date >= CURRENT_DATE - INTERVAL '30 days'
+      ),
+      gains AS (
+        SELECT f.character_name, f.world, f.vocation,
+          l.level as current_level,
+          (l.score - f.score) as exp_gained
+        FROM date_range f
+        JOIN date_range l ON f.character_name = l.character_name AND f.world = l.world
+        WHERE f.rn_first = 1 AND l.rn_last = 1 AND l.score > f.score
+      )
+      SELECT character_name, world, vocation, current_level, exp_gained
+      FROM gains ORDER BY exp_gained DESC LIMIT 5
+    `,
   ]);
-  return { liveAuctions, trackedCharacters };
+
+  const topGainers = topGainersRaw.map(g => ({
+    ...g,
+    exp_gained: Number(g.exp_gained),
+  }));
+
+  return { liveAuctions, trackedCharacters, topGainers };
 }
 
 const features = [
@@ -22,135 +55,185 @@ const features = [
     href: '/current-auctions',
     title: 'Auction Market',
     icon: Zap,
+    gradient: 'from-amber-500/20 via-orange-500/10 to-transparent',
+    iconBg: 'bg-amber-500/15',
     color: 'text-amber-400',
-    bgColor: 'bg-amber-400/10',
-    borderColor: 'hover:border-amber-400/50',
-    description: 'Browse live character auctions, track bidding activity, and find deals on the RubinOT market.',
+    accentBorder: 'border-l-amber-500',
+    description: 'Browse live character auctions, track bids, and find the best deals.',
     statKey: 'liveAuctions' as const,
-    statLabel: 'Live Auctions',
+    statLabel: 'live auctions',
   },
   {
     href: '/progression',
     title: 'Progression',
     icon: TrendingUp,
+    gradient: 'from-emerald-500/20 via-emerald-500/10 to-transparent',
+    iconBg: 'bg-emerald-500/15',
     color: 'text-emerald-400',
-    bgColor: 'bg-emerald-400/10',
-    borderColor: 'hover:border-emerald-400/50',
-    description: 'Track character EXP, skills, and milestones over time. Compare players and view world leaderboards.',
+    accentBorder: 'border-l-emerald-500',
+    description: 'Track EXP, skills, and milestones. Compare players across worlds.',
     statKey: 'trackedCharacters' as const,
-    statLabel: 'Characters Tracked',
+    statLabel: 'characters tracked',
   },
   {
     href: '/calculator',
     title: 'Skill Calculator',
     icon: Calculator,
+    gradient: 'from-sky-500/20 via-sky-500/10 to-transparent',
+    iconBg: 'bg-sky-500/15',
     color: 'text-sky-400',
-    bgColor: 'bg-sky-400/10',
-    borderColor: 'hover:border-sky-400/50',
-    description: 'Plan your training sessions, estimate costs, and optimize your skill advancement strategy.',
+    accentBorder: 'border-l-sky-500',
+    description: 'Plan training sessions, estimate costs, and optimize advancement.',
     statKey: null,
     statLabel: null,
   },
 ];
 
-async function FeatureShowcase() {
-  const stats = await getQuickStats();
+async function HomeContent() {
+  const { liveAuctions, trackedCharacters, topGainers } = await getHomeData();
+  const stats = { liveAuctions, trackedCharacters };
 
   return (
-    <section className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-      {features.map(({ href, title, icon: Icon, color, bgColor, borderColor, description, statKey, statLabel }) => (
-        <Link key={href} href={href} className="group">
-          <Card className={`h-full border-border/50 bg-card/50 backdrop-blur transition-all duration-200 group-hover:scale-[1.02] group-hover:shadow-lg ${borderColor}`}>
-            <CardContent className="flex flex-col gap-4 p-6">
-              {/* Icon */}
-              <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${bgColor}`}>
-                <Icon className={`h-6 w-6 ${color}`} />
-              </div>
+    <>
+      {/* Feature Cards */}
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {features.map(({ href, title, icon: Icon, gradient, iconBg, color, accentBorder, description, statKey, statLabel }) => (
+          <Link key={href} href={href} className="group">
+            <div className={`relative h-full overflow-hidden rounded-xl border border-border/50 border-l-4 ${accentBorder} bg-card transition-all duration-200 group-hover:border-border group-hover:shadow-lg group-hover:shadow-black/20`}>
+              {/* Gradient glow */}
+              <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-50 group-hover:opacity-80 transition-opacity`} />
 
-              {/* Title + Arrow */}
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold">{title}</h2>
-                <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-1" />
-              </div>
+              <div className="relative flex flex-col gap-3 p-5">
+                <div className="flex items-start justify-between">
+                  <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${iconBg}`}>
+                    <Icon className={`h-5 w-5 ${color}`} />
+                  </div>
+                  <ArrowRight className="h-4 w-4 text-muted-foreground/50 transition-all group-hover:translate-x-1 group-hover:text-foreground" />
+                </div>
 
-              {/* Description */}
-              <p className="text-sm text-muted-foreground leading-relaxed">{description}</p>
+                <div>
+                  <h2 className="text-lg font-bold">{title}</h2>
+                  <p className="mt-1 text-sm text-muted-foreground leading-relaxed">{description}</p>
+                </div>
 
-              {/* Quick Stat */}
-              {statKey && (
-                <div className="mt-auto pt-4 border-t border-border/50">
-                  <div className="flex items-baseline gap-2">
-                    <span className={`text-2xl font-bold ${color}`}>
+                {statKey && (
+                  <div className="mt-auto flex items-baseline gap-1.5 pt-3 border-t border-border/30">
+                    <span className={`text-xl font-bold ${color}`}>
                       {formatNumber(stats[statKey])}
                     </span>
                     <span className="text-xs text-muted-foreground">{statLabel}</span>
                   </div>
+                )}
+              </div>
+            </div>
+          </Link>
+        ))}
+      </section>
+
+      {/* Top EXP Gainers — mini leaderboard */}
+      {topGainers.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Flame className="h-5 w-5 text-amber-400" />
+              <h2 className="text-lg font-bold">Top EXP Gainers</h2>
+              <span className="text-xs text-muted-foreground">Last 30 days</span>
+            </div>
+            <Link href="/progression" className="flex items-center gap-1 text-xs text-primary hover:underline">
+              Full leaderboard <ArrowRight className="h-3 w-3" />
+            </Link>
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+            {topGainers.map((gainer, i) => (
+              <Link
+                key={gainer.character_name}
+                href={`/progression?character=${encodeURIComponent(gainer.character_name)}`}
+                className="group flex items-center gap-3 rounded-xl border border-border/30 bg-card/50 p-3 transition-colors hover:bg-card hover:border-border/60"
+              >
+                {/* Rank */}
+                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold ${
+                  i === 0 ? 'bg-amber-400/15 text-amber-400' :
+                  i === 1 ? 'bg-slate-300/15 text-slate-300' :
+                  i === 2 ? 'bg-amber-700/15 text-amber-600' :
+                  'bg-secondary/50 text-muted-foreground'
+                }`}>
+                  {i === 0 ? <Crown className="h-4 w-4" /> : `#${i + 1}`}
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        </Link>
-      ))}
-    </section>
+
+                {/* Info */}
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold truncate group-hover:text-primary transition-colors">
+                    {gainer.character_name}
+                  </p>
+                  <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                    <Globe className="h-2.5 w-2.5" />
+                    <span>{gainer.world}</span>
+                    <span className="text-foreground/30">·</span>
+                    <span>Lvl {gainer.current_level}</span>
+                  </div>
+                </div>
+
+                {/* EXP */}
+                <div className="shrink-0 text-right">
+                  <p className="text-xs font-bold text-emerald-400">
+                    {formatNumber(gainer.exp_gained)}
+                  </p>
+                  <p className="text-[9px] text-muted-foreground">exp</p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+    </>
   );
 }
 
-function FeatureShowcaseSkeleton() {
+function HomeSkeleton() {
   return (
-    <section className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-      {[1, 2, 3].map((i) => (
-        <Card key={i} className="border-border/50 bg-card/50">
-          <CardContent className="flex flex-col gap-4 p-6">
-            <Skeleton className="h-12 w-12 rounded-xl" />
-            <Skeleton className="h-6 w-32" />
-            <Skeleton className="h-12 w-full" />
-            <div className="pt-4 border-t border-border/50">
-              <Skeleton className="h-8 w-24" />
+    <>
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="rounded-xl border border-border/50 border-l-4 border-l-border bg-card p-5">
+            <Skeleton className="h-10 w-10 rounded-lg mb-3" />
+            <Skeleton className="h-5 w-28 mb-2" />
+            <Skeleton className="h-10 w-full mb-3" />
+            <div className="pt-3 border-t border-border/30">
+              <Skeleton className="h-6 w-20" />
             </div>
-          </CardContent>
-        </Card>
-      ))}
-    </section>
+          </div>
+        ))}
+      </section>
+      <section>
+        <Skeleton className="h-6 w-40 mb-4" />
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-16 rounded-xl" />
+          ))}
+        </div>
+      </section>
+    </>
   );
 }
 
 export default function HomePage() {
   return (
     <div className="container mx-auto space-y-8 px-4 py-8">
-      {/* Ad Banner */}
-      <section className="rounded-xl border border-dashed border-border/50 bg-muted/20 px-4 py-3 text-center">
-        <div className="flex items-center justify-center gap-2">
-          <Megaphone className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">
-            Advertise here — reach the RubinOT community
-          </span>
-        </div>
-        <p className="text-xs text-muted-foreground/60 mt-0.5">Contact us for ad placement</p>
-      </section>
-
-      {/* Hero Section */}
-      <section className="flex flex-col items-center space-y-4 text-center relative">
-        {/* Tip Message — top right */}
-        <div className="hidden sm:flex items-center gap-1.5 absolute top-0 right-0 rounded-full bg-amber-400/10 border border-amber-400/20 px-3 py-1.5">
-          <Heart className="h-3.5 w-3.5 text-amber-400 fill-amber-400" />
-          <span className="text-xs text-amber-300">
-            Show love by sending Rubinicoins to <strong>Super Bonk Lee</strong>
-          </span>
-        </div>
-
-        <LogoIcon size={72} className="text-white" />
-        <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
+      {/* Hero — compact */}
+      <section className="flex flex-col items-center space-y-3 text-center">
+        <LogoIcon size={56} className="text-white" />
+        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
           <span className="text-foreground">RubinOT</span>{' '}
           <span className="text-primary">Stats</span>
         </h1>
-        <p className="max-w-2xl text-base text-muted-foreground">
+        <p className="max-w-lg text-sm text-muted-foreground">
           Character Progression Tracker &amp; Auction Intelligence
         </p>
       </section>
 
-      {/* Feature Showcase */}
-      <Suspense fallback={<FeatureShowcaseSkeleton />}>
-        <FeatureShowcase />
+      <Suspense fallback={<HomeSkeleton />}>
+        <HomeContent />
       </Suspense>
     </div>
   );
