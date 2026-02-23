@@ -497,7 +497,7 @@ export default function CalculatorClient() {
                         ? `${Math.round(weaponsResult.estimatedHours * 60)} minutes`
                         : weaponsResult.estimatedHours < 24
                           ? `${Math.round(weaponsResult.estimatedHours)} hours`
-                          : `${Math.round(weaponsResult.estimatedHours / 24)} days ${Math.round(weaponsResult.estimatedHours % 24)}h`}
+                          : `${Math.floor(weaponsResult.estimatedHours / 24)} days ${Math.round(weaponsResult.estimatedHours % 24)}h`}
                     </div>
                   </div>
                 </div>
