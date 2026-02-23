@@ -61,7 +61,7 @@ function PercentSlider({
       const rect = trackRef.current.getBoundingClientRect();
       const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
       const pct = Math.round((x / rect.width) * 10000) / 100;
-      onChange(Math.max(0, Math.min(99.99, pct)));
+      onChange(Math.max(0.01, Math.min(100, pct)));
     },
     [onChange],
   );
@@ -93,7 +93,7 @@ function PercentSlider({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <label className="text-sm font-semibold text-foreground/80">% to Next Level</label>
+        <label className="text-sm font-semibold text-foreground/80">% to Skill Up</label>
         <span
           className="text-base font-bold tabular-nums"
           style={{ color }}
@@ -231,7 +231,7 @@ export default function CalculatorClient() {
   const [vocation, setVocation] = useState<Vocation>('knight');
   const [category, setCategory] = useState<SkillCategory>('sword');
   const [currentSkill, setCurrentSkill] = useState<string>('10');
-  const [percentToNext, setPercentToNext] = useState<number>(0);
+  const [percentToSkillUp, setPercentToSkillUp] = useState<number>(100);
   const [loyaltyPercent, setLoyaltyPercent] = useState<number>(0);
   const [doubleEvent, setDoubleEvent] = useState(false);
   const [privateDummy, setPrivateDummy] = useState(false);
@@ -254,6 +254,9 @@ export default function CalculatorClient() {
       case 'monk': setCategory('fist'); break;
     }
   };
+
+  // Convert "% to skill up" (what Tibia shows) to "% progress already done"
+  const percentToNext = 100 - percentToSkillUp;
 
   const weaponsResult: WeaponsNeededResult | null = useMemo(() => {
     if (mode !== 'target' || current <= 0 || target <= current) return null;
@@ -343,7 +346,7 @@ export default function CalculatorClient() {
                 min={0}
                 max={300}
               />
-              <PercentSlider value={percentToNext} onChange={setPercentToNext} vocation={vocation} />
+              <PercentSlider value={percentToSkillUp} onChange={setPercentToSkillUp} vocation={vocation} />
             </div>
 
             {/* Mode-specific inputs */}
@@ -503,7 +506,7 @@ export default function CalculatorClient() {
                 <div className="border-t border-border/15 pt-4 space-y-1.5">
                   {[
                     ['Vocation', VOCATIONS.find(v => v.value === vocation)?.label],
-                    ['From', `Skill ${current} (${percentToNext.toFixed(2)}%)`],
+                    ['From', `Skill ${current} (${percentToSkillUp.toFixed(2)}% to go)`],
                     ['To', `Skill ${target}`],
                     ['Server multiplier', `${getMultiplierForDisplay(current, category)}x`],
                     ['Vocation rate', `b=${getVocationConstant(vocation, category)}`],

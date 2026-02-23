@@ -210,13 +210,11 @@ function chargesPerTry(
   loyaltyPercent: number,
   doubleEvent: boolean,
   privateDummy: boolean,
-  vip: boolean,
 ): number {
   let modifier = 1;
   modifier *= 1 + loyaltyPercent / 100;
   if (doubleEvent) modifier *= 2;
   if (privateDummy) modifier *= 1.1;
-  if (vip) modifier *= 1.1;
   return modifier;
 }
 
@@ -258,7 +256,6 @@ export function calculateWeaponsNeeded(
     modifiers.loyaltyPercent,
     modifiers.doubleEvent,
     modifiers.privateDummy,
-    modifiers.vip,
   );
 
   const totalCharges = Math.ceil(tries / effectivePerCharge);
@@ -268,8 +265,9 @@ export function calculateWeaponsNeeded(
     count: Math.ceil(totalCharges / w.charges),
   }));
 
-  // Each charge takes ~2 seconds on a dummy
-  const estimatedHours = (totalCharges * 2) / 3600;
+  // Each charge takes ~2 seconds on a dummy; VIP gives 10% speed bonus
+  const vipSpeedMultiplier = modifiers.vip ? 1.1 : 1;
+  const estimatedHours = (totalCharges * 2) / 3600 / vipSpeedMultiplier;
 
   return { totalCharges, weapons, estimatedHours };
 }
@@ -292,7 +290,6 @@ export function calculateSkillGain(
     modifiers.loyaltyPercent,
     modifiers.doubleEvent,
     modifiers.privateDummy,
-    modifiers.vip,
   );
 
   let remainingTries = charges * effectivePerCharge;
