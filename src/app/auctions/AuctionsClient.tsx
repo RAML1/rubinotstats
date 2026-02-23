@@ -37,6 +37,7 @@ import {
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
 import { formatNumber, getVocationColor, formatTimeRemaining } from '@/lib/utils/formatters';
 
 type SerializedAuction = {
@@ -905,25 +906,27 @@ export function AuctionsClient({ initialAuctions, worlds, vocations, initialSear
           <CardContent className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-3">
             <div>
               <label className="mb-1.5 block text-xs font-medium text-muted-foreground">World</label>
-              <select
-                value={selectedWorld}
-                onChange={(e) => { setSelectedWorld(e.target.value); setPage(1); }}
-                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-              >
-                <option value="">All Worlds</option>
-                {worlds.sort().map((w) => <option key={w} value={w}>{w}</option>)}
-              </select>
+              <Select value={selectedWorld || '__all__'} onValueChange={(v) => { setSelectedWorld(v === '__all__' ? '' : v); setPage(1); }}>
+                <SelectTrigger className="h-9 w-full text-sm">
+                  <SelectValue placeholder="All Worlds" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All Worlds</SelectItem>
+                  {worlds.sort().map((w) => <SelectItem key={w} value={w}>{w}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Vocation</label>
-              <select
-                value={selectedVocation}
-                onChange={(e) => { setSelectedVocation(e.target.value); setPage(1); }}
-                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-              >
-                <option value="">All Vocations</option>
-                {vocations.sort().map((v) => <option key={v} value={v}>{v}</option>)}
-              </select>
+              <Select value={selectedVocation || '__all__'} onValueChange={(v) => { setSelectedVocation(v === '__all__' ? '' : v); setPage(1); }}>
+                <SelectTrigger className="h-9 w-full text-sm">
+                  <SelectValue placeholder="All Vocations" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All Vocations</SelectItem>
+                  {vocations.sort().map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Level Range</label>

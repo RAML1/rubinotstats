@@ -1277,8 +1277,8 @@ function CurrentAuctionCard({
               style={{ backgroundColor: '#1a2a1a', border: '1px solid #2a4a2a' }}
               title={`Range: ${formatNumber(valuation.minPrice)} – ${formatNumber(valuation.maxPrice)} TC (${valuation.sampleSize} sales)`}
             >
-              <span className="text-[9px] font-semibold uppercase tracking-wider shrink-0" style={{ color: '#5a8a5a' }}>Fair</span>
-              <span className="text-xs font-bold" style={{ color: '#4ade80' }}>~{formatNumber(valuation.estimatedValue)} TC</span>
+              <span className="text-[9px] font-medium shrink-0" style={{ color: '#5a8a5a' }}>Similar characters sold for</span>
+              <span className="text-xs font-bold ml-auto" style={{ color: '#4ade80' }}>~{formatNumber(valuation.estimatedValue)} TC</span>
             </div>
           </div>
         )}
@@ -1383,6 +1383,7 @@ export function CurrentAuctionsClient({
   const [search, setSearch] = useState(initialSearch);
   const [selectedWorld, setSelectedWorld] = useState('');
   const [selectedVocation, setSelectedVocation] = useState('');
+  const [showTopOnly, setShowTopOnly] = useState(false);
   const [minLevel, setMinLevel] = useState('');
   const [maxLevel, setMaxLevel] = useState('');
   const [sortField, setSortField] = useState<SortField>('auctionEnd');
@@ -1405,7 +1406,18 @@ export function CurrentAuctionsClient({
       result = result.filter((a) => a.characterName.toLowerCase().includes(q));
     }
     if (selectedWorld) result = result.filter((a) => a.world === selectedWorld);
-    if (selectedVocation) result = result.filter((a) => a.vocation === selectedVocation);
+    if (selectedVocation) {
+      const vocGroup: Record<string, string[]> = {
+        'Elite Knight': ['Knight', 'Elite Knight'],
+        'Master Sorcerer': ['Sorcerer', 'Master Sorcerer'],
+        'Elder Druid': ['Druid', 'Elder Druid'],
+        'Royal Paladin': ['Paladin', 'Royal Paladin'],
+        'Exalted Monk': ['Monk', 'Exalted Monk'],
+      };
+      const matches = vocGroup[selectedVocation] || [selectedVocation];
+      result = result.filter((a) => matches.includes(a.vocation || ''));
+    }
+    if (showTopOnly) result = result.filter((a) => getTopAuctionHighlight(a) !== null);
     if (minLevel) result = result.filter((a) => (a.level || 0) >= parseInt(minLevel));
     if (maxLevel) result = result.filter((a) => (a.level || 0) <= parseInt(maxLevel));
 
@@ -1433,7 +1445,7 @@ export function CurrentAuctionsClient({
     });
 
     return result;
-  }, [initialAuctions, search, selectedWorld, selectedVocation, minLevel, maxLevel, sortField, sortOrder, hideEnded]);
+  }, [initialAuctions, search, selectedWorld, selectedVocation, showTopOnly, minLevel, maxLevel, sortField, sortOrder, hideEnded]);
 
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
   const paginated = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
@@ -1442,12 +1454,13 @@ export function CurrentAuctionsClient({
     setSearch('');
     setSelectedWorld('');
     setSelectedVocation('');
+    setShowTopOnly(false);
     setMinLevel('');
     setMaxLevel('');
     setPage(1);
   };
 
-  const hasActiveFilters = search || selectedWorld || selectedVocation || minLevel || maxLevel;
+  const hasActiveFilters = search || selectedWorld || selectedVocation || showTopOnly || minLevel || maxLevel;
 
   const toggleSort = (field: SortField) => {
     if (sortField === field) {
@@ -1520,23 +1533,42 @@ export function CurrentAuctionsClient({
           </div>
         </div>
 
-        {/* Row 2: Vocation chips */}
+        {/* Row 2: Vocation chips (grouped) + Top Auctions */}
         <div className="flex flex-wrap gap-1.5">
-          {vocations.sort().map((v) => (
+          {[
+            { label: 'Elite Knight', color: getVocationColor('Elite Knight') },
+            { label: 'Master Sorcerer', color: getVocationColor('Master Sorcerer') },
+            { label: 'Elder Druid', color: getVocationColor('Elder Druid') },
+            { label: 'Royal Paladin', color: getVocationColor('Royal Paladin') },
+            { label: 'Exalted Monk', color: getVocationColor('Exalted Monk') },
+          ].map((v) => (
             <button
-              key={v}
-              onClick={() => { setSelectedVocation(selectedVocation === v ? '' : v); setPage(1); }}
+              key={v.label}
+              onClick={() => { setSelectedVocation(selectedVocation === v.label ? '' : v.label); setPage(1); }}
               className={`flex h-7 items-center gap-1 rounded-full px-3 text-[11px] font-medium transition-colors ${
-                selectedVocation === v
+                selectedVocation === v.label
                   ? 'text-white shadow-sm'
                   : 'bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary'
               }`}
-              style={selectedVocation === v ? { backgroundColor: getVocationColor(v) } : undefined}
+              style={selectedVocation === v.label ? { backgroundColor: v.color } : undefined}
             >
               <Shield className="h-3 w-3" />
-              {v}
+              {v.label}
             </button>
           ))}
+          <div className="h-5 w-px bg-border/50 mx-0.5 self-center" />
+          <button
+            onClick={() => { setShowTopOnly(!showTopOnly); setPage(1); }}
+            className={`flex h-7 items-center gap-1 rounded-full px-3 text-[11px] font-medium transition-colors ${
+              showTopOnly
+                ? 'text-white shadow-sm'
+                : 'bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary'
+            }`}
+            style={showTopOnly ? { backgroundColor: '#f59e0b' } : undefined}
+          >
+            <Crown className="h-3 w-3" />
+            Top Auctions
+          </button>
         </div>
       </div>
 

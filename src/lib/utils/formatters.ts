@@ -148,6 +148,8 @@ export function getVocationColor(vocation: string): string {
     'Master Sorcerer': '#7c3aed',
     'Druid': '#10b981',
     'Elder Druid': '#059669',
+    'Monk': '#f97316',
+    'Exalted Monk': '#ea580c',
     'None': '#6b7280',
   };
 

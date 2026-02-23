@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { BarChart3, TrendingUp, TrendingDown, Minus, Globe } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
 import { formatNumber, getVocationColor } from '@/lib/utils/formatters';
 
 // --- Vocation grouping: base + promoted → single group ---
@@ -213,16 +214,17 @@ export default function MarketClient() {
       {/* World Filter */}
       <div className="flex items-center gap-3">
         <Globe className="h-5 w-5 text-muted-foreground" />
-        <select
-          value={selectedWorld}
-          onChange={(e) => setSelectedWorld(e.target.value)}
-          className="rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <option value="all">All Worlds</option>
-          {worlds.map((w) => (
-            <option key={w} value={w}>{w}</option>
-          ))}
-        </select>
+        <Select value={selectedWorld} onValueChange={setSelectedWorld}>
+          <SelectTrigger className="h-9 w-[180px] text-sm">
+            <SelectValue placeholder="All Worlds" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Worlds</SelectItem>
+            {worlds.map((w) => (
+              <SelectItem key={w} value={w}>{w}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         {selectedWorld !== 'all' && (
           <button
             onClick={() => setSelectedWorld('all')}

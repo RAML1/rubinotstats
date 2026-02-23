@@ -183,7 +183,7 @@ function StyledSelect({
         <select
           value={value}
           onChange={onChange}
-          className="w-full appearance-none px-4 py-3 bg-background/60 border border-border/40 rounded-lg text-base font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/40 cursor-pointer"
+          className="w-full appearance-none px-4 py-3 bg-[#252333] border border-[#4a4857] rounded-lg text-base font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/40 cursor-pointer"
         >
           {children}
         </select>
