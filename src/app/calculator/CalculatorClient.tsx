@@ -365,7 +365,7 @@ export default function CalculatorClient() {
                 >
                   {WEAPON_TYPES.map((w, i) => (
                     <option key={w.name} value={i}>
-                      {w.name} ({formatNumber(w.charges)} ch · {w.rcCost} RC)
+                      {w.name} ({formatNumber(w.charges)} ch{w.rcCost > 0 ? ` · ${w.rcCost} RC` : ' · Free'})
                     </option>
                   ))}
                 </StyledSelect>

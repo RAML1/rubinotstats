@@ -1237,30 +1237,6 @@ function CurrentAuctionCard({
           </div>
         )}
 
-        {/* Fair Price + Transfer Fee Calculator — side by side */}
-        <div className="px-4 pb-3 flex gap-2">
-          {valuation && valuation.sampleSize >= 3 && (
-            <div
-              className="flex items-center gap-1.5 rounded-md px-2.5 py-2 flex-1 min-w-0"
-              style={{ backgroundColor: '#1a2a1a', border: '1px solid #2a4a2a' }}
-              title={`Range: ${formatNumber(valuation.minPrice)} – ${formatNumber(valuation.maxPrice)} TC (${valuation.sampleSize} sales)`}
-            >
-              <span className="text-[9px] font-semibold uppercase tracking-wider shrink-0" style={{ color: '#5a8a5a' }}>Fair</span>
-              <span className="text-xs font-bold" style={{ color: '#4ade80' }}>~{formatNumber(valuation.estimatedValue)} TC</span>
-            </div>
-          )}
-          {auction.world && auction.level && (
-            <div className="flex-1 min-w-0">
-              <TransferSimulator
-                sourceWorld={auction.world}
-                characterLevel={auction.level}
-                bidPrice={auction.currentBid ?? auction.minimumBid}
-                worldTypes={worldTypes}
-              />
-            </div>
-          )}
-        </div>
-
         {/* Auction timer bar */}
         <div className="px-4 pb-3">
           <div className="flex items-center justify-between rounded-md px-3 py-2.5" style={{ backgroundColor: '#252333', border: '1px solid #3a3848' }}>
@@ -1292,6 +1268,32 @@ function CurrentAuctionCard({
             )}
           </div>
         </div>
+
+        {/* Fair Price */}
+        {valuation && valuation.sampleSize >= 3 && (
+          <div className="px-4 pb-3">
+            <div
+              className="flex items-center gap-1.5 rounded-md px-2.5 py-2"
+              style={{ backgroundColor: '#1a2a1a', border: '1px solid #2a4a2a' }}
+              title={`Range: ${formatNumber(valuation.minPrice)} – ${formatNumber(valuation.maxPrice)} TC (${valuation.sampleSize} sales)`}
+            >
+              <span className="text-[9px] font-semibold uppercase tracking-wider shrink-0" style={{ color: '#5a8a5a' }}>Fair</span>
+              <span className="text-xs font-bold" style={{ color: '#4ade80' }}>~{formatNumber(valuation.estimatedValue)} TC</span>
+            </div>
+          </div>
+        )}
+
+        {/* World Transfer Fee Calculator */}
+        {auction.world && auction.level && (
+          <div className="px-4 pb-3">
+            <TransferSimulator
+              sourceWorld={auction.world}
+              characterLevel={auction.level}
+              bidPrice={auction.currentBid ?? auction.minimumBid}
+              worldTypes={worldTypes}
+            />
+          </div>
+        )}
 
         {/* Display Items */}
         <div className="px-4 pb-3">
