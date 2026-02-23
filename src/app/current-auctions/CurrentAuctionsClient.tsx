@@ -111,6 +111,7 @@ type SerializedCurrentAuction = {
   outfitImageUrl: string | null;
   gems: string | null;
   weeklyTaskExpansion: boolean | null;
+  battlePassDeluxe: boolean | null;
   displayItems: string | null;
   outfitNames: string | null;
   mountNames: string | null;
@@ -1322,6 +1323,7 @@ function CurrentAuctionCard({
             <BoolCell icon={Gem} iconColor="#a78bfa" label="Charm Exp" has={!!auction.charmExpansion} />
             <BoolCell icon={Target} iconColor="#60a5fa" label="Extra Prey Slot" has={(auction.preySlots || 0) >= 3} />
             <BoolCell icon={CalendarCheck} iconColor="#10b981" label="Weekly Task" has={!!auction.weeklyTaskExpansion} />
+            <BoolCell icon={Trophy} iconColor="#f59e0b" label="Battle Pass" has={!!auction.battlePassDeluxe} />
             <StatCell icon={Users} iconColor="#4ade80" label="Hirelings" value={String(auction.hirelings || 0)} />
             <GemsCell gems={auction.gems} />
           </div>

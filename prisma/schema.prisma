@@ -147,6 +147,7 @@ model Auction {
   outfitImageUrl   String?  @map("outfit_image_url") @db.VarChar(500)
   gems             String?  @db.Text
   weeklyTaskExpansion  Boolean?  @map("weekly_task_expansion")
+  battlePassDeluxe Boolean?  @map("battle_pass_deluxe")
   displayItems     String?  @map("display_items") @db.Text
   outfitNames      String?  @map("outfit_names") @db.Text
   mountNames       String?  @map("mount_names") @db.Text
@@ -333,6 +334,8 @@ model CurrentAuction {
   gems             String?  @db.Text
   // Weekly task expansion
   weeklyTaskExpansion  Boolean?  @map("weekly_task_expansion")
+  // Battle Pass Deluxe
+  battlePassDeluxe Boolean?  @map("battle_pass_deluxe")
   // Display items (JSON array of item image URLs)
   displayItems     String?  @map("display_items") @db.Text
   // Outfit and mount names (JSON arrays of strings)

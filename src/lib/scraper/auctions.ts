@@ -83,6 +83,8 @@ export interface ScrapedAuction {
   gems: string | null;
   // Weekly task expansion
   weeklyTaskExpansion: boolean | null;
+  // Battle Pass Deluxe
+  battlePassDeluxe: boolean | null;
   // Display items (JSON string of image URLs)
   displayItems: string | null;
   // Outfit and mount names (JSON strings)
@@ -277,6 +279,8 @@ interface DetailPageData {
   gems: string | null;
   // Weekly task expansion
   weeklyTaskExpansion: boolean | null;
+  // Battle Pass Deluxe
+  battlePassDeluxe: boolean | null;
   // Display items (JSON string)
   displayItems: string | null;
   // Outfit and mount names (JSON strings)
@@ -370,6 +374,7 @@ function parseDetailPage(html: string): DetailPageData {
     'hireling jobs:': { key: 'hirelingJobs', type: 'number' },
     'daily reward streak:': { key: 'dailyRewardStreak', type: 'number' },
     'permanent weekly task expansion:': { key: 'weeklyTaskExpansion', type: 'boolean' },
+    'battle pass deluxe:': { key: 'battlePassDeluxe', type: 'boolean' },
   };
 
   $('span.LabelV').each((_i, el) => {
@@ -400,9 +405,13 @@ function parseDetailPage(html: string): DetailPageData {
     if (resultsMatch) {
       data.storeItemsCount = parseInt(resultsMatch[1], 10);
     }
-    // Check for Loot Pouch in the item list
-    const storeText = storeBlock.text().toLowerCase();
-    data.hasLootPouch = storeText.includes('loot pouch');
+    // Check for Loot Pouch in item title attributes (names are in title, not text)
+    let hasLootPouch = false;
+    storeBlock.find('.CVIcon').each((_j, iconEl) => {
+      const title = $(iconEl).attr('title') || '';
+      if (title.toLowerCase().includes('loot pouch')) hasLootPouch = true;
+    });
+    data.hasLootPouch = hasLootPouch;
   }
 
   // Completed Quest Lines — collect all quest names from the section
