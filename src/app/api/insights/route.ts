@@ -279,47 +279,12 @@ export async function GET() {
       ORDER BY sort_order
     `,
 
-    // 10. Top EXP gainers (last 7 days from highscore_entries)
+    // 10. Top EXP gainers (last 7 days — from materialized view)
     prisma.$queryRaw<
       { character_name: string; world: string; vocation: string; current_level: number; exp_gained: bigint; levels_gained: number }[]
     >`
-      WITH daily AS (
-        SELECT
-          character_name, world, captured_date, level, score, vocation,
-          LAG(level) OVER (PARTITION BY character_name, world ORDER BY captured_date) AS prev_level,
-          LAG(score) OVER (PARTITION BY character_name, world ORDER BY captured_date) AS prev_score
-        FROM highscore_entries
-        WHERE category = 'Experience Points'
-          AND captured_date >= CURRENT_DATE - INTERVAL '7 days'
-          AND level IS NOT NULL
-      ),
-      gains AS (
-        SELECT
-          character_name, world, vocation, level, score, captured_date,
-          CASE
-            WHEN prev_level IS NOT NULL AND level - prev_level > 0
-              AND (prev_score IS NOT NULL AND score - prev_score > 0)
-              AND level - prev_level <= GREATEST(50, prev_level * 0.15)
-            THEN level - prev_level
-            ELSE 0
-          END AS safe_level_gain,
-          CASE
-            WHEN prev_score IS NOT NULL AND score > prev_score
-            THEN score - prev_score
-            ELSE 0
-          END AS daily_exp_gain
-        FROM daily
-      )
-      SELECT
-        character_name,
-        (array_agg(world ORDER BY captured_date DESC))[1] AS world,
-        (array_agg(vocation ORDER BY captured_date DESC))[1] AS vocation,
-        (array_agg(level ORDER BY captured_date DESC))[1]::int AS current_level,
-        SUM(daily_exp_gain) AS exp_gained,
-        SUM(safe_level_gain)::int AS levels_gained
-      FROM gains
-      GROUP BY character_name
-      HAVING SUM(daily_exp_gain) > 0
+      SELECT character_name, world, vocation, current_level, exp_gained, levels_gained
+      FROM top_exp_gainers_mv
       ORDER BY exp_gained DESC
       LIMIT 15
     `,

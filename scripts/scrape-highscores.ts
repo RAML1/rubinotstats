@@ -262,6 +262,19 @@ RubinOT Experience Highscores
       if (fs.existsSync(progressFile)) fs.unlinkSync(progressFile);
     }
 
+    // Refresh materialized views used by progression + premium pages
+    if (!skipDb) {
+      console.log('\nRefreshing materialized views...');
+      try {
+        await prisma.$executeRawUnsafe('REFRESH MATERIALIZED VIEW CONCURRENTLY world_leaders_mv');
+        console.log('✓ world_leaders_mv refreshed');
+        await prisma.$executeRawUnsafe('REFRESH MATERIALIZED VIEW CONCURRENTLY top_exp_gainers_mv');
+        console.log('✓ top_exp_gainers_mv refreshed');
+      } catch (e) {
+        console.error('Failed to refresh materialized views:', e);
+      }
+    }
+
     printSummary(entries);
   } finally {
     await prisma.$disconnect();
