@@ -364,10 +364,12 @@ export async function GET() {
   }
   bestDeals.sort((a, b) => b.discount - a.discount);
 
-  // Serialize BigInt values from topExpGainers
+  // Serialize BigInt/Decimal values from topExpGainers
   const serializedExpGainers = topExpGainers.map((g) => ({
     ...g,
-    exp_gained: Number(g.exp_gained),
+    exp_gained: typeof g.exp_gained === 'bigint' ? Number(g.exp_gained) :
+      (g.exp_gained && typeof (g.exp_gained as any).toNumber === 'function') ? (g.exp_gained as any).toNumber() :
+      Number(String(g.exp_gained)),
   }));
 
   return NextResponse.json({

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { unstable_cache } from 'next/cache';
 import prisma from '@/lib/db/prisma';
 
-// Helper to convert BigInt to Number for JSON serialization
+// Helper to convert BigInt and Prisma Decimal to Number for JSON serialization
 function serializeBigInt<T>(obj: T): T {
   if (obj === null || obj === undefined) return obj;
 
@@ -13,6 +13,17 @@ function serializeBigInt<T>(obj: T): T {
   // Preserve Date objects (they are typeof 'object' but should not be iterated)
   if (obj instanceof Date) {
     return obj as T;
+  }
+
+  // Handle Prisma Decimal objects (have s, e, d properties or a toNumber method)
+  if (typeof obj === 'object' && !Array.isArray(obj)) {
+    const o = obj as any;
+    if (typeof o.toNumber === 'function') {
+      return o.toNumber() as T;
+    }
+    if ('s' in o && 'e' in o && 'd' in o && Array.isArray(o.d)) {
+      return Number(o.toString()) as T;
+    }
   }
 
   if (Array.isArray(obj)) {
