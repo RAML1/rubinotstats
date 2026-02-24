@@ -161,6 +161,7 @@ async function upsertAuction(a: ScrapedAuction): Promise<void> {
     outfitImageUrl: a.outfitImageUrl,
     gems: a.gems,
     weeklyTaskExpansion: a.weeklyTaskExpansion,
+    battlePassDeluxe: a.battlePassDeluxe,
     displayItems: a.displayItems,
     outfitNames: a.outfitNames,
     mountNames: a.mountNames,

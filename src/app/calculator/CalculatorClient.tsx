@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useMemo, useRef, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import { Card } from '@/components/ui/card';
-import { Target, Swords, Clock, Zap, Shield, Crown, Coins, Info, ChevronDown } from 'lucide-react';
+import { Target, Swords, Clock, Zap, Shield, Crown, Coins, ChevronDown } from 'lucide-react';
 import { formatNumber } from '@/lib/utils/formatters';
 import {
   calculateWeaponsNeeded,
@@ -23,8 +23,6 @@ import {
 
 type Mode = 'target' | 'weapons';
 
-const LOYALTY_OPTIONS = Array.from({ length: 11 }, (_, i) => i * 5);
-
 const VOCATION_COLORS: Record<Vocation, string> = {
   knight: 'hsl(0 84% 60%)',
   paladin: 'hsl(38 92% 50%)',
@@ -40,96 +38,6 @@ const VOCATION_BG: Record<Vocation, string> = {
   druid: 'bg-emerald-500/10 border-emerald-500/20',
   monk: 'bg-orange-500/10 border-orange-500/20',
 };
-
-// --- Draggable Percentage Slider ---
-
-function PercentSlider({
-  value,
-  onChange,
-  vocation,
-}: {
-  value: number;
-  onChange: (val: number) => void;
-  vocation: Vocation;
-}) {
-  const trackRef = useRef<HTMLDivElement>(null);
-  const dragging = useRef(false);
-
-  const updateFromPosition = useCallback(
-    (clientX: number) => {
-      if (!trackRef.current) return;
-      const rect = trackRef.current.getBoundingClientRect();
-      const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
-      const pct = Math.round((x / rect.width) * 10000) / 100;
-      onChange(Math.max(0.01, Math.min(100, pct)));
-    },
-    [onChange],
-  );
-
-  const onPointerDown = useCallback(
-    (e: React.PointerEvent) => {
-      dragging.current = true;
-      (e.target as HTMLElement).setPointerCapture(e.pointerId);
-      updateFromPosition(e.clientX);
-    },
-    [updateFromPosition],
-  );
-
-  const onPointerMove = useCallback(
-    (e: React.PointerEvent) => {
-      if (!dragging.current) return;
-      updateFromPosition(e.clientX);
-    },
-    [updateFromPosition],
-  );
-
-  const onPointerUp = useCallback(() => {
-    dragging.current = false;
-  }, []);
-
-  const fillPct = Math.min(100, Math.max(0, value));
-  const color = VOCATION_COLORS[vocation];
-
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <label className="text-sm font-semibold text-foreground/80">% to Skill Up</label>
-        <span
-          className="text-base font-bold tabular-nums"
-          style={{ color }}
-        >
-          {value.toFixed(2)}%
-        </span>
-      </div>
-      <div
-        ref={trackRef}
-        className="relative h-8 cursor-pointer select-none touch-none"
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-      >
-        {/* Track background */}
-        <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 h-2.5 rounded-full bg-background/80 border border-border/40" />
-        {/* Filled portion */}
-        <div
-          className="absolute top-1/2 -translate-y-1/2 left-0 h-2.5 rounded-full"
-          style={{ width: `${fillPct}%`, backgroundColor: color, opacity: 0.5 }}
-        />
-        {/* Thumb */}
-        <div
-          className="absolute top-1/2 -translate-y-1/2 w-5 h-5 rounded-full border-2 border-white/90 shadow-lg"
-          style={{ left: `calc(${fillPct}% - 10px)`, backgroundColor: color }}
-        />
-        {/* Tick marks */}
-        <div className="absolute top-full mt-1 left-0 right-0 flex justify-between px-1">
-          {[0, 25, 50, 75, 100].map((tick) => (
-            <span key={tick} className="text-[9px] text-muted-foreground/40 tabular-nums">{tick}</span>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // --- Vocation Speed Indicator ---
 
@@ -202,6 +110,7 @@ function StyledInput({
   placeholder,
   min,
   max,
+  step,
 }: {
   label: string;
   value: string;
@@ -209,6 +118,7 @@ function StyledInput({
   placeholder?: string;
   min?: number;
   max?: number;
+  step?: string;
 }) {
   return (
     <div className="space-y-1.5">
@@ -217,6 +127,7 @@ function StyledInput({
         type="number"
         min={min}
         max={max}
+        step={step}
         value={value}
         onChange={onChange}
         placeholder={placeholder}
@@ -226,24 +137,39 @@ function StyledInput({
   );
 }
 
+// --- Time Formatter ---
+
+function formatTime(seconds: number): string {
+  if (seconds < 60) return `${Math.round(seconds)} seconds`;
+  if (seconds < 3600) return `${Math.round(seconds / 60)} minutes`;
+  if (seconds < 86400) {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.round((seconds % 3600) / 60);
+    return m > 0 ? `${h}h ${m}m` : `${h} hours`;
+  }
+  const d = Math.floor(seconds / 86400);
+  const h = Math.round((seconds % 86400) / 3600);
+  return h > 0 ? `${d} days ${h}h` : `${d} days`;
+}
+
 export default function CalculatorClient() {
   const [mode, setMode] = useState<Mode>('target');
   const [vocation, setVocation] = useState<Vocation>('knight');
   const [category, setCategory] = useState<SkillCategory>('sword');
   const [currentSkill, setCurrentSkill] = useState<string>('10');
-  const [percentToSkillUp, setPercentToSkillUp] = useState<number>(100);
-  const [loyaltyPercent, setLoyaltyPercent] = useState<number>(0);
-  const [doubleEvent, setDoubleEvent] = useState(false);
+  const [percentToGo, setPercentToGo] = useState<string>('100');
   const [privateDummy, setPrivateDummy] = useState(false);
+  const [doubleEvent, setDoubleEvent] = useState(false);
   const [vip, setVip] = useState(false);
   const [targetSkill, setTargetSkill] = useState<string>('100');
   const [weaponType, setWeaponType] = useState<number>(0);
   const [weaponCount, setWeaponCount] = useState<string>('1');
 
-  const modifiers: CalculatorModifiers = { loyaltyPercent, doubleEvent, privateDummy, vip };
+  const modifiers: CalculatorModifiers = { privateDummy, doubleEvent, vip };
   const current = parseInt(currentSkill, 10) || 0;
   const target = parseInt(targetSkill, 10) || 0;
   const count = parseInt(weaponCount, 10) || 0;
+  const pctToGo = Math.max(0, Math.min(100, parseFloat(percentToGo) || 0));
 
   const handleVocationChange = (v: Vocation) => {
     setVocation(v);
@@ -255,18 +181,15 @@ export default function CalculatorClient() {
     }
   };
 
-  // Convert "% to skill up" (what Tibia shows) to "% progress already done"
-  const percentToNext = 100 - percentToSkillUp;
-
   const weaponsResult: WeaponsNeededResult | null = useMemo(() => {
     if (mode !== 'target' || current <= 0 || target <= current) return null;
-    return calculateWeaponsNeeded(category, vocation, current, percentToNext, target, modifiers);
-  }, [mode, category, vocation, current, percentToNext, target, modifiers.loyaltyPercent, modifiers.doubleEvent, modifiers.privateDummy, modifiers.vip]);
+    return calculateWeaponsNeeded(category, vocation, current, pctToGo, target, modifiers);
+  }, [mode, category, vocation, current, pctToGo, target, modifiers.doubleEvent, modifiers.privateDummy, modifiers.vip]);
 
   const skillResult: SkillGainResult | null = useMemo(() => {
     if (mode !== 'weapons' || current <= 0 || count <= 0) return null;
-    return calculateSkillGain(category, vocation, weaponType, count, current, percentToNext, modifiers);
-  }, [mode, category, vocation, weaponType, count, current, percentToNext, modifiers.loyaltyPercent, modifiers.doubleEvent, modifiers.privateDummy, modifiers.vip]);
+    return calculateSkillGain(category, vocation, weaponType, count, current, pctToGo, modifiers);
+  }, [mode, category, vocation, weaponType, count, current, pctToGo, modifiers.doubleEvent, modifiers.privateDummy, modifiers.vip]);
 
   const multiplierTable = category === 'magic' ? MAGIC_MULTIPLIERS : SKILL_MULTIPLIERS;
   const vocColor = VOCATION_COLORS[vocation];
@@ -336,8 +259,8 @@ export default function CalculatorClient() {
 
             <VocationSpeedHint vocation={vocation} category={category} />
 
-            {/* Current Skill + Percent Slider */}
-            <div className="space-y-5">
+            {/* Current Skill + % to go */}
+            <div className="grid grid-cols-2 gap-4">
               <StyledInput
                 label="Current Skill Level"
                 value={currentSkill}
@@ -346,7 +269,15 @@ export default function CalculatorClient() {
                 min={0}
                 max={300}
               />
-              <PercentSlider value={percentToSkillUp} onChange={setPercentToSkillUp} vocation={vocation} />
+              <StyledInput
+                label="% to Go"
+                value={percentToGo}
+                onChange={(e) => setPercentToGo(e.target.value)}
+                placeholder="100"
+                min={0}
+                max={100}
+                step="0.01"
+              />
             </div>
 
             {/* Mode-specific inputs */}
@@ -388,24 +319,14 @@ export default function CalculatorClient() {
             {/* Modifiers */}
             <div className="space-y-4">
               <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground/60">
-                Modifiers
+                Time Modifiers
               </h3>
-
-              <StyledSelect
-                label="Loyalty Bonus"
-                value={loyaltyPercent}
-                onChange={(e) => setLoyaltyPercent(Number(e.target.value))}
-              >
-                {LOYALTY_OPTIONS.map((v) => (
-                  <option key={v} value={v}>{v}%</option>
-                ))}
-              </StyledSelect>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {[
-                  { checked: doubleEvent, set: setDoubleEvent, icon: <Zap className="w-4 h-4 text-yellow-400" />, label: 'Double Event', desc: '2x skill gain' },
-                  { checked: privateDummy, set: setPrivateDummy, icon: <Shield className="w-4 h-4 text-blue-400" />, label: 'Private Dummy', desc: '+10% effectiveness' },
-                  { checked: vip, set: setVip, icon: <Crown className="w-4 h-4 text-amber-400" />, label: 'VIP Account', desc: '+10% speed' },
+                  { checked: privateDummy, set: setPrivateDummy, icon: <Shield className="w-4 h-4 text-blue-400" />, label: 'Private Dummy', desc: '10% faster training' },
+                  { checked: doubleEvent, set: setDoubleEvent, icon: <Zap className="w-4 h-4 text-yellow-400" />, label: 'Double Event', desc: '2x faster training' },
+                  { checked: vip, set: setVip, icon: <Crown className="w-4 h-4 text-amber-400" />, label: 'VIP Account', desc: '10% faster training' },
                 ].map((mod) => (
                   <label
                     key={mod.label}
@@ -493,11 +414,7 @@ export default function CalculatorClient() {
                   <div>
                     <div className="text-xs text-muted-foreground/50 uppercase tracking-wide font-semibold">Estimated Time</div>
                     <div className="text-lg font-bold">
-                      {weaponsResult.estimatedHours < 1
-                        ? `${Math.round(weaponsResult.estimatedHours * 60)} minutes`
-                        : weaponsResult.estimatedHours < 24
-                          ? `${Math.round(weaponsResult.estimatedHours)} hours`
-                          : `${Math.floor(weaponsResult.estimatedHours / 24)} days ${Math.round(weaponsResult.estimatedHours % 24)}h`}
+                      {formatTime(weaponsResult.estimatedSeconds)}
                     </div>
                   </div>
                 </div>
@@ -506,7 +423,7 @@ export default function CalculatorClient() {
                 <div className="border-t border-border/15 pt-4 space-y-1.5">
                   {[
                     ['Vocation', VOCATIONS.find(v => v.value === vocation)?.label],
-                    ['From', `Skill ${current} (${percentToSkillUp.toFixed(2)}% to go)`],
+                    ['From', `Skill ${current} (${pctToGo.toFixed(2)}% to go)`],
                     ['To', `Skill ${target}`],
                     ['Server multiplier', `${getMultiplierForDisplay(current, category)}x`],
                     ['Vocation rate', `b=${getVocationConstant(vocation, category)}`],
@@ -534,7 +451,7 @@ export default function CalculatorClient() {
                       {skillResult.finalSkill}
                     </span>
                     <span className="text-xl font-semibold text-muted-foreground">
-                      ({skillResult.finalPercent.toFixed(2)}%)
+                      ({skillResult.finalPercent.toFixed(2)}% to go)
                     </span>
                   </div>
                 </div>

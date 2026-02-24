@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { itemName, tier, price, quantity, characterName, world, contactInfo, description } = body;
+    const { itemName, tier, price, quantity, characterName, world, contactInfo, description, creatorToken } = body;
 
     if (!itemName || typeof itemName !== 'string' || itemName.trim().length < 2) {
       return NextResponse.json({ success: false, error: 'Item name must be at least 2 characters' }, { status: 400 });
@@ -70,9 +70,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'Tier must be between 0 and 10' }, { status: 400 });
     }
 
-    // Listings expire after 7 days
+    // Listings expire after 30 days
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
+    expiresAt.setDate(expiresAt.getDate() + 30);
 
     const listing = await prisma.itemListing.create({
       data: {
@@ -84,6 +84,7 @@ export async function POST(request: Request) {
         world,
         contactInfo: contactInfo?.trim() || null,
         description: description?.trim() || null,
+        creatorToken: creatorToken?.trim() || null,
         expiresAt,
       },
     });

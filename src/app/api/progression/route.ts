@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { unstable_cache } from 'next/cache';
 import prisma from '@/lib/db/prisma';
 
 // Helper to convert BigInt to Number for JSON serialization
@@ -298,35 +299,66 @@ export async function GET(request: NextRequest) {
     // World leaders mode: top EXP gainer per world in last 30 days
     const mode = searchParams.get('mode');
     if (mode === 'worldLeaders') {
-      const leaders: any[] = await prisma.$queryRaw`
-        WITH date_range AS (
-          SELECT character_name, world, vocation, level, score, captured_date,
-            ROW_NUMBER() OVER (PARTITION BY character_name, world ORDER BY captured_date ASC) as rn_first,
-            ROW_NUMBER() OVER (PARTITION BY character_name, world ORDER BY captured_date DESC) as rn_last
-          FROM highscore_entries
-          WHERE category = 'Experience Points'
-            AND captured_date >= CURRENT_DATE - INTERVAL '30 days'
-        ),
-        gains AS (
-          SELECT f.character_name, f.world, f.vocation,
-            l.level as current_level, f.level as start_level,
-            (l.score - f.score) as exp_gained,
-            (l.level - f.level) as levels_gained
-          FROM date_range f
-          JOIN date_range l ON f.character_name = l.character_name AND f.world = l.world
-          WHERE f.rn_first = 1 AND l.rn_last = 1 AND l.score > f.score
-        ),
-        ranked AS (
-          SELECT *, ROW_NUMBER() OVER (PARTITION BY world ORDER BY exp_gained DESC) as rank
-          FROM gains
-        )
-        SELECT world, character_name, vocation, current_level, start_level, exp_gained, levels_gained
-        FROM ranked WHERE rank = 1 ORDER BY exp_gained DESC
-      `;
+      const getWorldLeaders = unstable_cache(
+        async () => {
+          const leaders: any[] = await prisma.$queryRaw`
+            WITH daily AS (
+              SELECT
+                character_name, world, captured_date, level, score, vocation,
+                LAG(level) OVER (PARTITION BY character_name, world ORDER BY captured_date) AS prev_level,
+                LAG(score) OVER (PARTITION BY character_name, world ORDER BY captured_date) AS prev_score
+              FROM highscore_entries
+              WHERE category = 'Experience Points'
+                AND captured_date >= CURRENT_DATE - INTERVAL '30 days'
+                AND level IS NOT NULL
+            ),
+            gains AS (
+              SELECT
+                character_name, world, vocation, level, score, captured_date,
+                CASE
+                  WHEN prev_level IS NOT NULL AND level - prev_level > 0
+                    AND (prev_score IS NOT NULL AND score - prev_score > 0)
+                    AND level - prev_level <= GREATEST(50, prev_level * 0.15)
+                  THEN level - prev_level
+                  ELSE 0
+                END AS safe_level_gain,
+                CASE
+                  WHEN prev_score IS NOT NULL AND score > prev_score
+                  THEN score - prev_score
+                  ELSE 0
+                END AS daily_exp_gain
+              FROM daily
+            ),
+            aggregated AS (
+              SELECT
+                character_name, world,
+                (array_agg(vocation ORDER BY captured_date DESC))[1] AS vocation,
+                (array_agg(level ORDER BY captured_date DESC))[1] AS current_level,
+                (array_agg(level ORDER BY captured_date ASC))[1] AS start_level,
+                SUM(daily_exp_gain) AS exp_gained,
+                SUM(safe_level_gain) AS levels_gained
+              FROM gains
+              GROUP BY character_name, world
+              HAVING SUM(daily_exp_gain) > 0
+            )
+            SELECT DISTINCT ON (world)
+              world, character_name, vocation, current_level, start_level, exp_gained, levels_gained
+            FROM aggregated
+            ORDER BY world, exp_gained DESC
+          `;
+          return serializeBigInt(leaders);
+        },
+        ['world-leaders'],
+        { revalidate: 600 } // Cache for 10 minutes
+      );
+
+      const leaders = await getWorldLeaders();
+      // Sort by exp_gained descending (DISTINCT ON returns sorted by world)
+      leaders.sort((a: any, b: any) => Number(b.exp_gained) - Number(a.exp_gained));
 
       return NextResponse.json({
         success: true,
-        data: serializeBigInt(leaders),
+        data: leaders,
       });
     }
 

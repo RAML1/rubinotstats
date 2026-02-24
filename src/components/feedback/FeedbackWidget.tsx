@@ -61,7 +61,7 @@ export function FeedbackWidget() {
       {/* Floating Button */}
       <button
         onClick={() => { setOpen(true); setSuccess(false); }}
-        className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-full bg-primary px-4 py-3 text-sm font-medium text-white shadow-xl shadow-primary/25 transition-all hover:scale-105 hover:shadow-2xl hover:shadow-primary/30 active:scale-95"
+        className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-full bg-primary px-4 py-3 text-sm font-medium text-white shadow-xl shadow-primary/25 ring-2 ring-white/30 ring-offset-2 ring-offset-background transition-all hover:scale-105 hover:shadow-2xl hover:shadow-primary/30 hover:ring-white/50 active:scale-95"
         aria-label="Send feedback"
       >
         <MessageSquarePlus className="h-5 w-5" />

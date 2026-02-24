@@ -10,6 +10,107 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ── Auth (NextAuth.js v4) ──────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime? @map("email_verified")
+  image         String?
+  // Premium
+  premiumTier   String    @default("free") @map("premium_tier") @db.VarChar(20) // free, legacy, subscriber
+  premiumSince  DateTime? @map("premium_since")
+  premiumUntil  DateTime? @map("premium_until") // null for legacy (lifetime)
+  isAdmin       Boolean   @default(false) @map("is_admin")
+  // Timestamps
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  accounts      Account[]
+  sessions      Session[]
+  premiumRequests PremiumRequest[]
+  featuredAuctions FeaturedAuction[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String  @map("user_id")
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id")
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ── Premium Requests ───────────────────────────────────────────────────
+
+model PremiumRequest {
+  id              Int       @id @default(autoincrement())
+  userId          String    @map("user_id")
+  characterName   String    @map("character_name") @db.VarChar(255)
+  requestedTier   String    @map("requested_tier") @db.VarChar(20) // legacy, subscriber
+  rcAmount        Int?      @map("rc_amount")
+  status          String    @default("pending") @db.VarChar(20) // pending, approved, rejected
+  adminNote       String?   @map("admin_note") @db.Text
+  reviewedAt      DateTime? @map("reviewed_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@map("premium_requests")
+}
+
+// ── Featured Auctions ──────────────────────────────────────────────────
+
+model FeaturedAuction {
+  id              Int       @id @default(autoincrement())
+  userId          String    @map("user_id")
+  auctionId       String    @map("auction_id") @db.VarChar(100)
+  startsAt        DateTime  @default(now()) @map("starts_at")
+  expiresAt       DateTime  @map("expires_at")
+  isActive        Boolean   @default(true) @map("is_active")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isActive])
+  @@index([expiresAt])
+  @@map("featured_auctions")
+}
+
+// ── Game Data ──────────────────────────────────────────────────────────
+
 // Worlds reference table
 model World {
   id         Int         @id @default(autoincrement())
@@ -210,12 +311,15 @@ model AnalyticsSession {
   visitorId  String           @map("visitor_id") @db.Uuid
   userAgent  String?          @map("user_agent") @db.VarChar(500)
   referrer   String?          @db.VarChar(500)
+  country    String?          @db.VarChar(10)
+  language   String?          @db.VarChar(50)
   startedAt  DateTime         @default(now()) @map("started_at")
   lastSeenAt DateTime         @default(now()) @map("last_seen_at")
   events     AnalyticsEvent[]
 
   @@index([visitorId])
   @@index([startedAt])
+  @@index([country])
   @@map("analytics_sessions")
 }
 
@@ -239,6 +343,36 @@ model AnalyticsEvent {
   @@index([createdAt])
   @@index([pagePath])
   @@map("analytics_events")
+}
+
+// Feature Requests — community suggestions with upvoting
+model FeatureRequest {
+  id          Int                    @id @default(autoincrement())
+  title       String                 @db.VarChar(200)
+  description String?                @db.Text
+  authorName  String?                @map("author_name") @db.VarChar(100)
+  status      String                 @default("open") @db.VarChar(20) // open, planned, completed, declined
+  voteCount   Int                    @default(0) @map("vote_count")
+  createdAt   DateTime               @default(now()) @map("created_at")
+  updatedAt   DateTime               @default(now()) @updatedAt @map("updated_at")
+  votes       FeatureRequestVote[]
+
+  @@index([status])
+  @@index([voteCount])
+  @@index([createdAt])
+  @@map("feature_requests")
+}
+
+model FeatureRequestVote {
+  id               Int            @id @default(autoincrement())
+  featureRequestId Int            @map("feature_request_id")
+  voterToken       String         @map("voter_token") @db.VarChar(64)
+  createdAt        DateTime       @default(now()) @map("created_at")
+  featureRequest   FeatureRequest @relation(fields: [featureRequestId], references: [id], onDelete: Cascade)
+
+  @@unique([featureRequestId, voterToken])
+  @@index([voterToken])
+  @@map("feature_request_votes")
 }
 
 // User watchlist (for Phase 4)
@@ -382,19 +516,21 @@ model Feedback {
 
 // Player-to-player item marketplace listings
 model ItemListing {
-  id            Int      @id @default(autoincrement())
-  itemName      String   @map("item_name") @db.VarChar(255)
+  id            Int       @id @default(autoincrement())
+  itemName      String    @map("item_name") @db.VarChar(255)
   tier          Int?
   price         Int
-  quantity      Int      @default(1)
-  characterName String   @map("character_name") @db.VarChar(255)
-  world         String   @db.VarChar(100)
-  contactInfo   String?  @map("contact_info") @db.VarChar(500)
-  description   String?  @db.Text
-  isActive      Boolean  @default(true) @map("is_active")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at")
-  expiresAt     DateTime @map("expires_at")
+  quantity      Int       @default(1)
+  characterName String    @map("character_name") @db.VarChar(255)
+  world         String    @db.VarChar(100)
+  contactInfo   String?   @map("contact_info") @db.VarChar(500)
+  description   String?   @db.Text
+  isActive      Boolean   @default(true) @map("is_active")
+  creatorToken  String?   @map("creator_token") @db.VarChar(64)
+  soldAt        DateTime? @map("sold_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at")
+  expiresAt     DateTime  @map("expires_at")
 
   @@index([itemName])
   @@index([world])

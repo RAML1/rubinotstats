@@ -12,16 +12,21 @@ import {
   Zap,
   Megaphone,
   Heart,
+  Lightbulb,
+  Crown,
 } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
 import { MobileNav } from "./MobileNav";
+import { UserMenu } from "./UserMenu";
 
 const navItems = [
   { href: "/", label: "Home", icon: Home },
   { href: "/current-auctions", label: "Current Auctions", icon: Zap },
   { href: "/market", label: "Item Market", icon: Store },
   { href: "/progression", label: "Progression", icon: TrendingUp },
-  { href: "/calculator", label: "Calculator", icon: Calculator },
+  { href: "/calculator", label: "Skill Calculator", icon: Calculator },
+  { href: "/insights", label: "Insights", icon: Crown },
+  { href: "/feature-requests", label: "Feature Requests", icon: Lightbulb },
 ];
 
 export function Header() {
@@ -46,12 +51,12 @@ export function Header() {
             <div className="flex items-center gap-2.5 rounded-lg border border-amber-400/30 bg-amber-400/10 px-5 py-1.5 animate-pulse">
               <Megaphone className="h-4 w-4 text-amber-400" />
               <span className="text-sm font-medium text-amber-200">
-                Your awesome reseller page here, travecos also welcome to advertise
+                Your awesome service page here, travecos also welcome to advertise
               </span>
             </div>
           </div>
 
-          {/* Right side — tip + mobile menu */}
+          {/* Right side — tip + auth + mobile menu */}
           <div className="ml-auto flex items-center gap-3">
             {/* Tip message */}
             <div className="hidden lg:flex items-center gap-1.5 rounded-full bg-amber-400/15 border border-amber-400/25 px-3 py-1">
@@ -60,6 +65,9 @@ export function Header() {
                 Want to show love? Tip <strong>Super Bonk Lee</strong> so he can stop using plate set
               </span>
             </div>
+
+            {/* User auth menu */}
+            <UserMenu />
 
             {/* Mobile menu button */}
             <button

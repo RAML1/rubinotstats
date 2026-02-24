@@ -38,7 +38,9 @@ import {
   Gem,
   CalendarCheck,
   Diamond,
+  Lock,
 } from 'lucide-react';
+import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
 import { formatNumber, getVocationColor, formatTimeRemaining } from '@/lib/utils/formatters';
@@ -133,6 +135,14 @@ type ValuationData = {
   sampleSize: number;
 };
 
+type FeaturedAuctionInfo = {
+  auctionExternalId: string;
+  featuredId: number;
+  userName: string | null;
+  userImage: string | null;
+  userId: string;
+};
+
 interface CurrentAuctionsClientProps {
   initialAuctions: SerializedCurrentAuction[];
   worlds: string[];
@@ -140,6 +150,9 @@ interface CurrentAuctionsClientProps {
   worldTypes: WorldTypeInfo[];
   valuations: Record<number, ValuationData>;
   initialSearch?: string;
+  userIsPremium?: boolean;
+  userId?: string | null;
+  featuredAuctionIds?: FeaturedAuctionInfo[];
 }
 
 type SortField = 'currentBid' | 'minimumBid' | 'level' | 'magicLevel' | 'charmPoints' | 'auctionEnd';
@@ -651,11 +664,13 @@ function AuctionDetailModal({
   worldTypes,
   valuation,
   onClose,
+  userIsPremium = false,
 }: {
   auction: SerializedCurrentAuction;
   worldTypes: WorldTypeInfo[];
   valuation?: ValuationData;
   onClose: () => void;
+  userIsPremium?: boolean;
 }) {
   const allSkills = getAllSkills(auction);
   const tags = getCharacterTags(auction);
@@ -765,7 +780,7 @@ function AuctionDetailModal({
           </div>
 
           {/* Estimated Value — PREMIUM_GATE */}
-          {valuation && valuation.sampleSize >= 3 && (
+          {valuation && valuation.sampleSize >= 3 ? (
             <div className="rounded-lg px-4 py-3 mt-2" style={{ backgroundColor: '#1a2a1a', border: '1px solid #2a4a2a' }}>
               <div className="flex items-center justify-between">
                 <div>
@@ -787,7 +802,20 @@ function AuctionDetailModal({
                 </div>
               </div>
             </div>
-          )}
+          ) : !userIsPremium ? (
+            <Link
+              href="/premium"
+              className="flex items-center gap-2 rounded-lg px-4 py-3 mt-2 transition-colors hover:brightness-110"
+              style={{ backgroundColor: '#2a2a1a', border: '1px solid #4a4a2a' }}
+            >
+              <Lock className="h-4 w-4 shrink-0" style={{ color: '#d4a44a' }} />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold" style={{ color: '#d4a44a' }}>Fair Price Estimate</p>
+                <p className="text-[10px]" style={{ color: '#8a7a4a' }}>Unlock with Premium</p>
+              </div>
+              <Crown className="h-3.5 w-3.5 shrink-0" style={{ color: '#d4a44a' }} />
+            </Link>
+          ) : null}
         </div>
 
         <div className="px-5 pb-5 space-y-4">
@@ -1140,12 +1168,18 @@ function CurrentAuctionCard({
   valuation,
   onDetails,
   tick,
+  userIsPremium = false,
+  canFeature = false,
+  onFeature,
 }: {
   auction: SerializedCurrentAuction;
   worldTypes: WorldTypeInfo[];
   valuation?: ValuationData;
   onDetails: (auction: SerializedCurrentAuction) => void;
   tick: number;
+  userIsPremium?: boolean;
+  canFeature?: boolean;
+  onFeature?: (externalId: string) => void;
 }) {
   // tick forces re-render for live countdown
   void tick;
@@ -1271,7 +1305,7 @@ function CurrentAuctionCard({
         </div>
 
         {/* Fair Price */}
-        {valuation && valuation.sampleSize >= 3 && (
+        {valuation && valuation.sampleSize >= 3 ? (
           <div className="px-4 pb-3">
             <div
               className="flex items-center gap-1.5 rounded-md px-2.5 py-2"
@@ -1282,7 +1316,19 @@ function CurrentAuctionCard({
               <span className="text-xs font-bold ml-auto" style={{ color: '#4ade80' }}>~{formatNumber(valuation.estimatedValue)} TC</span>
             </div>
           </div>
-        )}
+        ) : !userIsPremium ? (
+          <div className="px-4 pb-3">
+            <Link
+              href="/premium"
+              className="flex items-center gap-1.5 rounded-md px-2.5 py-2 transition-colors hover:brightness-110"
+              style={{ backgroundColor: '#2a2a1a', border: '1px solid #4a4a2a' }}
+            >
+              <Lock className="h-3 w-3 shrink-0" style={{ color: '#d4a44a' }} />
+              <span className="text-[9px] font-medium shrink-0" style={{ color: '#d4a44a' }}>Fair Price Estimate</span>
+              <span className="text-[9px] ml-auto" style={{ color: '#8a7a4a' }}>Premium</span>
+            </Link>
+          </div>
+        ) : null}
 
         {/* World Transfer Fee Calculator */}
         {auction.world && auction.level && (
@@ -1354,11 +1400,11 @@ function CurrentAuctionCard({
         {/* Spacer */}
         <div className="flex-1" />
 
-        {/* View Details — prominent CTA */}
-        <div className="px-4 pb-4">
+        {/* View Details + Feature CTA */}
+        <div className="px-4 pb-4 flex gap-2">
           <button
             onClick={(e) => { e.stopPropagation(); onDetails(auction); }}
-            className="flex items-center justify-center gap-1.5 w-full rounded-md px-3 py-2.5 text-xs font-semibold transition-colors"
+            className="flex items-center justify-center gap-1.5 flex-1 rounded-md px-3 py-2.5 text-xs font-semibold transition-colors"
             style={{ backgroundColor: '#3b2e6e', border: '1px solid #5b4e9e', color: '#c4b5fd' }}
             onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#4c3d8f'; e.currentTarget.style.color = '#ddd6fe'; }}
             onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#3b2e6e'; e.currentTarget.style.color = '#c4b5fd'; }}
@@ -1366,6 +1412,18 @@ function CurrentAuctionCard({
             <Eye className="h-3.5 w-3.5" />
             View Details
           </button>
+          {canFeature && onFeature && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onFeature(auction.externalId); }}
+              className="flex items-center justify-center gap-1 rounded-md px-3 py-2.5 text-xs font-semibold transition-colors"
+              style={{ backgroundColor: '#3a3a0a', border: '1px solid #6a6a1a', color: '#fbbf24' }}
+              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#4a4a1a'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#3a3a0a'; }}
+              title="Feature this auction"
+            >
+              <Star className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -1381,6 +1439,9 @@ export function CurrentAuctionsClient({
   worldTypes,
   valuations,
   initialSearch = '',
+  userIsPremium = false,
+  userId = null,
+  featuredAuctionIds = [],
 }: CurrentAuctionsClientProps) {
   const [search, setSearch] = useState(initialSearch);
   const [selectedWorld, setSelectedWorld] = useState('');
@@ -1393,7 +1454,59 @@ export function CurrentAuctionsClient({
   const [page, setPage] = useState(1);
   const [hideEnded, setHideEnded] = useState(true);
   const [detailAuction, setDetailAuction] = useState<SerializedCurrentAuction | null>(null);
+  const [featuredIds, setFeaturedIds] = useState(featuredAuctionIds);
+  const [featuringAuction, setFeaturingAuction] = useState(false);
   const tick = useCountdown();
+
+  // Build a set of featured external IDs for quick lookup
+  const featuredExternalIds = useMemo(() => new Set(featuredIds.map((f) => f.auctionExternalId)), [featuredIds]);
+
+  // Get the featured auction data by matching external IDs to auction list
+  const featuredAuctions = useMemo(
+    () => initialAuctions.filter((a) => featuredExternalIds.has(a.externalId)),
+    [initialAuctions, featuredExternalIds]
+  );
+
+  // Check if current user already has an active featured auction
+  const userHasFeatured = useMemo(
+    () => userId ? featuredIds.some((f) => f.userId === userId) : false,
+    [featuredIds, userId]
+  );
+
+  async function featureAuction(externalId: string) {
+    if (!userIsPremium || userHasFeatured || featuringAuction) return;
+    setFeaturingAuction(true);
+    try {
+      const res = await fetch('/api/featured-auctions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ auctionId: externalId }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setFeaturedIds((prev) => [
+          ...prev,
+          {
+            auctionExternalId: externalId,
+            featuredId: data.data.id,
+            userName: null,
+            userImage: null,
+            userId: userId!,
+          },
+        ]);
+      }
+    } finally {
+      setFeaturingAuction(false);
+    }
+  }
+
+  async function unfeatureAuction(featuredId: number) {
+    const res = await fetch(`/api/featured-auctions/${featuredId}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.success) {
+      setFeaturedIds((prev) => prev.filter((f) => f.featuredId !== featuredId));
+    }
+  }
 
   const filtered = useMemo(() => {
     let result = initialAuctions;
@@ -1476,6 +1589,53 @@ export function CurrentAuctionsClient({
 
   return (
     <div className="space-y-4">
+      {/* Featured Auctions Section */}
+      {featuredAuctions.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Star className="h-4 w-4" style={{ color: '#fbbf24' }} />
+            <h2 className="text-sm font-semibold" style={{ color: '#fbbf24' }}>Featured Auctions</h2>
+          </div>
+          <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))' }}>
+            {featuredAuctions.map((auction) => {
+              const info = featuredIds.find((f) => f.auctionExternalId === auction.externalId);
+              const isOwn = userId && info?.userId === userId;
+              return (
+                <div key={`featured-${auction.id}`} className="relative">
+                  <div
+                    className="absolute -top-1.5 -left-1.5 z-10 flex items-center gap-1 rounded-full px-2 py-0.5"
+                    style={{ backgroundColor: '#4a3a0a', border: '1px solid #8a6a1a' }}
+                  >
+                    <Star className="h-3 w-3" style={{ color: '#fbbf24' }} />
+                    <span className="text-[9px] font-semibold" style={{ color: '#fbbf24' }}>Featured</span>
+                  </div>
+                  <div style={{ border: '2px solid #8a6a1a40', borderRadius: '0.75rem' }}>
+                    <CurrentAuctionCard
+                      auction={auction}
+                      worldTypes={worldTypes}
+                      valuation={valuations[auction.id]}
+                      onDetails={setDetailAuction}
+                      tick={tick}
+                      userIsPremium={userIsPremium}
+                    />
+                  </div>
+                  {isOwn && (
+                    <button
+                      onClick={() => info && unfeatureAuction(info.featuredId)}
+                      className="absolute top-2 right-2 z-10 rounded-full p-1 transition-colors"
+                      style={{ backgroundColor: '#4a2a2a', border: '1px solid #8a4a4a' }}
+                      title="Remove featured"
+                    >
+                      <X className="h-3 w-3" style={{ color: '#f87171' }} />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Filter Bar — always visible */}
       <div className="space-y-3">
         {/* Row 1: Search + World + Level Range + Clear */}
@@ -1620,13 +1780,16 @@ export function CurrentAuctionsClient({
             valuation={valuations[auction.id]}
             onDetails={setDetailAuction}
             tick={tick}
+            userIsPremium={userIsPremium}
+            canFeature={userIsPremium && !userHasFeatured && !featuredExternalIds.has(auction.externalId) && !isAuctionEnded(auction.auctionEnd)}
+            onFeature={featureAuction}
           />
         ))}
       </div>
 
       {/* Detail Modal */}
       {detailAuction && (
-        <AuctionDetailModal auction={detailAuction} worldTypes={worldTypes} valuation={valuations[detailAuction.id]} onClose={() => setDetailAuction(null)} />
+        <AuctionDetailModal auction={detailAuction} worldTypes={worldTypes} valuation={valuations[detailAuction.id]} onClose={() => setDetailAuction(null)} userIsPremium={userIsPremium} />
       )}
 
       {/* Empty State */}

@@ -317,8 +317,8 @@ function parseDetailPage(html: string): DetailPageData {
     primalOrdealAvailable: null, soulWarAvailable: null, sanguineBloodAvailable: null,
     magicLevelPct: null, fistPct: null, clubPct: null, swordPct: null,
     axePct: null, distancePct: null, shieldingPct: null, fishingPct: null,
-    outfitImageUrl: null, gems: null, weeklyTaskExpansion: null, displayItems: null,
-    outfitNames: null, mountNames: null,
+    outfitImageUrl: null, gems: null, weeklyTaskExpansion: null, battlePassDeluxe: null,
+    displayItems: null, outfitNames: null, mountNames: null,
   };
 
   // Skills from the skill table (td.LabelColumn > b + td.LevelColumn + td.PercentageColumn)
@@ -748,8 +748,8 @@ function mergeListOnly(a: ListAuction): ScrapedAuction {
     primalOrdealAvailable: null, soulWarAvailable: null, sanguineBloodAvailable: null,
     magicLevelPct: null, fistPct: null, clubPct: null, swordPct: null,
     axePct: null, distancePct: null, shieldingPct: null, fishingPct: null,
-    outfitImageUrl: null, gems: null, weeklyTaskExpansion: null, displayItems: null,
-    outfitNames: null, mountNames: null,
+    outfitImageUrl: null, gems: null, weeklyTaskExpansion: null, battlePassDeluxe: null,
+    displayItems: null, outfitNames: null, mountNames: null,
     charmPoints: a.charmPoints,
     unusedCharmPoints: a.unusedCharmPoints,
     bossPoints: a.bossPoints,
@@ -783,8 +783,8 @@ async function scrapeAuctionDetail(
     primalOrdealAvailable: null, soulWarAvailable: null, sanguineBloodAvailable: null,
     magicLevelPct: null, fistPct: null, clubPct: null, swordPct: null,
     axePct: null, distancePct: null, shieldingPct: null, fishingPct: null,
-    outfitImageUrl: null, gems: null, weeklyTaskExpansion: null, displayItems: null,
-    outfitNames: null, mountNames: null,
+    outfitImageUrl: null, gems: null, weeklyTaskExpansion: null, battlePassDeluxe: null,
+    displayItems: null, outfitNames: null, mountNames: null,
   };
 
   try {

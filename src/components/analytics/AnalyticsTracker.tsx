@@ -35,6 +35,7 @@ export function AnalyticsTracker() {
       referrer: document.referrer || undefined,
       viewportWidth: window.innerWidth,
       viewportHeight: window.innerHeight,
+      language: navigator.language || undefined,
     });
   }, [pathname]);
 

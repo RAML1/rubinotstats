@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic';
 
 import { Suspense } from 'react';
+import { unstable_cache } from 'next/cache';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Zap, TrendingUp, Calculator, ArrowRight, Flame, Crown, Globe } from 'lucide-react';
 import { LogoIcon } from '@/components/brand/Logo';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -16,7 +18,7 @@ interface TopGainer {
   exp_gained: bigint;
 }
 
-async function getHomeData() {
+const getHomeData = unstable_cache(async () => {
   const [liveAuctions, trackedCharacters, topGainersRaw] = await Promise.all([
     prisma.currentAuction.count({ where: { isActive: true } }),
     prisma.character.count(),
@@ -48,7 +50,7 @@ async function getHomeData() {
   }));
 
   return { liveAuctions, trackedCharacters, topGainers };
-}
+}, ['home-data'], { revalidate: 300 }); // cache for 5 minutes
 
 const features = [
   {
@@ -186,6 +188,21 @@ async function HomeContent() {
           </div>
         </section>
       )}
+
+      {/* Premium promo card */}
+      <section className="mx-auto max-w-sm">
+        <Link href="/premium" className="group block">
+          <div className="relative overflow-hidden rounded-xl border border-amber-400/20 bg-card transition-all duration-200 group-hover:border-amber-400/40 group-hover:shadow-lg group-hover:shadow-amber-400/10">
+            <Image
+              src="/premium-features.jpg"
+              alt="Premium Status — Key Market Insights, Highlight Auctions, and more"
+              width={600}
+              height={600}
+              className="w-full h-auto"
+            />
+          </div>
+        </Link>
+      </section>
     </>
   );
 }
@@ -229,6 +246,9 @@ export default function HomePage() {
         </h1>
         <p className="max-w-lg text-sm text-muted-foreground">
           Character Progression Tracker &amp; Auction Intelligence
+        </p>
+        <p className="text-xs text-muted-foreground/60 italic">
+          travecos welcomed
         </p>
       </section>
 

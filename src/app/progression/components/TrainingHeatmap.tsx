@@ -9,6 +9,8 @@ interface TrainingHeatmapProps {
   snapshots: Array<{
     capturedDate: string;
     expGained: number | null;
+    level?: number | null;
+    levelsGained?: number | null;
   }>;
 }
 
@@ -18,6 +20,8 @@ export default function TrainingHeatmap({ snapshots }: TrainingHeatmapProps) {
   const [hoveredCell, setHoveredCell] = useState<{
     date: Date;
     expGained: number | null;
+    levelsGained: number | null;
+    level: number | null;
     x: number;
     y: number;
   } | null>(null);
@@ -38,27 +42,36 @@ export default function TrainingHeatmap({ snapshots }: TrainingHeatmapProps) {
     const startDate = subMonths(endDate, 6);
     const weekStart = startOfWeek(startDate, { weekStartsOn: 0 });
 
-    const dataMap = new Map<string, number>();
+    const dataMap = new Map<string, { exp: number; levelsGained: number; level: number }>();
     snapshots.forEach((snapshot) => {
       const dateKey = format(new Date(snapshot.capturedDate), 'yyyy-MM-dd');
-      dataMap.set(dateKey, snapshot.expGained || 0);
+      dataMap.set(dateKey, {
+        exp: snapshot.expGained || 0,
+        levelsGained: snapshot.levelsGained || 0,
+        level: snapshot.level || 0,
+      });
     });
 
-    const values = Array.from(dataMap.values()).filter((v) => v > 0).sort((a, b) => a - b);
+    const values = Array.from(dataMap.values()).map(v => v.exp).filter((v) => v > 0).sort((a, b) => a - b);
     const thresholds = {
       low: values[Math.floor(values.length * 0.25)] || 0,
       medium: values[Math.floor(values.length * 0.5)] || 0,
       high: values[Math.floor(values.length * 0.75)] || 0,
     };
 
-    const weeks: Array<Array<{ date: Date; expGained: number | null }>> = [];
+    const weeks: Array<Array<{ date: Date; expGained: number | null; levelsGained: number | null; level: number | null }>> = [];
     let currentDate = weekStart;
-    let currentWeek: Array<{ date: Date; expGained: number | null }> = [];
+    let currentWeek: Array<{ date: Date; expGained: number | null; levelsGained: number | null; level: number | null }> = [];
 
     while (isBefore(currentDate, endDate) || isSameDay(currentDate, endDate)) {
       const dateKey = format(currentDate, 'yyyy-MM-dd');
-      const expGained = dataMap.get(dateKey) ?? null;
-      currentWeek.push({ date: new Date(currentDate), expGained });
+      const entry = dataMap.get(dateKey);
+      currentWeek.push({
+        date: new Date(currentDate),
+        expGained: entry?.exp ?? null,
+        levelsGained: entry?.levelsGained ?? null,
+        level: entry?.level ?? null,
+      });
 
       if (currentWeek.length === 7) {
         weeks.push(currentWeek);
@@ -69,7 +82,7 @@ export default function TrainingHeatmap({ snapshots }: TrainingHeatmapProps) {
 
     if (currentWeek.length > 0) {
       while (currentWeek.length < 7) {
-        currentWeek.push({ date: addDays(currentDate, currentWeek.length), expGained: null });
+        currentWeek.push({ date: addDays(currentDate, currentWeek.length), expGained: null, levelsGained: null, level: null });
       }
       weeks.push(currentWeek);
     }
@@ -97,7 +110,7 @@ export default function TrainingHeatmap({ snapshots }: TrainingHeatmapProps) {
 
   const dayLabels = ['', 'Mon', '', 'Wed', '', 'Fri', ''];
   const totalWeeks = gridData.length;
-  const DAY_LABEL_WIDTH = 32;
+  const DAY_LABEL_WIDTH = 36;
   const GAP = 3;
 
   // Calculate cell size dynamically to fill container width
@@ -113,7 +126,7 @@ export default function TrainingHeatmap({ snapshots }: TrainingHeatmapProps) {
         <CardTitle className="text-xl font-semibold">EXP Heatmap</CardTitle>
       </CardHeader>
       <CardContent>
-        <div ref={containerRef} className="relative w-full">
+        <div ref={containerRef} className="relative w-full overflow-visible">
           {containerWidth > 0 && (
             <div className="flex flex-col">
               {/* Month labels */}
@@ -135,7 +148,7 @@ export default function TrainingHeatmap({ snapshots }: TrainingHeatmapProps) {
               {/* Day labels + grid */}
               <div className="flex">
                 {/* Day labels column */}
-                <div className="flex flex-col flex-shrink-0 mr-2" style={{ width: `${DAY_LABEL_WIDTH}px` }}>
+                <div className="flex flex-col flex-shrink-0 mr-2" style={{ width: `${DAY_LABEL_WIDTH}px`, minWidth: `${DAY_LABEL_WIDTH}px` }}>
                   {dayLabels.map((label, idx) => (
                     <div
                       key={idx}
@@ -166,6 +179,8 @@ export default function TrainingHeatmap({ snapshots }: TrainingHeatmapProps) {
                             setHoveredCell({
                               date: day.date,
                               expGained: day.expGained,
+                              levelsGained: day.levelsGained,
+                              level: day.level,
                               x: e.clientX - rect.left,
                               y: e.clientY - rect.top,
                             });
@@ -206,12 +221,30 @@ export default function TrainingHeatmap({ snapshots }: TrainingHeatmapProps) {
                 {format(hoveredCell.date, 'EEEE, MMM d, yyyy')}
               </p>
               {hoveredCell.expGained !== null && hoveredCell.expGained > 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  EXP Gained:{' '}
-                  <span className="font-semibold text-purple-400">
-                    {formatNumber(hoveredCell.expGained)}
-                  </span>
-                </p>
+                <>
+                  <p className="text-xs text-muted-foreground">
+                    EXP Gained:{' '}
+                    <span className="font-semibold text-purple-400">
+                      {formatNumber(hoveredCell.expGained)}
+                    </span>
+                  </p>
+                  {hoveredCell.levelsGained !== null && hoveredCell.levelsGained !== 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Levels:{' '}
+                      <span className={`font-semibold ${hoveredCell.levelsGained > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {hoveredCell.levelsGained > 0 ? '+' : ''}{hoveredCell.levelsGained}
+                      </span>
+                      {hoveredCell.level ? (
+                        <span className="text-muted-foreground/60"> (Lvl {hoveredCell.level})</span>
+                      ) : null}
+                    </p>
+                  )}
+                  {hoveredCell.levelsGained === 0 && hoveredCell.level ? (
+                    <p className="text-xs text-muted-foreground/60">
+                      Level {hoveredCell.level}
+                    </p>
+                  ) : null}
+                </>
               ) : (
                 <p className="text-xs text-muted-foreground/60">
                   {hoveredCell.expGained === 0 ? 'No EXP gained' : 'No data recorded'}

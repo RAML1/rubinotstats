@@ -1,14 +1,16 @@
 // Rubinot Exercise Weapon Skill Calculator
-// Uses standard Tibia formulas with vocation-specific training rates
-// and Rubinot server multipliers.
+// Uses the Rubinot-specific formula derived from rubinot-wiki.vercel.app
 //
-// Base formula: tries(N) = A * b^(N - offset)
+// Formula: pointsForLevel(L) = 1600 * b^L
 // Where:
-//   A = skill constant (same for all vocations, varies by skill type)
+//   1600 = universal skill constant (same for all skills)
 //   b = vocation constant (varies by vocation AND skill type)
-//   offset = 0 for magic level, 10 for all other skills
+//   L = current skill level (no offset)
+//
+// Each exercise weapon charge provides 600 skill points.
+// Stage multipliers divide the points required per level.
 
-// --- Rubinot Server Multiplier Tables ---
+// --- Rubinot Server Stage Multiplier Tables ---
 
 export const SKILL_MULTIPLIERS = [
   { from: 1, to: 80, multiplier: 10 },
@@ -51,32 +53,15 @@ export const SKILL_CATEGORIES: { value: SkillCategory; label: string }[] = [
   { value: 'fist', label: 'Fist Fighting' },
 ];
 
-// --- Tibia Formula Constants ---
+// --- Formula Constants ---
 
-// Skill constant A (same for all vocations)
-const SKILL_CONSTANTS: Record<SkillCategory, number> = {
-  magic: 1600,
-  shielding: 100,
-  sword: 50,
-  axe: 50,
-  club: 50,
-  fist: 50,
-  distance: 30,
-};
+// Universal skill constant A = 1600 for all skills
+const SKILL_CONSTANT = 1600;
 
-// Skill offset (0 for magic, 10 for everything else)
-const SKILL_OFFSET: Record<SkillCategory, number> = {
-  magic: 0,
-  sword: 10,
-  axe: 10,
-  club: 10,
-  fist: 10,
-  distance: 10,
-  shielding: 10,
-};
+// Points per exercise weapon charge
+const POINTS_PER_CHARGE = 600;
 
 // Vocation constant b — lower = faster advancement
-// Source: TibiaWiki Formulae + TibiaPal open-source calculator
 const VOCATION_CONSTANTS: Record<Vocation, Record<SkillCategory, number>> = {
   knight: {
     magic: 3.0,
@@ -135,9 +120,21 @@ export const WEAPON_TYPES = [
   { name: 'Daily', charges: 45000, rcCost: 390 },
 ] as const;
 
+// --- Time Constants ---
+
+// Seconds per charge for time estimates
+const SECONDS_PER_CHARGE = 2;
+
+// Time modifiers (multiply training time)
+const TIME_MODIFIERS = {
+  exerciseDummy: 0.9, // 10% faster
+  doubleEvent: 0.5,   // 2x faster
+  vipAccount: 0.9,    // 10% faster
+};
+
 // --- Core Calculation Functions ---
 
-function getRubinotMultiplier(skill: number, category: SkillCategory): number {
+function getStageMultiplier(skill: number, category: SkillCategory): number {
   const table = category === 'magic' ? MAGIC_MULTIPLIERS : SKILL_MULTIPLIERS;
   for (const range of table) {
     if (skill >= range.from && skill <= range.to) {
@@ -155,32 +152,30 @@ export function getVocationConstant(vocation: Vocation, category: SkillCategory)
 }
 
 /**
- * Base tries needed to advance from skill level `level` to `level + 1`
- * for a specific vocation (without Rubinot multiplier).
+ * Raw skill points needed to advance from `level` to `level + 1`
+ * (before stage multiplier).
  */
-function baseTriesForLevel(level: number, category: SkillCategory, vocation: Vocation): number {
-  const A = SKILL_CONSTANTS[category];
+function rawPointsForLevel(level: number, category: SkillCategory, vocation: Vocation): number {
   const b = VOCATION_CONSTANTS[vocation][category];
-  const offset = SKILL_OFFSET[category];
-  return A * Math.pow(b, level - offset);
+  return SKILL_CONSTANT * Math.pow(b, level);
 }
 
 /**
- * Effective tries needed after applying Rubinot server multiplier.
+ * Effective points needed after applying stage multiplier.
  */
-function effectiveTriesForLevel(level: number, category: SkillCategory, vocation: Vocation): number {
-  const base = baseTriesForLevel(level, category, vocation);
-  const multiplier = getRubinotMultiplier(level, category);
-  return base / multiplier;
+function effectivePointsForLevel(level: number, category: SkillCategory, vocation: Vocation): number {
+  const raw = rawPointsForLevel(level, category, vocation);
+  const multiplier = getStageMultiplier(level, category);
+  return raw / multiplier;
 }
 
 /**
- * Total effective tries to go from currentSkill (with percentToNext progress)
+ * Total effective points to go from currentSkill (with percentToGo remaining)
  * to targetSkill.
  */
-function totalTriesNeeded(
+function totalPointsNeeded(
   currentSkill: number,
-  percentToNext: number,
+  percentToGo: number,
   targetSkill: number,
   category: SkillCategory,
   vocation: Vocation,
@@ -189,54 +184,54 @@ function totalTriesNeeded(
 
   let total = 0;
 
-  // Remaining tries for current level (subtract already-done percentage)
-  const currentLevelTries = effectiveTriesForLevel(currentSkill, category, vocation);
-  total += currentLevelTries * (1 - percentToNext / 100);
+  // Remaining points for current level (percentToGo is how much is LEFT)
+  const currentLevelPoints = effectivePointsForLevel(currentSkill, category, vocation);
+  total += currentLevelPoints * (percentToGo / 100);
 
   // Full levels from currentSkill+1 to targetSkill-1
   for (let level = currentSkill + 1; level < targetSkill; level++) {
-    total += effectiveTriesForLevel(level, category, vocation);
+    total += effectivePointsForLevel(level, category, vocation);
   }
 
   return total;
 }
 
 /**
- * Apply modifier multipliers.
- * Each charge on a dummy = 1 skill try.
- * Modifiers increase the effective value of each charge.
+ * Convert exercise weapon charges to skill points.
  */
-function chargesPerTry(
-  loyaltyPercent: number,
-  doubleEvent: boolean,
-  privateDummy: boolean,
-): number {
-  let modifier = 1;
-  modifier *= 1 + loyaltyPercent / 100;
-  if (doubleEvent) modifier *= 2;
-  if (privateDummy) modifier *= 1.1;
-  return modifier;
+function chargesToPoints(charges: number): number {
+  return charges * POINTS_PER_CHARGE;
 }
 
 // --- Public API ---
 
 export interface CalculatorModifiers {
-  loyaltyPercent: number;
-  doubleEvent: boolean;
   privateDummy: boolean;
+  doubleEvent: boolean;
   vip: boolean;
 }
 
 export interface WeaponsNeededResult {
   totalCharges: number;
   weapons: { name: string; count: number }[];
-  estimatedHours: number;
+  estimatedSeconds: number;
 }
 
 export interface SkillGainResult {
   finalSkill: number;
   finalPercent: number;
   levelsGained: number;
+}
+
+/**
+ * Calculate training time in seconds for a given number of charges.
+ */
+function calculateTrainingTime(charges: number, modifiers: CalculatorModifiers): number {
+  let seconds = charges * SECONDS_PER_CHARGE;
+  if (modifiers.privateDummy) seconds *= TIME_MODIFIERS.exerciseDummy;
+  if (modifiers.doubleEvent) seconds *= TIME_MODIFIERS.doubleEvent;
+  if (modifiers.vip) seconds *= TIME_MODIFIERS.vipAccount;
+  return seconds;
 }
 
 /**
@@ -247,29 +242,21 @@ export function calculateWeaponsNeeded(
   category: SkillCategory,
   vocation: Vocation,
   currentSkill: number,
-  percentToNext: number,
+  percentToGo: number,
   targetSkill: number,
   modifiers: CalculatorModifiers,
 ): WeaponsNeededResult {
-  const tries = totalTriesNeeded(currentSkill, percentToNext, targetSkill, category, vocation);
-  const effectivePerCharge = chargesPerTry(
-    modifiers.loyaltyPercent,
-    modifiers.doubleEvent,
-    modifiers.privateDummy,
-  );
-
-  const totalCharges = Math.ceil(tries / effectivePerCharge);
+  const pointsNeeded = totalPointsNeeded(currentSkill, percentToGo, targetSkill, category, vocation);
+  const totalCharges = Math.ceil(pointsNeeded / POINTS_PER_CHARGE);
 
   const weapons = WEAPON_TYPES.map((w) => ({
     name: w.name,
     count: Math.ceil(totalCharges / w.charges),
   }));
 
-  // Each charge takes ~2 seconds on a dummy; VIP gives 10% speed bonus
-  const vipSpeedMultiplier = modifiers.vip ? 1.1 : 1;
-  const estimatedHours = (totalCharges * 2) / 3600 / vipSpeedMultiplier;
+  const estimatedSeconds = calculateTrainingTime(totalCharges, modifiers);
 
-  return { totalCharges, weapons, estimatedHours };
+  return { totalCharges, weapons, estimatedSeconds };
 }
 
 /**
@@ -282,52 +269,55 @@ export function calculateSkillGain(
   weaponType: number,
   weaponCount: number,
   currentSkill: number,
-  percentToNext: number,
+  percentToGo: number,
   modifiers: CalculatorModifiers,
 ): SkillGainResult {
   const charges = WEAPON_TYPES[weaponType].charges * weaponCount;
-  const effectivePerCharge = chargesPerTry(
-    modifiers.loyaltyPercent,
-    modifiers.doubleEvent,
-    modifiers.privateDummy,
-  );
-
-  let remainingTries = charges * effectivePerCharge;
+  let remainingPoints = chargesToPoints(charges);
   let skill = currentSkill;
-  let percent = percentToNext;
+  let pctToGo = percentToGo;
 
-  // Subtract what's already done on current level
-  const currentLevelTries = effectiveTriesForLevel(skill, category, vocation);
-  const remainingForCurrentLevel = currentLevelTries * (1 - percent / 100);
+  // Points needed to finish current level
+  const currentLevelPoints = effectivePointsForLevel(skill, category, vocation);
+  const remainingForCurrentLevel = currentLevelPoints * (pctToGo / 100);
 
-  if (remainingTries >= remainingForCurrentLevel) {
-    remainingTries -= remainingForCurrentLevel;
+  if (remainingPoints >= remainingForCurrentLevel) {
+    remainingPoints -= remainingForCurrentLevel;
     skill++;
-    percent = 0;
+    pctToGo = 100; // 100% to go on new level (just started)
   } else {
-    const progressAdded = (remainingTries / currentLevelTries) * 100;
+    // Doesn't finish the current level
+    const pctAdvanced = (remainingPoints / currentLevelPoints) * 100;
     return {
       finalSkill: skill,
-      finalPercent: Math.min(99.99, percent + progressAdded),
+      finalPercent: Math.max(0, Math.round((pctToGo - pctAdvanced) * 100) / 100),
       levelsGained: 0,
     };
   }
 
-  // Keep leveling up while we have tries left
-  while (remainingTries > 0 && skill < 300) {
-    const triesForThisLevel = effectiveTriesForLevel(skill, category, vocation);
-    if (remainingTries >= triesForThisLevel) {
-      remainingTries -= triesForThisLevel;
+  // Keep leveling up while we have points left
+  while (remainingPoints > 0 && skill < 300) {
+    const pointsForThisLevel = effectivePointsForLevel(skill, category, vocation);
+    if (remainingPoints >= pointsForThisLevel) {
+      remainingPoints -= pointsForThisLevel;
       skill++;
     } else {
-      percent = (remainingTries / triesForThisLevel) * 100;
-      remainingTries = 0;
+      pctToGo = 100 - (remainingPoints / pointsForThisLevel) * 100;
+      remainingPoints = 0;
     }
   }
 
+  if (remainingPoints <= 0 && skill === currentSkill + (pctToGo < 100 ? 0 : 1)) {
+    // Didn't advance past initial level-up
+  }
+
+  const finalPercent = skill > currentSkill + (percentToGo === 100 ? 0 : 0)
+    ? Math.round(pctToGo * 100) / 100
+    : Math.round(pctToGo * 100) / 100;
+
   return {
     finalSkill: skill,
-    finalPercent: Math.round(percent * 100) / 100,
+    finalPercent: Math.max(0, finalPercent),
     levelsGained: skill - currentSkill,
   };
 }
@@ -336,7 +326,7 @@ export function calculateSkillGain(
  * Get the display multiplier for the current skill level.
  */
 export function getMultiplierForDisplay(skill: number, category: SkillCategory): number {
-  return getRubinotMultiplier(skill, category);
+  return getStageMultiplier(skill, category);
 }
 
 /**

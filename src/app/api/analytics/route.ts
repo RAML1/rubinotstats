@@ -8,6 +8,7 @@ interface AnalyticsPayload {
   viewportWidth?: number;
   viewportHeight?: number;
   searchQuery?: string;
+  language?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -40,6 +41,18 @@ export async function POST(request: NextRequest) {
 
     const userAgent = request.headers.get('user-agent') || undefined;
 
+    // Geo detection from reverse proxy / Railway headers
+    const country =
+      request.headers.get('cf-ipcountry') ||          // Cloudflare
+      request.headers.get('x-vercel-ip-country') ||    // Vercel
+      request.headers.get('x-country') ||              // Generic proxy
+      undefined;
+
+    const language =
+      body.language?.substring(0, 50) ||
+      request.headers.get('accept-language')?.split(',')[0]?.substring(0, 50) ||
+      undefined;
+
     // Upsert session (create if new, update lastSeenAt if existing)
     await prisma.analyticsSession.upsert({
       where: { id: sessionId },
@@ -48,9 +61,12 @@ export async function POST(request: NextRequest) {
         visitorId,
         userAgent: userAgent?.substring(0, 500),
         referrer: body.referrer?.substring(0, 500),
+        country: country?.substring(0, 10),
+        language,
       },
       update: {
         lastSeenAt: new Date(),
+        ...(country ? { country: country.substring(0, 10) } : {}),
       },
     });
 

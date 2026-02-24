@@ -7,6 +7,8 @@ import {
   TrendingUp,
   Calculator,
   Zap,
+  Lightbulb,
+  Crown,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -17,7 +19,9 @@ const navItems = [
   { href: "/current-auctions", label: "Current Auctions", icon: Zap },
   { href: "/market", label: "Item Market", icon: Store },
   { href: "/progression", label: "Progression", icon: TrendingUp },
-  { href: "/calculator", label: "Calculator", icon: Calculator },
+  { href: "/calculator", label: "Skill Calculator", icon: Calculator },
+  { href: "/insights", label: "Insights", icon: Crown },
+  { href: "/feature-requests", label: "Feature Requests", icon: Lightbulb },
 ];
 
 interface MobileNavProps {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db/prisma';
 
-// PATCH: Deactivate a listing (soft delete)
+// PATCH: Mark listing as sold or deactivate
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -14,19 +14,26 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { isActive, characterName } = body;
+    const { isActive, characterName, creatorToken, markSold } = body;
 
     const listing = await prisma.itemListing.findUnique({ where: { id: listingId } });
     if (!listing) {
       return NextResponse.json({ success: false, error: 'Listing not found' }, { status: 404 });
     }
-    if (listing.characterName !== characterName) {
+
+    // Auth: match by creatorToken (preferred) or fall back to characterName
+    const tokenMatch = creatorToken && listing.creatorToken && listing.creatorToken === creatorToken;
+    const nameMatch = characterName && listing.characterName === characterName;
+    if (!tokenMatch && !nameMatch) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 403 });
     }
 
+    const data: Record<string, unknown> = { isActive: isActive ?? false };
+    if (markSold) data.soldAt = new Date();
+
     const updated = await prisma.itemListing.update({
       where: { id: listingId },
-      data: { isActive: isActive ?? false },
+      data,
     });
 
     return NextResponse.json({ success: true, data: updated });
@@ -50,12 +57,16 @@ export async function DELETE(
 
     const { searchParams } = new URL(request.url);
     const characterName = searchParams.get('characterName');
+    const creatorToken = searchParams.get('creatorToken');
 
     const listing = await prisma.itemListing.findUnique({ where: { id: listingId } });
     if (!listing) {
       return NextResponse.json({ success: false, error: 'Listing not found' }, { status: 404 });
     }
-    if (listing.characterName !== characterName) {
+
+    const tokenMatch = creatorToken && listing.creatorToken && listing.creatorToken === creatorToken;
+    const nameMatch = characterName && listing.characterName === characterName;
+    if (!tokenMatch && !nameMatch) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 403 });
     }
 

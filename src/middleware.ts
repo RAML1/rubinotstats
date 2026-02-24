@@ -9,10 +9,19 @@ const VISITOR_MAX_AGE = 365 * 24 * 60 * 60; // 1 year
 const SESSION_MAX_AGE = 30 * 60; // 30 minutes
 
 export function middleware(request: NextRequest) {
+  // Allow NextAuth routes through without Basic Auth
+  const { pathname } = request.nextUrl;
+  if (pathname.startsWith('/api/auth') || pathname.startsWith('/auth')) {
+    const response = NextResponse.next();
+    setAnalyticsCookies(request, response);
+    return response;
+  }
+
   if (!AUTH_USER || !AUTH_PASS) {
     return new NextResponse('Server misconfigured', { status: 503 });
   }
 
+  // Check Authorization header first (initial page load / API tools)
   const authHeader = request.headers.get('authorization');
 
   if (authHeader) {
@@ -26,6 +35,14 @@ export function middleware(request: NextRequest) {
         return response;
       }
     }
+  }
+
+  // Allow through if the user already authenticated (has session cookie).
+  // Browser fetch/XHR calls don't re-send Basic Auth, but they do send cookies.
+  if (request.cookies.get(SESSION_COOKIE)) {
+    const response = NextResponse.next();
+    setAnalyticsCookies(request, response);
+    return response;
   }
 
   return new NextResponse('Authentication required', {
@@ -62,5 +79,5 @@ function setAnalyticsCookies(request: NextRequest, response: NextResponse) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  matcher: ['/((?!_next|favicon\\.ico|.*\\.jpg|.*\\.png|.*\\.svg|.*\\.webp).*)'],
 };
