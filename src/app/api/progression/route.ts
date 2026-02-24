@@ -21,8 +21,13 @@ function serializeBigInt<T>(obj: T): T {
     if (typeof o.toNumber === 'function') {
       return o.toNumber() as T;
     }
+    // Handle serialized Decimal objects from cache: {s: sign, e: exponent, d: digits[]}
     if ('s' in o && 'e' in o && 'd' in o && Array.isArray(o.d)) {
-      return Number(o.toString()) as T;
+      // Reconstruct from Decimal.js format: d[] is base 1e7, first element unpadded
+      const parts = o.d as number[];
+      const digitStr = parts[0].toString() + parts.slice(1).map((n: number) => String(n).padStart(7, '0')).join('');
+      const num = Number(digitStr) * Math.pow(10, o.e - digitStr.length + 1) * o.s;
+      return num as T;
     }
   }
 
@@ -363,7 +368,9 @@ export async function GET(request: NextRequest) {
         { revalidate: 600 } // Cache for 10 minutes
       );
 
-      const leaders = await getWorldLeaders();
+      const rawLeaders = await getWorldLeaders();
+      // Re-serialize after cache retrieval — cached Decimal objects become plain {s,e,d} JSON
+      const leaders = serializeBigInt(rawLeaders);
       // Sort by exp_gained descending (DISTINCT ON returns sorted by world)
       leaders.sort((a: any, b: any) => Number(b.exp_gained) - Number(a.exp_gained));
 
