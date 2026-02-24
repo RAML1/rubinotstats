@@ -6,8 +6,8 @@ import { getSession } from "@/lib/auth-helpers";
 import { isPremium } from "@/lib/utils/premium";
 
 export const metadata: Metadata = {
-  title: "Market Insights - RubinOT Stats",
-  description: "Premium market analytics for RubinOT character auctions",
+  title: "Premium Dashboard - RubinOT Stats",
+  description: "Premium market analytics, price drivers, world stats, and best deals for RubinOT character auctions",
 };
 
 export default async function InsightsPage() {
@@ -17,8 +17,11 @@ export default async function InsightsPage() {
   return (
     <div className="container mx-auto space-y-6 px-4 py-8">
       <div>
-        <h1 className="text-3xl font-bold">Market Insights</h1>
-        <p className="text-sm text-muted-foreground mt-1">Premium analytics based on historical auction data</p>
+        <div className="flex items-center gap-2">
+          <Crown className="h-7 w-7" style={{ color: "#d4a44a" }} />
+          <h1 className="text-3xl font-bold">Premium Dashboard</h1>
+        </div>
+        <p className="text-sm text-muted-foreground mt-1">Market analytics, price drivers, world stats, and real-time best deals</p>
       </div>
 
       {userIsPremium ? (

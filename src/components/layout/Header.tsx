@@ -25,7 +25,7 @@ const navItems = [
   { href: "/market", label: "Item Market", icon: Store },
   { href: "/progression", label: "Progression", icon: TrendingUp },
   { href: "/calculator", label: "Skill Calculator", icon: Calculator },
-  { href: "/insights", label: "Insights", icon: Crown },
+  { href: "/insights", label: "Premium", icon: Crown },
   { href: "/feature-requests", label: "Feature Requests", icon: Lightbulb },
 ];
 
