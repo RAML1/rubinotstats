@@ -11,8 +11,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { PrismaClient } from '@prisma/client';
-import { getBrowserContext, closeBrowser } from '../src/lib/scraper/browser';
+import { getBrowserContext, closeBrowser, navigateWithCloudflare, sleep } from '../src/lib/scraper/browser';
 import type { BrowserName } from '../src/lib/scraper/browser';
+import { RUBINOT_URLS } from '../src/lib/utils/constants';
 
 const BROWSER: BrowserName = 'auctions';
 import {
@@ -146,9 +147,14 @@ async function main() {
     fs.mkdirSync(dataDir, { recursive: true });
   }
 
-  console.log(`Launching browser (${BROWSER})...`);
+  console.log(`Launching browser (${BROWSER}) for API mode...`);
   const context = await getBrowserContext({ headless, browser: BROWSER });
   const page = context.pages()[0] || (await context.newPage());
+
+  // Navigate to establish Cloudflare session
+  console.log('Navigating to bazaar for Cloudflare bypass...');
+  await navigateWithCloudflare(page, `${RUBINOT_URLS.base}/bazaar`, 60_000);
+  await sleep(2000);
 
   try {
     if (singleId) {

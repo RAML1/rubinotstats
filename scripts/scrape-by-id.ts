@@ -22,6 +22,7 @@ import { PrismaClient } from '@prisma/client';
 import { getBrowserContext, closeBrowser, navigateWithCloudflare, rateLimit, getHealthyPage, sleep } from '../src/lib/scraper/browser';
 import type { BrowserName } from '../src/lib/scraper/browser';
 import { scrapeSingleAuction, type ScrapedAuction } from '../src/lib/scraper/auctions';
+import { RUBINOT_URLS } from '../src/lib/utils/constants';
 
 const BROWSER: BrowserName = 'auctions';
 const prisma = new PrismaClient();
@@ -235,6 +236,11 @@ async function main() {
     tabIndex = (tabIndex + 1) % tabs.length;
     return tabs[tabIndex];
   };
+
+  // Navigate to the site to establish Cloudflare session (required for API fetch)
+  console.log('Navigating to bazaar for Cloudflare bypass...');
+  await navigateWithCloudflare(tabs[0], `${RUBINOT_URLS.base}/bazaar`, 60_000);
+  await sleep(2000);
 
   const progress: Progress = {
     lastScannedId: startId,

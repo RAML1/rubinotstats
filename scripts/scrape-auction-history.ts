@@ -13,8 +13,9 @@
  *   pnpm scrape:history --headless         # Run headless (may fail on CF)
  */
 import { PrismaClient } from '@prisma/client';
-import { getBrowserContext, closeBrowser, type BrowserName } from '../src/lib/scraper/browser';
+import { getBrowserContext, closeBrowser, navigateWithCloudflare, sleep, type BrowserName } from '../src/lib/scraper/browser';
 import { scrapeAuctionHistory, type ScrapedAuction } from '../src/lib/scraper/auctions';
+import { RUBINOT_URLS } from '../src/lib/utils/constants';
 
 const BROWSER: BrowserName = 'auctions';
 const prisma = new PrismaClient();
@@ -148,9 +149,14 @@ RubinOT Auction History Scraper
   Save to DB:      ${skipDb ? 'no' : 'yes'}
 `);
 
-  console.log(`Launching browser (${BROWSER})...`);
+  console.log(`Launching browser (${BROWSER}) for API mode...`);
   const context = await getBrowserContext({ headless, browser: BROWSER });
   const page = context.pages()[0] || (await context.newPage());
+
+  // Navigate to establish Cloudflare session
+  console.log('Navigating to bazaar for Cloudflare bypass...');
+  await navigateWithCloudflare(page, `${RUBINOT_URLS.base}/bazaar`, 60_000);
+  await sleep(2000);
 
   const startTime = Date.now();
 

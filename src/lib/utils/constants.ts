@@ -160,11 +160,18 @@ export const CATEGORY_ALIASES: Record<string, keyof typeof HIGHSCORE_CATEGORIES>
 /** RubinOT website URLs */
 export const RUBINOT_URLS = {
   base: 'https://rubinot.com.br',
-  highscores: '/?subtopic=highscores',
+  highscores: '/highscores',
   characters: '/?subtopic=characters',
-  currentAuctions: '/currentcharactertrades',
-  pastAuctions: '/pastcharactertrades',
+  currentAuctions: '/bazaar',
+  pastAuctions: '/bazaar/history',
   worlds: '/?subtopic=worlds',
+  // JSON API endpoints (used by scrapers)
+  api: {
+    bazaar: '/api/bazaar',
+    bazaarDetail: '/api/bazaar', // append /{id}
+    highscores: '/api/highscores',
+    worlds: '/api/worlds',
+  },
 } as const;
 
 /** Web scraper configuration */

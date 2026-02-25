@@ -54,14 +54,13 @@ const maxPages = getArg('--pages') ? parseInt(getArg('--pages')!, 10) : undefine
 
 if (hasFlag('--help') || hasFlag('-h')) {
   console.log(`
-RubinOT Experience Highscores Scraper
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RubinOT Experience Highscores Scraper (API mode)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Usage:
   pnpm scrape:highscores                          All worlds, all vocations
   pnpm scrape:highscores --world Lunarian          Single world
   pnpm scrape:highscores --vocation knights        Single vocation
-  pnpm scrape:highscores --pages 3                 Limit to first N pages per combo
   pnpm scrape:highscores --no-db                   Skip saving to database
   pnpm scrape:highscores --fresh                   Ignore progress, start from scratch
   pnpm scrape:highscores --headless                Run headless (may fail on Cloudflare)
@@ -77,8 +76,7 @@ Available worlds:
   ${[...WORLDS].join(', ')}
 
 Notes:
-  - Only scrapes Experience Points (no skills)
-  - Each page has 50 entries, up to 20 pages (1000 per world/vocation)
+  - Uses JSON API at /api/highscores (1 request per combo, up to 1000 results)
   - 14 worlds × 5 vocations = 70 combos
   - Progress tracked in data/progress-YYYY-MM-DD.json
 `);
@@ -198,7 +196,7 @@ RubinOT Experience Highscores
   Resume:      ${completedCombos.size > 0 ? `yes (${completedCombos.size} done)` : 'fresh start'}
 `);
 
-  console.log(`Launching browser (${BROWSER}) with 20 tabs (blast mode)...`);
+  console.log(`Launching browser (${BROWSER}) for API mode...`);
   const context = await getBrowserContext({ headless, browser: BROWSER });
 
   const startTime = Date.now();

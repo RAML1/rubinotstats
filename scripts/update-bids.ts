@@ -2,7 +2,8 @@
 /**
  * Bid updater — lightweight script that only updates bid amounts for active auctions.
  *
- * Much faster than the full scraper since it only reads list pages (no detail page visits).
+ * Uses the JSON API at /api/bazaar to fetch all auction list pages.
+ * Much faster than the full scraper since it only reads list data (no detail page visits).
  * Run this frequently (every few hours) to keep bid data current.
  *
  * Usage:
@@ -11,11 +12,10 @@
  *   pnpm update:bids --headless       # Run headless
  *   pnpm update:bids --no-db          # Skip database saves
  */
-import * as cheerio from 'cheerio';
 import { PrismaClient } from '@prisma/client';
-import { getBrowserContext, closeBrowser, navigateWithCloudflare, rateLimit, getHealthyPage, sleep } from '../src/lib/scraper/browser';
+import { getBrowserContext, closeBrowser, navigateWithCloudflare, rateLimit, sleep } from '../src/lib/scraper/browser';
 import type { BrowserName } from '../src/lib/scraper/browser';
-import { getTotalPages } from '../src/lib/scraper/auctions';
+import { fetchBazaarListPage, apiAuctionToListAuction } from '../src/lib/scraper/auctions';
 import { RUBINOT_URLS } from '../src/lib/utils/constants';
 
 const BROWSER: BrowserName = 'bid-updater';
@@ -37,9 +37,9 @@ const skipDb = hasFlag('--no-db');
 
 if (hasFlag('--help') || hasFlag('-h')) {
   console.log(`
-RubinOT Bid Updater
-━━━━━━━━━━━━━━━━━━━━
-Updates bid amounts for active current auctions (list pages only, no detail scraping).
+RubinOT Bid Updater (API mode)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Updates bid amounts for active current auctions via /api/bazaar.
 
 Usage:
   pnpm update:bids                  Update all active auction bids
@@ -50,118 +50,60 @@ Usage:
   process.exit(0);
 }
 
-// ── Minimal list page parser (bids only) ───────────────────────────────
-
-interface BidUpdate {
-  externalId: string;
-  minimumBid: number | null;
-  currentBid: number | null;
-  hasBeenBidOn: boolean;
-  auctionEnd: string | null;
-}
-
-function parseNumber(s: string | undefined): number | null {
-  if (!s) return null;
-  const cleaned = s.replace(/[^0-9]/g, '');
-  return cleaned ? parseInt(cleaned, 10) : null;
-}
-
-function parseBidUpdates(html: string): BidUpdate[] {
-  const $ = cheerio.load(html);
-  const updates: BidUpdate[] = [];
-
-  $('div.Auction').each((_i, el) => {
-    const auction = $(el);
-    const detailLink = auction.find('.AuctionCharacterName a').attr('href') || '';
-    const idMatch = detailLink.match(/currentcharactertrades\/(\d+)/);
-    const externalId = idMatch ? idMatch[1] : '';
-    if (!externalId) return;
-
-    const labels = auction.find('.ShortAuctionDataLabel');
-    const values = auction.find('.ShortAuctionDataValue');
-    let minimumBid: number | null = null;
-    let currentBid: number | null = null;
-    let hasBeenBidOn = false;
-    let auctionEnd: string | null = null;
-
-    labels.each((j, lbl) => {
-      const lt = $(lbl).text().trim().replace(/\s+/g, ' ');
-      const vt = $(values.eq(j)).text().trim();
-      if (lt.includes('Auction End')) auctionEnd = vt;
-      if (lt.includes('Minimum') && lt.includes('Bid')) {
-        minimumBid = parseNumber(vt);
-      }
-      if (lt.includes('Current') && lt.includes('Bid')) {
-        currentBid = parseNumber(vt);
-        hasBeenBidOn = true;
-      }
-    });
-
-    updates.push({ externalId, minimumBid, currentBid, hasBeenBidOn, auctionEnd });
-  });
-
-  return updates;
-}
-
 // ── Main ───────────────────────────────────────────────────────────────
 
 async function main() {
-  console.log(`\nLaunching browser (${BROWSER})...`);
+  console.log(`\nLaunching browser (${BROWSER}) for Cloudflare bypass...`);
   const context = await getBrowserContext({ headless, browser: BROWSER });
-  let page = context.pages()[0] || await context.newPage();
+  const page = context.pages()[0] || await context.newPage();
 
-  const baseUrl = `${RUBINOT_URLS.base}${RUBINOT_URLS.currentAuctions}`;
+  // Navigate to establish Cloudflare session
+  await navigateWithCloudflare(page, `${RUBINOT_URLS.base}/bazaar`, 60_000);
+  await sleep(2000);
+
   let updatedCount = 0;
   let totalFound = 0;
   const seenIds = new Set<string>();
 
   try {
-    // Fetch first page
-    console.log(`Fetching page 1: ${baseUrl}`);
-    await navigateWithCloudflare(page, baseUrl);
-    await sleep(1500 + Math.floor(Math.random() * 1500));
-
-    const firstPageHtml = await page.content();
+    // Fetch first page via API
+    console.log('Fetching bazaar page 1 via API...');
+    const firstPageData = await fetchBazaarListPage(page, 1);
     const totalPages = maxPages
-      ? Math.min(getTotalPages(firstPageHtml), maxPages)
-      : getTotalPages(firstPageHtml);
+      ? Math.min(firstPageData.pagination.totalPages, maxPages)
+      : firstPageData.pagination.totalPages;
 
-    const allUpdates: BidUpdate[] = [...parseBidUpdates(firstPageHtml)];
-    console.log(`Page 1: ${allUpdates.length} auctions, ${totalPages} total pages`);
+    const allAuctions = firstPageData.auctions.map(apiAuctionToListAuction);
+    console.log(`Page 1: ${allAuctions.length} auctions, ${totalPages} total pages`);
 
     // Fetch remaining pages
     for (let p = 2; p <= totalPages; p++) {
       await rateLimit('fast');
-      const pageUrl = `${RUBINOT_URLS.base}/?subtopic=currentcharactertrades&currentpage=${p}`;
-
       try {
-        await navigateWithCloudflare(page, pageUrl);
-        await sleep(600 + Math.floor(Math.random() * 800));
-        const html = await page.content();
-        const pageUpdates = parseBidUpdates(html);
-        allUpdates.push(...pageUpdates);
-        if (p % 10 === 0) console.log(`  Page ${p}/${totalPages}: ${pageUpdates.length} auctions`);
+        const pageData = await fetchBazaarListPage(page, p);
+        const pageAuctions = pageData.auctions.map(apiAuctionToListAuction);
+        allAuctions.push(...pageAuctions);
+        if (p % 10 === 0) console.log(`  Page ${p}/${totalPages}: ${pageAuctions.length} auctions`);
       } catch (err) {
         console.error(`  Failed page ${p}: ${(err as Error).message?.substring(0, 60)}`);
-        try { page = await getHealthyPage(BROWSER); } catch {}
       }
     }
 
-    totalFound = allUpdates.length;
+    totalFound = allAuctions.length;
     console.log(`\nTotal auctions found: ${totalFound}`);
 
     // Batch update bids in DB
     if (!skipDb) {
-      for (const update of allUpdates) {
-        seenIds.add(update.externalId);
+      for (const auction of allAuctions) {
+        seenIds.add(auction.externalId);
         try {
           await prisma.currentAuction.update({
-            where: { externalId: update.externalId },
+            where: { externalId: auction.externalId },
             data: {
-              minimumBid: update.minimumBid,
-              currentBid: update.currentBid,
-              hasBeenBidOn: update.hasBeenBidOn,
-              auctionEnd: update.auctionEnd,
+              minimumBid: auction.minimumBid,
+              currentBid: auction.currentBid,
+              hasBeenBidOn: auction.hasBeenBidOn,
+              auctionEnd: auction.auctionEnd,
             },
           });
           updatedCount++;
@@ -189,6 +131,7 @@ async function main() {
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   Total found: ${totalFound}
   Bids updated: ${updatedCount}
+  Mode: JSON API
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
 
     await prisma.$disconnect();

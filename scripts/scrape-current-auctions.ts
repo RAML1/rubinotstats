@@ -1,9 +1,10 @@
 #!/usr/bin/env tsx
 /**
- * Current auctions scraper — scrapes live auctions from currentcharactertrades.
+ * Current auctions scraper — uses the JSON API at /api/bazaar.
  *
  * Features:
- *   - Parallel tabs for detail page scraping (configurable concurrency)
+ *   - Fetches auction list via API (no HTML parsing needed)
+ *   - Fetches detail pages via /api/bazaar/{id} for full skill data
  *   - Save-as-you-go: each auction is saved immediately after scraping
  *   - Archive: ended auctions are copied to auction history before deactivation
  *
@@ -15,15 +16,20 @@
  *   pnpm scrape:current --no-db             # Skip database saves
  *   pnpm scrape:current --update-only       # Only update bids on existing auctions (skip detail scrape)
  *   pnpm scrape:current --rescrape          # Re-scrape detail pages for ALL auctions (not just new)
- *   pnpm scrape:current --tabs 4            # Use 4 parallel tabs for detail scraping (default: 3)
  */
 import * as fs from 'fs';
 import * as path from 'path';
-import * as cheerio from 'cheerio';
 import { PrismaClient } from '@prisma/client';
-import { getBrowserContext, closeBrowser, navigateWithCloudflare, rateLimit, getHealthyPage, sleep } from '../src/lib/scraper/browser';
+import { getBrowserContext, closeBrowser, navigateWithCloudflare, rateLimit, sleep } from '../src/lib/scraper/browser';
 import type { BrowserName } from '../src/lib/scraper/browser';
-import { scrapeSingleAuction, getTotalPages, type ScrapedAuction } from '../src/lib/scraper/auctions';
+import {
+  fetchBazaarListPage,
+  fetchBazaarDetail,
+  apiAuctionToListAuction,
+  apiDetailToScrapedAuction,
+  type CurrentListAuction,
+  type ScrapedAuction,
+} from '../src/lib/scraper/auctions';
 import { RUBINOT_URLS } from '../src/lib/utils/constants';
 import type { Page } from 'playwright';
 
@@ -46,13 +52,12 @@ const headless = hasFlag('--headless');
 const skipDb = hasFlag('--no-db');
 const updateOnly = hasFlag('--update-only');
 const rescrape = hasFlag('--rescrape');
-const PARALLEL_TABS = getArg('--tabs') ? parseInt(getArg('--tabs')!, 10) : 3;
 
 if (hasFlag('--help') || hasFlag('-h')) {
   console.log(`
-RubinOT Current Auctions Scraper
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Scrapes live auctions from currentcharactertrades.
+RubinOT Current Auctions Scraper (API mode)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Scrapes live auctions via /api/bazaar JSON API.
 
 Usage:
   pnpm scrape:current                     Scrape all current auctions
@@ -62,131 +67,8 @@ Usage:
   pnpm scrape:current --no-db             Skip database saves
   pnpm scrape:current --update-only       Only update bids (skip detail scrape for new)
   pnpm scrape:current --rescrape          Re-scrape detail pages for ALL auctions (not just new)
-  pnpm scrape:current --tabs 4            Use 4 parallel tabs (default: 3)
 `);
   process.exit(0);
-}
-
-// ── List page parser (adapted for current auctions) ────────────────────
-
-interface CurrentListAuction {
-  externalId: string;
-  characterName: string;
-  level: number | null;
-  vocation: string | null;
-  gender: string | null;
-  world: string | null;
-  auctionStart: string | null;
-  auctionEnd: string | null;
-  minimumBid: number | null;
-  currentBid: number | null;
-  hasBeenBidOn: boolean;
-  // Features from list page
-  charmPoints: number | null;
-  unusedCharmPoints: number | null;
-  bossPoints: number | null;
-  exaltedDust: string | null;
-  gold: number | null;
-  bestiary: number | null;
-}
-
-function parseNumber(s: string | undefined): number | null {
-  if (!s) return null;
-  const cleaned = s.replace(/[^0-9]/g, '');
-  return cleaned ? parseInt(cleaned, 10) : null;
-}
-
-function parseCurrentAuctionListPage(html: string): CurrentListAuction[] {
-  const $ = cheerio.load(html);
-  const auctions: CurrentListAuction[] = [];
-
-  $('div.Auction').each((_i, el) => {
-    const auction = $(el);
-
-    const detailLink = auction.find('.AuctionCharacterName a').attr('href') || '';
-    const idMatch = detailLink.match(/currentcharactertrades\/(\d+)/);
-    const externalId = idMatch ? idMatch[1] : '';
-    if (!externalId) return;
-
-    const characterName = auction.find('.AuctionCharacterName a').text().trim();
-
-    const headerText = auction.find('.AuctionHeader').text();
-    const levelMatch = headerText.match(/Level:\s*(\d+)/);
-    const vocMatch = headerText.match(/Vocation:\s*([^|]+)/);
-    const genderMatch = headerText.match(/\|\s*(Male|Female)\s*\|/i);
-    const worldMatch = headerText.match(/World:\s*(\S.*?)(?:\s*$|\n)/);
-
-    // Parse date labels
-    const labels = auction.find('.ShortAuctionDataLabel');
-    const values = auction.find('.ShortAuctionDataValue');
-    let auctionStart: string | null = null;
-    let auctionEnd: string | null = null;
-    let minimumBid: number | null = null;
-    let currentBid: number | null = null;
-    let hasBeenBidOn = false;
-
-    labels.each((j, lbl) => {
-      const lt = $(lbl).text().trim().replace(/\s+/g, ' ');
-      const vt = $(values.eq(j)).text().trim();
-      if (lt.includes('Auction Start')) auctionStart = vt;
-      if (lt.includes('Auction End')) auctionEnd = vt;
-      if (lt.includes('Minimum') && lt.includes('Bid')) {
-        minimumBid = parseNumber(vt);
-      }
-      if (lt.includes('Current') && lt.includes('Bid')) {
-        currentBid = parseNumber(vt);
-        hasBeenBidOn = true;
-      }
-    });
-
-    // Parse special character features
-    let charmPoints: number | null = null;
-    let unusedCharmPoints: number | null = null;
-    let bossPoints: number | null = null;
-    let exaltedDust: string | null = null;
-    let gold: number | null = null;
-    let bestiary: number | null = null;
-
-    auction.find('.SpecialCharacterFeatures .Entry').each((_j, entry) => {
-      const text = $(entry).text().trim();
-      const charmMatch = text.match(/Total Charm Points:\s*(\d+)(?:.*Unused Charm Points:\s*(\d+))?/);
-      if (charmMatch) {
-        charmPoints = parseInt(charmMatch[1], 10);
-        if (charmMatch[2]) unusedCharmPoints = parseInt(charmMatch[2], 10);
-        return;
-      }
-      const bossMatch = text.match(/Total Boss Points:\s*(\d+)/);
-      if (bossMatch) { bossPoints = parseInt(bossMatch[1], 10); return; }
-      const dustMatch = text.match(/Exalted Dust\/Dust Limit:\s*(.+)/);
-      if (dustMatch) { exaltedDust = dustMatch[1].trim(); return; }
-      const goldMatch = text.match(/^(\d+)\s+Gold/);
-      if (goldMatch) { gold = parseInt(goldMatch[1], 10); return; }
-      const bestMatch = text.match(/Monsters in Bestiary completed:\s*(\d+)/);
-      if (bestMatch) { bestiary = parseInt(bestMatch[1], 10); return; }
-    });
-
-    auctions.push({
-      externalId,
-      characterName,
-      level: levelMatch ? parseInt(levelMatch[1], 10) : null,
-      vocation: vocMatch ? vocMatch[1].trim() : null,
-      gender: genderMatch ? genderMatch[1].trim() : null,
-      world: worldMatch ? worldMatch[1].trim() : null,
-      auctionStart,
-      auctionEnd,
-      minimumBid,
-      currentBid,
-      hasBeenBidOn,
-      charmPoints,
-      unusedCharmPoints,
-      bossPoints,
-      exaltedDust,
-      gold,
-      bestiary,
-    });
-  });
-
-  return auctions;
 }
 
 // ── Database helpers ───────────────────────────────────────────────────
@@ -210,7 +92,7 @@ async function upsertCurrentAuction(list: CurrentListAuction, detail: ScrapedAuc
     gold: list.gold,
     bestiary: list.bestiary,
     isActive: true,
-    url: `${RUBINOT_URLS.base}/?currentcharactertrades/${list.externalId}`,
+    url: `${RUBINOT_URLS.base}/bazaar/${list.externalId}`,
   };
 
   // Merge detail page data if available
@@ -286,7 +168,6 @@ async function updateBidOnly(externalId: string, minimumBid: number | null, curr
  * then mark them as inactive.
  */
 async function archiveEndedAuctions(seenIds: Set<string>): Promise<number> {
-  // Find auctions that are active in DB but NOT on the site anymore
   const ended = await prisma.currentAuction.findMany({
     where: {
       isActive: true,
@@ -299,13 +180,11 @@ async function archiveEndedAuctions(seenIds: Set<string>): Promise<number> {
   let archived = 0;
   for (const auction of ended) {
     try {
-      // Check if already exists in auction history
       const exists = await prisma.auction.findFirst({
         where: { externalId: auction.externalId },
       });
 
       if (!exists) {
-        // Copy to auction history with sold status
         await prisma.auction.create({
           data: {
             externalId: auction.externalId,
@@ -361,7 +240,6 @@ async function archiveEndedAuctions(seenIds: Set<string>): Promise<number> {
             primalOrdealAvailable: auction.primalOrdealAvailable,
             soulWarAvailable: auction.soulWarAvailable,
             sanguineBloodAvailable: auction.sanguineBloodAvailable,
-            // New fields added to auctions table
             minimumBid: auction.minimumBid,
             currentBid: auction.currentBid,
             hasBeenBidOn: auction.hasBeenBidOn,
@@ -389,7 +267,6 @@ async function archiveEndedAuctions(seenIds: Set<string>): Promise<number> {
     }
   }
 
-  // Now deactivate them
   await prisma.currentAuction.updateMany({
     where: {
       isActive: true,
@@ -399,138 +276,6 @@ async function archiveEndedAuctions(seenIds: Set<string>): Promise<number> {
   });
 
   return archived;
-}
-
-// ── Parallel detail scraper ──────────────────────────────────────────────
-
-/**
- * Scrape a single auction's detail page using the given tab.
- * Returns the result immediately so it can be saved right away.
- */
-async function scrapeDetailWithTab(
-  tab: Page,
-  listAuction: CurrentListAuction,
-  label: string,
-): Promise<{ list: CurrentListAuction; detail: ScrapedAuction | null }> {
-  try {
-    const detail = await scrapeSingleAuction(tab, listAuction.externalId);
-    return { list: listAuction, detail };
-  } catch (err) {
-    console.error(`    Failed detail for ${listAuction.characterName}: ${(err as Error).message?.substring(0, 60)}`);
-    return { list: listAuction, detail: null };
-  }
-}
-
-/**
- * Process a batch of auctions across multiple tabs in parallel.
- * Each auction is saved to DB immediately after its detail is scraped.
- */
-async function scrapeDetailsInParallel(
-  context: any,
-  auctions: CurrentListAuction[],
-  existingIds: Set<string>,
-  stats: { newCount: number; updatedCount: number; savedCount: number },
-): Promise<void> {
-  // Separate auctions that need detail scraping vs bid-only updates
-  const needDetail: CurrentListAuction[] = [];
-  const bidOnly: CurrentListAuction[] = [];
-
-  for (const a of auctions) {
-    const isNew = !existingIds.has(a.externalId);
-    const needs = isNew || rescrape;
-
-    if (needs && !updateOnly) {
-      needDetail.push(a);
-    } else {
-      bidOnly.push(a);
-    }
-  }
-
-  // Process bid-only updates immediately (fast, no scraping needed)
-  if (!skipDb) {
-    for (const a of bidOnly) {
-      stats.updatedCount++;
-      try {
-        await updateBidOnly(a.externalId, a.minimumBid, a.currentBid, a.hasBeenBidOn);
-      } catch {
-        // Might not exist yet — insert it
-        await upsertCurrentAuction(a, null);
-        stats.newCount++;
-      }
-    }
-    if (bidOnly.length > 0) {
-      console.log(`  Updated bids for ${bidOnly.length} existing auctions`);
-    }
-  }
-
-  if (needDetail.length === 0) return;
-
-  // Create parallel tabs
-  const tabCount = Math.min(PARALLEL_TABS, needDetail.length);
-  console.log(`\n  Scraping ${needDetail.length} detail pages using ${tabCount} parallel tabs...`);
-
-  const tabs: Page[] = [];
-  for (let i = 0; i < tabCount; i++) {
-    try {
-      const tab = await context.newPage();
-      tabs.push(tab);
-    } catch {
-      console.error(`  Failed to create tab ${i + 1}`);
-    }
-  }
-
-  if (tabs.length === 0) {
-    console.error('  No tabs available — falling back to single tab');
-    // Use the main page as fallback
-    const mainPage = context.pages()[0];
-    if (mainPage) tabs.push(mainPage);
-    else return;
-  }
-
-  // Process auctions in parallel batches
-  let idx = 0;
-  while (idx < needDetail.length) {
-    if (maxCount && stats.newCount >= maxCount) break;
-
-    const batch = needDetail.slice(idx, idx + tabs.length);
-    idx += batch.length;
-
-    // Small stagger between parallel requests to avoid triggering Cloudflare
-    const promises = batch.map(async (auction, i) => {
-      if (i > 0) await sleep(300 * i); // stagger by 300ms per tab
-      stats.newCount++;
-      const isNew = !existingIds.has(auction.externalId);
-      const label = isNew ? 'NEW' : 'RESCRAPE';
-      const target = maxCount ?? needDetail.length;
-      console.log(`  [${label} ${stats.newCount}/${target}] ${auction.characterName} Lv${auction.level}`);
-      return scrapeDetailWithTab(tabs[i % tabs.length], auction, label);
-    });
-
-    const results = await Promise.allSettled(promises);
-
-    // Save each result immediately
-    for (const result of results) {
-      if (result.status === 'fulfilled') {
-        const { list, detail } = result.value;
-        if (!skipDb) {
-          try {
-            await upsertCurrentAuction(list, detail);
-            stats.savedCount++;
-          } catch (err) {
-            console.error(`    DB save failed for ${list.characterName}: ${(err as Error).message?.substring(0, 60)}`);
-          }
-        }
-      }
-    }
-
-    // Rate limit between batches
-    await rateLimit('fast');
-  }
-
-  // Close extra tabs (keep the first one for list page navigation)
-  for (let i = 1; i < tabs.length; i++) {
-    try { await tabs[i].close(); } catch {}
-  }
 }
 
 // ── Main ───────────────────────────────────────────────────────────────
@@ -547,53 +292,48 @@ async function main() {
   const existingIds = new Set(existing.map(e => e.externalId));
   console.log(`Found ${existingIds.size} existing active current auctions in DB`);
 
-  // Launch browser
-  console.log(`\nLaunching browser (${BROWSER}) with ${PARALLEL_TABS} parallel tabs...`);
+  // Launch browser (still needed for Cloudflare bypass)
+  console.log(`\nLaunching browser (${BROWSER}) for Cloudflare bypass...`);
   const context = await getBrowserContext({ headless, browser: BROWSER });
   let page = context.pages()[0] || await context.newPage();
 
-  const baseUrl = `${RUBINOT_URLS.base}${RUBINOT_URLS.currentAuctions}`;
+  // Navigate to establish Cloudflare session
+  console.log('Navigating to bazaar for Cloudflare bypass...');
+  await navigateWithCloudflare(page, `${RUBINOT_URLS.base}/bazaar`, 60_000);
+  await sleep(2000);
+
   const stats = { newCount: 0, updatedCount: 0, savedCount: 0 };
   let totalFound = 0;
   let archivedCount = 0;
   const seenIds = new Set<string>();
 
   try {
-    // Fetch first page
-    console.log(`\nFetching page 1: ${baseUrl}`);
-    await navigateWithCloudflare(page, baseUrl);
-    await sleep(1500 + Math.floor(Math.random() * 1500));
-
-    const firstPageHtml = await page.content();
+    // Fetch first page via API
+    console.log('\nFetching bazaar page 1 via API...');
+    const firstPageData = await fetchBazaarListPage(page, 1);
     const totalPages = maxPages
-      ? Math.min(getTotalPages(firstPageHtml), maxPages)
-      : getTotalPages(firstPageHtml);
+      ? Math.min(firstPageData.pagination.totalPages, maxPages)
+      : firstPageData.pagination.totalPages;
 
-    const firstPageAuctions = parseCurrentAuctionListPage(firstPageHtml);
-    console.log(`Page 1: ${firstPageAuctions.length} auctions, ${totalPages} total pages`);
+    const firstPageAuctions = firstPageData.auctions.map(apiAuctionToListAuction);
+    console.log(`Page 1: ${firstPageAuctions.length} auctions, ${totalPages} total pages, ${firstPageData.pagination.total} total`);
 
-    // Collect all list page data
     const allListAuctions: CurrentListAuction[] = [...firstPageAuctions];
 
+    // Fetch remaining list pages
     for (let p = 2; p <= totalPages; p++) {
       if (maxCount && stats.newCount >= maxCount) break;
 
       await rateLimit('fast');
-      const pageUrl = `${RUBINOT_URLS.base}/?subtopic=currentcharactertrades&currentpage=${p}`;
       console.log(`Fetching page ${p}/${totalPages}...`);
 
       try {
-        await navigateWithCloudflare(page, pageUrl);
-        await sleep(600 + Math.floor(Math.random() * 800));
-        const html = await page.content();
-        const pageAuctions = parseCurrentAuctionListPage(html);
+        const pageData = await fetchBazaarListPage(page, p);
+        const pageAuctions = pageData.auctions.map(apiAuctionToListAuction);
         console.log(`  Page ${p}: ${pageAuctions.length} auctions`);
         allListAuctions.push(...pageAuctions);
       } catch (err) {
         console.error(`  Failed page ${p}: ${(err as Error).message?.substring(0, 80)}`);
-        try {
-          page = await getHealthyPage(BROWSER);
-        } catch {}
       }
     }
 
@@ -605,8 +345,71 @@ async function main() {
       seenIds.add(a.externalId);
     }
 
-    // Scrape details in parallel and save as we go
-    await scrapeDetailsInParallel(context, allListAuctions, existingIds, stats);
+    // Separate auctions that need detail scraping vs bid-only updates
+    const needDetail: CurrentListAuction[] = [];
+    const bidOnly: CurrentListAuction[] = [];
+
+    for (const a of allListAuctions) {
+      const isNew = !existingIds.has(a.externalId);
+      const needs = isNew || rescrape;
+
+      if (needs && !updateOnly) {
+        needDetail.push(a);
+      } else {
+        bidOnly.push(a);
+      }
+    }
+
+    // Process bid-only updates immediately
+    if (!skipDb) {
+      for (const a of bidOnly) {
+        stats.updatedCount++;
+        try {
+          await updateBidOnly(a.externalId, a.minimumBid, a.currentBid, a.hasBeenBidOn);
+        } catch {
+          await upsertCurrentAuction(a, null);
+          stats.newCount++;
+        }
+      }
+      if (bidOnly.length > 0) {
+        console.log(`  Updated bids for ${bidOnly.length} existing auctions`);
+      }
+    }
+
+    // Scrape detail pages for new auctions
+    if (needDetail.length > 0) {
+      console.log(`\n  Scraping ${needDetail.length} detail pages via API...`);
+
+      for (const listAuction of needDetail) {
+        if (maxCount && stats.newCount >= maxCount) break;
+        stats.newCount++;
+
+        const isNew = !existingIds.has(listAuction.externalId);
+        const label = isNew ? 'NEW' : 'RESCRAPE';
+        const target = maxCount ?? needDetail.length;
+        console.log(`  [${label} ${stats.newCount}/${target}] ${listAuction.characterName} Lv${listAuction.level}`);
+
+        try {
+          await rateLimit('fast');
+          const detail = await fetchBazaarDetail(page, listAuction.externalId);
+          const auction = apiDetailToScrapedAuction(detail, listAuction);
+
+          if (!skipDb) {
+            await upsertCurrentAuction(listAuction, auction);
+            stats.savedCount++;
+          }
+        } catch (err) {
+          console.error(`    Failed detail for ${listAuction.characterName}:`, (err as Error).message);
+          // Save with list data only
+          if (!skipDb) {
+            try {
+              await upsertCurrentAuction(listAuction, null);
+              stats.savedCount++;
+            } catch {}
+          }
+        }
+      }
+    }
 
     // Archive ended auctions to history, then deactivate
     if (!skipDb && !maxPages && !maxCount) {
@@ -626,7 +429,7 @@ async function main() {
   Successfully saved: ${stats.savedCount}
   Bids updated: ${stats.updatedCount}
   Archived to history: ${archivedCount}
-  Parallel tabs used: ${PARALLEL_TABS}
+  Mode: JSON API (no HTML parsing)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
 
     await prisma.$disconnect();
