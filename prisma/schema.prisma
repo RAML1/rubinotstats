@@ -538,3 +538,56 @@ model ItemListing {
   @@index([expiresAt])
   @@map("item_listings")
 }
+
+// ── Boosted Creature & Boss ─────────────────────────────────────────────
+
+model BoostedDaily {
+  id              Int      @id @default(autoincrement())
+  date            DateTime @unique @db.Date
+  boostedCreature String?  @map("boosted_creature")
+  creatureLooktype Int?    @map("creature_looktype")
+  boostedBoss     String?  @map("boosted_boss")
+  bossLooktype    Int?     @map("boss_looktype")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@map("boosted_daily")
+}
+
+// ── Bans ────────────────────────────────────────────────────────────────
+
+model Ban {
+  id           Int       @id @default(autoincrement())
+  playerName   String    @map("player_name")
+  world        String?
+  reason       String?
+  ruleCategory String?   @map("rule_category")
+  bannedAt     DateTime? @map("banned_at")
+  expiresAt    DateTime? @map("expires_at")
+  isPermanent  Boolean   @default(false) @map("is_permanent")
+  isActive     Boolean   @default(true) @map("is_active")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  @@unique([playerName, bannedAt])
+  @@index([world, isActive])
+  @@index([reason])
+  @@map("bans")
+}
+
+// ── Transfers ───────────────────────────────────────────────────────────
+
+model Transfer {
+  id           Int       @id @default(autoincrement())
+  playerName   String    @map("player_name")
+  fromWorld    String    @map("from_world")
+  toWorld      String    @map("to_world")
+  transferDate DateTime? @map("transfer_date")
+  level        Int?
+  vocation     String?
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  @@unique([playerName, fromWorld, toWorld, transferDate])
+  @@index([fromWorld])
+  @@index([toWorld])
+  @@index([transferDate])
+  @@map("transfers")
+}

@@ -15,6 +15,7 @@ import MilestonesFeed from './components/MilestonesFeed';
 import { SessionCalculator } from './components/SessionCalculator';
 import WorldLeaders from './components/WorldLeaders';
 import CompareView from './components/CompareView';
+import ValuationCard from './components/ValuationCard';
 
 interface SearchResult {
   name: string;
@@ -530,6 +531,9 @@ export default function ProgressionClient() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Character Valuation (Premium) */}
+          <ValuationCard characterName={data.character.name} />
 
           {/* Compare View (if comparing) */}
           {compareData && (

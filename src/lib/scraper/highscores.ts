@@ -1,6 +1,7 @@
 /**
- * Experience Points highscores scraper for RubinOT.
- * Uses the JSON API at /api/highscores — returns all 1,000 entries per world in one request.
+ * Highscores scraper for RubinOT.
+ * Uses the JSON API at /api/highscores — supports experience + all skill categories.
+ * Returns up to 1,000 entries per world×category in one request.
  * NOTE: The API ignores the vocation filter — always returns top 1,000 across all vocations.
  * Still needs Brave Browser to bypass Cloudflare on the first request.
  */
@@ -8,11 +9,31 @@ import {
   RUBINOT_URLS,
   WORLDS,
   HIGHSCORE_PROFESSIONS,
+  HIGHSCORE_CATEGORIES,
+  DAILY_CATEGORIES,
   type HighscoreProfession,
+  type HighscoreCategory,
 } from '../utils/constants';
 import type { Page, BrowserContext } from 'playwright';
 import { navigateWithCloudflare, rateLimit, getBrowserContext, closeBrowser, sleep } from './browser';
 import type { BrowserName } from './browser';
+
+/**
+ * Map our category names to the API `category` query parameter value.
+ * Tested empirically — the API accepts these exact param values.
+ * Categories not listed here are not yet supported by the API.
+ */
+const API_CATEGORY_PARAM: Record<string, string> = {
+  'Experience Points': 'experience',
+  'Magic Level': 'magic',
+  'Fist Fighting': 'fist',
+  'Club Fighting': 'club',
+  'Sword Fighting': 'sword',
+  'Axe Fighting': 'axe',
+  'Distance Fighting': 'distance',
+  'Shielding': 'shielding',
+  'Fishing': 'fishing',
+};
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -30,6 +51,7 @@ export interface ScrapedHighscoreEntry {
 export interface ScrapeHighscoresOptions {
   worlds?: string[];
   professions?: HighscoreProfession[];
+  categories?: HighscoreCategory[];
   maxPages?: number; // kept for CLI compat but ignored (API returns all at once)
   headless?: boolean;
   browser?: BrowserName;
@@ -41,7 +63,8 @@ export interface ScrapeHighscoresOptions {
 
 // ── Combo key ─────────────────────────────────────────────────────────
 
-export function comboKey(world: string, profession: string): string {
+export function comboKey(world: string, profession: string, category?: string): string {
+  if (category) return `${world}|${profession}|${category}`;
   return `${world}|${profession}`;
 }
 
@@ -116,8 +139,9 @@ interface ApiHighscoreResponse {
 async function fetchHighscoresFromApi(
   page: Page,
   worldId: number | '',
+  categoryParam: string = 'experience',
 ): Promise<ApiHighscoreResponse> {
-  const url = `/api/highscores?world=${worldId}&category=experience&vocation=all&page=1`;
+  const url = `/api/highscores?world=${worldId}&category=${categoryParam}&vocation=all&page=1`;
 
   return page.evaluate(async (apiUrl: string) => {
     const res = await fetch(apiUrl);
@@ -134,24 +158,27 @@ export async function scrapeHighscores(
 ): Promise<ScrapedHighscoreEntry[]> {
   const worlds = opts.worlds ?? [...WORLDS];
   const professions = opts.professions ?? ['Knights', 'Paladins', 'Sorcerers', 'Druids', 'Monks'] as HighscoreProfession[];
+  const categories = opts.categories ?? ['Experience Points'] as HighscoreCategory[];
   const completed = opts.completedCombos ?? new Set<string>();
   const allEntries: ScrapedHighscoreEntry[] = [];
   const browserName = opts.browser ?? 'highscores';
   const headless = opts.headless ?? false;
 
-  // Since the API ignores vocation filter, we only need 1 request per world.
-  // Build world queue (skip worlds where ALL professions are already completed)
-  const worldQueue: string[] = [];
+  // Build queue of (world, category) combos still needed
+  // Since the API ignores vocation filter, each (world, category) is 1 request.
+  const queue: Array<{ world: string; category: HighscoreCategory }> = [];
   for (const world of worlds) {
-    const allDone = professions.every(p => completed.has(comboKey(world, p)));
-    if (!allDone) worldQueue.push(world);
+    for (const category of categories) {
+      const allDone = professions.every(p => completed.has(comboKey(world, p, category)));
+      if (!allDone) queue.push({ world, category });
+    }
   }
 
-  const totalWorlds = worlds.length;
-  const alreadyDone = totalWorlds - worldQueue.length;
-  console.log(`  Worlds to scrape: ${worldQueue.length}/${totalWorlds} (1 API request per world)`);
+  const totalCombos = worlds.length * categories.length;
+  const alreadyDone = totalCombos - queue.length;
+  console.log(`  Combos to scrape: ${queue.length}/${totalCombos} (world × category, 1 API request each)`);
   if (alreadyDone > 0) {
-    console.log(`  Resuming: ${alreadyDone} worlds already done, ${worldQueue.length} remaining`);
+    console.log(`  Resuming: ${alreadyDone} combos already done, ${queue.length} remaining`);
   }
 
   // Get a single page for API calls (just need one tab)
@@ -165,25 +192,26 @@ export async function scrapeHighscores(
   // Load world IDs from API
   const worldIds = await fetchWorldIds(page);
 
-  let completedWorldCount = alreadyDone;
+  let completedCount = alreadyDone;
 
-  for (const world of worldQueue) {
+  for (const { world, category } of queue) {
     const worldId = worldIds.get(world);
-    completedWorldCount++;
+    completedCount++;
 
     if (worldId === undefined) {
       console.error(`  Unknown world "${world}" — not in API response, skipping`);
-      for (const p of professions) opts.onComboDone?.(comboKey(world, p));
+      for (const p of professions) opts.onComboDone?.(comboKey(world, p, category));
       continue;
     }
 
-    console.log(`\n[${completedWorldCount}/${totalWorlds}] ${world}`);
+    const categoryParam = API_CATEGORY_PARAM[category] || 'experience';
+    console.log(`\n[${completedCount}/${totalCombos}] ${world} — ${category}`);
 
     let data: ApiHighscoreResponse | null = null;
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
         await rateLimit('fast');
-        data = await fetchHighscoresFromApi(page, worldId);
+        data = await fetchHighscoresFromApi(page, worldId, categoryParam);
         break;
       } catch (err) {
         console.error(`  API call failed (attempt ${attempt}/3): ${(err as Error).message?.substring(0, 80)}`);
@@ -208,14 +236,14 @@ export async function scrapeHighscores(
     }
 
     if (!data || !data.players) {
-      console.error(`  All attempts failed — skipping ${world}`);
+      console.error(`  All attempts failed — skipping ${world} / ${category}`);
       continue;
     }
 
     console.log(`  ${data.totalCount} results, ${data.players.length} players received`);
 
     if (data.players.length === 0) {
-      for (const p of professions) opts.onComboDone?.(comboKey(world, p));
+      for (const p of professions) opts.onComboDone?.(comboKey(world, p, category));
       continue;
     }
 
@@ -233,7 +261,7 @@ export async function scrapeHighscores(
         world,
         level: player.level,
         score: BigInt(player.value),
-        category: 'Experience Points',
+        category,
         profession,
       };
       if (opts.onEntry) await opts.onEntry(entry);
@@ -242,9 +270,9 @@ export async function scrapeHighscores(
 
     opts.onPageDone?.(world, 'All', 1, 1, data.players.length);
 
-    // Mark all profession combos for this world as done
+    // Mark all profession combos for this world+category as done
     for (const p of professions) {
-      opts.onComboDone?.(comboKey(world, p));
+      opts.onComboDone?.(comboKey(world, p, category));
     }
   }
 

@@ -13,6 +13,8 @@ import {
   CheckCircle2,
   XCircle,
   Loader2,
+  Flame,
+  Lock,
 } from "lucide-react";
 
 interface PremiumRequest {
@@ -46,6 +48,13 @@ const FEATURES = [
   },
 ];
 
+interface LegacyCount {
+  count: number;
+  limit: number;
+  remaining: number;
+  isFull: boolean;
+}
+
 export function PremiumClient() {
   const { data: session, status } = useSession();
   const [requests, setRequests] = useState<PremiumRequest[]>([]);
@@ -53,6 +62,7 @@ export function PremiumClient() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [legacyCount, setLegacyCount] = useState<LegacyCount | null>(null);
 
   // Form state
   const [characterName, setCharacterName] = useState("");
@@ -60,6 +70,22 @@ export function PremiumClient() {
     "legacy"
   );
   const [rcAmount, setRcAmount] = useState("");
+
+  useEffect(() => {
+    // Fetch legacy count (public)
+    fetch("/api/premium/legacy-count")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.success) {
+          setLegacyCount(data.data);
+          // Auto-switch to subscriber if legacy is full
+          if (data.data.isFull && requestedTier === "legacy") {
+            setRequestedTier("subscriber");
+          }
+        }
+      })
+      .catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (session?.user?.id) {
@@ -141,11 +167,17 @@ export function PremiumClient() {
       {/* Tier cards */}
       <div className="grid gap-4 sm:grid-cols-2">
         <div
-          onClick={() => setRequestedTier("legacy")}
-          className={`cursor-pointer rounded-xl border-2 p-6 space-y-2 transition-colors ${
-            requestedTier === "legacy"
-              ? "border-amber-400 bg-amber-400/5"
-              : "border-border hover:border-amber-400/50"
+          onClick={() => {
+            if (!legacyCount?.isFull) setRequestedTier("legacy");
+          }}
+          className={`rounded-xl border-2 p-6 space-y-2 transition-colors ${
+            legacyCount?.isFull
+              ? "border-border/50 opacity-60 cursor-not-allowed"
+              : `cursor-pointer ${
+                  requestedTier === "legacy"
+                    ? "border-amber-400 bg-amber-400/5"
+                    : "border-border hover:border-amber-400/50"
+                }`
           }`}
         >
           <div className="flex items-center gap-2">
@@ -156,6 +188,28 @@ export function PremiumClient() {
           <p className="text-sm text-muted-foreground">
             One-time RC payment. Access all premium features forever.
           </p>
+          {/* Legacy limit badge */}
+          {legacyCount && (
+            <div className={`mt-2 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${
+              legacyCount.isFull
+                ? "bg-red-500/15 text-red-400 border border-red-500/20"
+                : legacyCount.remaining <= 5
+                  ? "bg-amber-500/15 text-amber-400 border border-amber-500/20"
+                  : "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20"
+            }`}>
+              {legacyCount.isFull ? (
+                <>
+                  <Lock className="h-3 w-3" />
+                  SOLD OUT — All {legacyCount.limit} spots claimed
+                </>
+              ) : (
+                <>
+                  <Flame className="h-3 w-3" />
+                  {legacyCount.count}/{legacyCount.limit} spots claimed — {legacyCount.remaining} remaining
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         <div

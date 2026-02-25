@@ -1,14 +1,13 @@
 #!/usr/bin/env tsx
 /**
- * CLI script for scraping RubinOT experience highscores.
- *
- * Scrapes Experience Points leaderboard across all worlds and vocations.
+ * CLI script for scraping RubinOT highscores (experience + all skill categories).
  *
  * Usage:
- *   pnpm scrape:highscores                          # All worlds, all vocations
+ *   pnpm scrape:highscores                          # All worlds, experience only
+ *   pnpm scrape:highscores --all-skills              # All worlds, all skill categories
+ *   pnpm scrape:highscores --category sword          # Single category
  *   pnpm scrape:highscores --world Lunarian          # Single world
  *   pnpm scrape:highscores --vocation knights        # Single vocation
- *   pnpm scrape:highscores --pages 3                 # First 3 pages per combo
  *   pnpm scrape:highscores --no-db                   # Skip saving to database
  *   pnpm scrape:highscores --headless                # Run headless (may fail on CF)
  *   pnpm scrape:highscores --fresh                   # Ignore progress, start from scratch
@@ -28,7 +27,11 @@ import {
   WORLDS,
   HIGHSCORE_PROFESSIONS,
   PROFESSION_ALIASES,
+  CATEGORY_ALIASES,
+  DAILY_CATEGORIES,
+  HIGHSCORE_CATEGORIES,
   type HighscoreProfession,
+  type HighscoreCategory,
 } from '../src/lib/utils/constants';
 
 const prisma = new PrismaClient();
@@ -47,6 +50,8 @@ const hasFlag = (flag: string) => args.includes(flag);
 
 const worldArg = getArg('--world');
 const vocationArg = getArg('--vocation');
+const categoryArg = getArg('--category');
+const allSkills = hasFlag('--all-skills');
 const headless = hasFlag('--headless');
 const skipDb = hasFlag('--no-db');
 const freshStart = hasFlag('--fresh');
@@ -54,16 +59,30 @@ const maxPages = getArg('--pages') ? parseInt(getArg('--pages')!, 10) : undefine
 
 if (hasFlag('--help') || hasFlag('-h')) {
   console.log(`
-RubinOT Experience Highscores Scraper (API mode)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RubinOT Highscores Scraper (API mode)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Usage:
-  pnpm scrape:highscores                          All worlds, all vocations
+  pnpm scrape:highscores                          All worlds, experience only
+  pnpm scrape:highscores --all-skills              All worlds, all skill categories
+  pnpm scrape:highscores --category sword          Single category
   pnpm scrape:highscores --world Lunarian          Single world
   pnpm scrape:highscores --vocation knights        Single vocation
   pnpm scrape:highscores --no-db                   Skip saving to database
   pnpm scrape:highscores --fresh                   Ignore progress, start from scratch
   pnpm scrape:highscores --headless                Run headless (may fail on Cloudflare)
+
+Category aliases:
+  exp, experience  → Experience Points
+  ml, magic        → Magic Level
+  sword            → Sword Fighting
+  axe              → Axe Fighting
+  club             → Club Fighting
+  distance         → Distance Fighting
+  shielding        → Shielding
+  fist             → Fist Fighting
+  fishing          → Fishing
+  charm            → Charm Points
 
 Vocation aliases:
   knights, ek        → Knights
@@ -76,14 +95,14 @@ Available worlds:
   ${[...WORLDS].join(', ')}
 
 Notes:
-  - Uses JSON API at /api/highscores (1 request per combo, up to 1000 results)
-  - 14 worlds × 5 vocations = 70 combos
+  - Uses JSON API at /api/highscores (1 request per world×category, up to 1000 results)
+  - --all-skills scrapes: ${DAILY_CATEGORIES.join(', ')}
   - Progress tracked in data/progress-YYYY-MM-DD.json
 `);
   process.exit(0);
 }
 
-// ── Resolve world/vocation args ──────────────────────────────────────
+// ── Resolve world/vocation/category args ──────────────────────────────
 
 function resolveWorlds(): string[] {
   if (!worldArg) return [...WORLDS];
@@ -108,6 +127,24 @@ function resolveProfessions(): HighscoreProfession[] {
     process.exit(1);
   }
   return ['Knights', 'Paladins', 'Sorcerers', 'Druids', 'Monks'];
+}
+
+function resolveCategories(): HighscoreCategory[] {
+  if (allSkills) return [...DAILY_CATEGORIES];
+  if (categoryArg) {
+    // Try exact match first
+    const allCategories = Object.keys(HIGHSCORE_CATEGORIES) as HighscoreCategory[];
+    const exact = allCategories.find((c) => c.toLowerCase() === categoryArg.toLowerCase());
+    if (exact) return [exact];
+
+    // Try alias
+    const alias = CATEGORY_ALIASES[categoryArg.toLowerCase()];
+    if (alias) return [alias];
+
+    console.error(`Unknown category: "${categoryArg}". Use --help to see available categories.`);
+    process.exit(1);
+  }
+  return ['Experience Points'];
 }
 
 // ── Progress file (resume support) ───────────────────────────────────
@@ -181,15 +218,17 @@ async function main() {
 
   const worlds = resolveWorlds();
   const professions = resolveProfessions();
-  const totalCombos = worlds.length * professions.length;
+  const categories = resolveCategories();
+  const totalCombos = worlds.length * professions.length * categories.length;
 
   const completedCombos = loadProgress();
 
   console.log(`
-RubinOT Experience Highscores
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RubinOT Highscores
+━━━━━━━━━━━━━━━━━━
   Worlds:      ${worlds.join(', ')}
   Vocations:   ${professions.join(', ')}
+  Categories:  ${categories.join(', ')}
   Combos:      ${totalCombos}
   Max pages:   ${maxPages ?? 'all'}
   Save to DB:  ${skipDb ? 'no' : 'yes'}
@@ -209,6 +248,7 @@ RubinOT Experience Highscores
     const entries = await scrapeHighscores(context, {
       worlds,
       professions,
+      categories,
       maxPages,
       headless,
       browser: BROWSER,
@@ -241,7 +281,7 @@ RubinOT Experience Highscores
     const output = {
       scrapedAt: new Date().toISOString(),
       source: 'highscores',
-      category: 'Experience Points',
+      categories,
       worlds,
       professions,
       totalEntries: allEntries.length,
@@ -265,9 +305,9 @@ RubinOT Experience Highscores
       console.log('\nRefreshing materialized views...');
       try {
         await prisma.$executeRawUnsafe('REFRESH MATERIALIZED VIEW CONCURRENTLY world_leaders_mv');
-        console.log('✓ world_leaders_mv refreshed');
+        console.log('  world_leaders_mv refreshed');
         await prisma.$executeRawUnsafe('REFRESH MATERIALIZED VIEW CONCURRENTLY top_exp_gainers_mv');
-        console.log('✓ top_exp_gainers_mv refreshed');
+        console.log('  top_exp_gainers_mv refreshed');
       } catch (e) {
         console.error('Failed to refresh materialized views:', e);
       }
@@ -290,20 +330,28 @@ function printSummary(entries: ScrapedHighscoreEntry[]) {
 
   const byWorld: Record<string, number> = {};
   const byVocation: Record<string, number> = {};
+  const byCategory: Record<string, number> = {};
   const uniqueNames = new Set<string>();
 
   for (const e of entries) {
     byWorld[e.world] = (byWorld[e.world] || 0) + 1;
     byVocation[e.vocation] = (byVocation[e.vocation] || 0) + 1;
+    byCategory[e.category] = (byCategory[e.category] || 0) + 1;
     uniqueNames.add(`${e.characterName}@${e.world}`);
   }
 
   console.log(`
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Experience Highscores Summary
+  Highscores Summary
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   Total entries:      ${entries.length}
   Unique characters:  ${uniqueNames.size}
+
+  By Category:
+${Object.entries(byCategory)
+  .sort((a, b) => b[1] - a[1])
+  .map(([c, n]) => `    ${c}: ${n}`)
+  .join('\n')}
 
   By World:
 ${Object.entries(byWorld)
