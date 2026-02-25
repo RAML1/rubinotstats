@@ -1,8 +1,18 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Search, ArrowRightLeft, ChevronLeft, ChevronRight, Globe } from 'lucide-react';
+import { Search, ArrowRightLeft, ChevronLeft, ChevronRight, Globe, TrendingUp, Route, BarChart3 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  Cell,
+  Legend,
+} from 'recharts';
 
 interface TransferEntry {
   id: number;
@@ -14,10 +24,17 @@ interface TransferEntry {
   transferDate: string | null;
 }
 
+interface TransferInsights {
+  worldFlow: { world: string; arrivals: number; departures: number; net: number }[];
+  topRoutes: { route: string; count: number }[];
+  levelDistribution: { range: string; count: number }[];
+}
+
 interface TransfersClientProps {
   initialTransfers: TransferEntry[];
   initialTotal: number;
   worlds: string[];
+  insights: TransferInsights;
 }
 
 function formatDate(iso: string | null): string {
@@ -26,7 +43,43 @@ function formatDate(iso: string | null): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-export function TransfersClient({ initialTransfers, initialTotal, worlds }: TransfersClientProps) {
+const LEVEL_COLORS: Record<string, string> = {
+  '1-99': '#3b82f6',
+  '100-499': '#22c55e',
+  '500-999': '#eab308',
+  '1000+': '#ef4444',
+};
+
+function ChartTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-lg border border-border/50 bg-card/95 px-3 py-2 text-xs shadow-lg backdrop-blur">
+      <p className="font-medium text-foreground mb-1">{label || payload[0]?.payload?.route || payload[0]?.name}</p>
+      {payload.map((p: any, i: number) => (
+        <p key={i} className="text-muted-foreground">
+          <span style={{ color: p.color }}>{p.name || p.dataKey}:</span> {p.value}
+        </p>
+      ))}
+    </div>
+  );
+}
+
+function FlowLegend() {
+  return (
+    <div className="flex items-center justify-center gap-4 mt-1">
+      <div className="flex items-center gap-1.5">
+        <div className="h-2.5 w-2.5 rounded-sm bg-green-500/80" />
+        <span className="text-[10px] text-muted-foreground">Arrivals</span>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <div className="h-2.5 w-2.5 rounded-sm bg-red-500/80" />
+        <span className="text-[10px] text-muted-foreground">Departures</span>
+      </div>
+    </div>
+  );
+}
+
+export function TransfersClient({ initialTransfers, initialTotal, worlds, insights }: TransfersClientProps) {
   const [transfers, setTransfers] = useState<TransferEntry[]>(initialTransfers);
   const [total, setTotal] = useState(initialTotal);
   const [search, setSearch] = useState('');
@@ -37,7 +90,6 @@ export function TransfersClient({ initialTransfers, initialTotal, worlds }: Tran
 
   const totalPages = Math.ceil(total / 50);
 
-  // Client-side filtering for page 1 with no world filters
   const filteredTransfers = useMemo(() => {
     if (page === 1 && !fromWorld && !toWorld && search.trim()) {
       return transfers.filter(t =>
@@ -89,7 +141,105 @@ export function TransfersClient({ initialTransfers, initialTotal, worlds }: Tran
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      {/* Insights Charts */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* World Net Flow */}
+        <Card className="border-border/50 bg-card/50 overflow-hidden md:col-span-2">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <TrendingUp className="h-4 w-4 text-blue-400" />
+              <h3 className="text-sm font-semibold">World Population Flow</h3>
+            </div>
+            <ResponsiveContainer width="100%" height={180}>
+              <BarChart
+                data={insights.worldFlow}
+                margin={{ left: -10, right: 8, top: 0, bottom: 0 }}
+              >
+                <XAxis
+                  dataKey="world"
+                  tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }}
+                  axisLine={false}
+                  tickLine={false}
+                  interval={0}
+                  angle={-25}
+                  textAnchor="end"
+                  height={40}
+                />
+                <YAxis
+                  tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={25}
+                />
+                <Tooltip content={<ChartTooltip />} cursor={{ fill: 'hsl(var(--muted) / 0.3)' }} />
+                <Bar dataKey="arrivals" name="Arrivals" fill="#22c55e" fillOpacity={0.7} radius={[4, 4, 0, 0]} />
+                <Bar dataKey="departures" name="Departures" fill="#ef4444" fillOpacity={0.7} radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+            <FlowLegend />
+          </CardContent>
+        </Card>
+
+        {/* Level Distribution */}
+        <Card className="border-border/50 bg-card/50 overflow-hidden">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <BarChart3 className="h-4 w-4 text-yellow-400" />
+              <h3 className="text-sm font-semibold">Transfer Levels</h3>
+            </div>
+            <ResponsiveContainer width="100%" height={180}>
+              <BarChart
+                data={insights.levelDistribution}
+                margin={{ left: -10, right: 8, top: 0, bottom: 0 }}
+              >
+                <XAxis
+                  dataKey="range"
+                  tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={25}
+                />
+                <Tooltip content={<ChartTooltip />} cursor={{ fill: 'hsl(var(--muted) / 0.3)' }} />
+                <Bar dataKey="count" name="Players" radius={[4, 4, 0, 0]}>
+                  {insights.levelDistribution.map((entry) => (
+                    <Cell key={entry.range} fill={LEVEL_COLORS[entry.range] || '#6b7280'} fillOpacity={0.8} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Top Routes */}
+      {insights.topRoutes.length > 0 && (
+        <Card className="border-border/50 bg-card/50 overflow-hidden">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Route className="h-4 w-4 text-purple-400" />
+              <h3 className="text-sm font-semibold">Most Popular Routes</h3>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {insights.topRoutes.map((r) => (
+                <div
+                  key={r.route}
+                  className="flex items-center justify-between gap-2 rounded-lg bg-muted/20 border border-border/30 px-3 py-2"
+                >
+                  <span className="text-xs font-medium truncate">{r.route}</span>
+                  <span className="text-xs font-bold text-primary shrink-0">{r.count}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Stats + Search + Filters */}
       <div className="flex flex-col gap-3">
         <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">

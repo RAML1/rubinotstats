@@ -9,7 +9,6 @@ async function getTransfersData() {
   const [transfers, total, worlds] = await Promise.all([
     prisma.transfer.findMany({
       orderBy: { transferDate: 'desc' },
-      take: 50,
     }),
     prisma.transfer.count(),
     prisma.$queryRaw<{ world: string }[]>`
@@ -18,6 +17,50 @@ async function getTransfersData() {
       ORDER BY world
     `,
   ]);
+
+  // Compute insights server-side
+  const arrivals: Record<string, number> = {};
+  const departures: Record<string, number> = {};
+  const routeCounts: Record<string, number> = {};
+  const levelBuckets: Record<string, number> = {
+    '1-99': 0,
+    '100-499': 0,
+    '500-999': 0,
+    '1000+': 0,
+  };
+
+  for (const t of transfers) {
+    arrivals[t.toWorld] = (arrivals[t.toWorld] || 0) + 1;
+    departures[t.fromWorld] = (departures[t.fromWorld] || 0) + 1;
+
+    const routeKey = `${t.fromWorld} → ${t.toWorld}`;
+    routeCounts[routeKey] = (routeCounts[routeKey] || 0) + 1;
+
+    if (t.level != null) {
+      if (t.level < 100) levelBuckets['1-99']++;
+      else if (t.level < 500) levelBuckets['100-499']++;
+      else if (t.level < 1000) levelBuckets['500-999']++;
+      else levelBuckets['1000+']++;
+    }
+  }
+
+  const allWorlds = new Set([...Object.keys(arrivals), ...Object.keys(departures)]);
+  const worldFlow = Array.from(allWorlds)
+    .map((world) => ({
+      world,
+      arrivals: arrivals[world] || 0,
+      departures: departures[world] || 0,
+      net: (arrivals[world] || 0) - (departures[world] || 0),
+    }))
+    .sort((a, b) => b.net - a.net);
+
+  const topRoutes = Object.entries(routeCounts)
+    .map(([route, count]) => ({ route, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 8);
+
+  const levelDistribution = Object.entries(levelBuckets)
+    .map(([range, count]) => ({ range, count }));
 
   return {
     transfers: transfers.map((t) => ({
@@ -31,6 +74,11 @@ async function getTransfersData() {
     })),
     total,
     worlds: worlds.map((w) => w.world),
+    insights: {
+      worldFlow,
+      topRoutes,
+      levelDistribution,
+    },
   };
 }
 
@@ -42,6 +90,7 @@ async function TransfersContent() {
       initialTransfers={data.transfers}
       initialTotal={data.total}
       worlds={data.worlds}
+      insights={data.insights}
     />
   );
 }
@@ -49,10 +98,10 @@ async function TransfersContent() {
 function TransfersSkeleton() {
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-3">
-        <Skeleton className="h-9 w-48" />
-        <Skeleton className="h-9 w-32" />
-        <Skeleton className="h-9 w-32" />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Skeleton className="h-52" />
+        <Skeleton className="h-52" />
+        <Skeleton className="h-52" />
       </div>
       <Skeleton className="h-96 w-full" />
     </div>

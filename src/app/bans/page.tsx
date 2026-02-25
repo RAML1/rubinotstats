@@ -10,10 +10,28 @@ async function getBansData() {
     prisma.ban.findMany({
       where: { isActive: true },
       orderBy: { bannedAt: 'desc' },
-      take: 50,
     }),
     prisma.ban.count({ where: { isActive: true } }),
   ]);
+
+  // Compute insights server-side
+  const byReason: Record<string, number> = {};
+  let permanent = 0;
+  let temporary = 0;
+  const byDate: Record<string, number> = {};
+
+  for (const b of bans) {
+    const reason = b.reason || 'Unknown';
+    byReason[reason] = (byReason[reason] || 0) + 1;
+
+    if (b.isPermanent) permanent++;
+    else temporary++;
+
+    if (b.bannedAt) {
+      const dateKey = b.bannedAt.toISOString().split('T')[0];
+      byDate[dateKey] = (byDate[dateKey] || 0) + 1;
+    }
+  }
 
   return {
     bans: bans.map((b) => ({
@@ -26,6 +44,16 @@ async function getBansData() {
       isPermanent: b.isPermanent,
     })),
     total,
+    insights: {
+      byReason: Object.entries(byReason)
+        .map(([reason, count]) => ({ reason, count }))
+        .sort((a, b) => b.count - a.count),
+      permanent,
+      temporary,
+      byDate: Object.entries(byDate)
+        .map(([date, count]) => ({ date, count }))
+        .sort((a, b) => a.date.localeCompare(b.date)),
+    },
   };
 }
 
@@ -36,6 +64,7 @@ async function BansContent() {
     <BansClient
       initialBans={data.bans}
       initialTotal={data.total}
+      insights={data.insights}
     />
   );
 }
@@ -43,9 +72,10 @@ async function BansContent() {
 function BansSkeleton() {
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-3">
-        <Skeleton className="h-9 w-48" />
-        <Skeleton className="h-9 w-32" />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Skeleton className="h-52" />
+        <Skeleton className="h-52" />
+        <Skeleton className="h-52" />
       </div>
       <Skeleton className="h-96 w-full" />
     </div>
