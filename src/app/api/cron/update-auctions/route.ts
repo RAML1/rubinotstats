@@ -36,10 +36,23 @@ export async function POST(request: NextRequest) {
     let totalPages = 1;
     const seenIds = new Set<string>();
 
-    // Fetch page 1 to discover total pages
-    const firstRes = await fetch(`${baseUrl}/api/bazaar?page=1`, {
-      headers: { 'User-Agent': userAgent, Accept: 'application/json' },
-    });
+    // Fetch page 1 to discover total pages (10s timeout to avoid hanging)
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10_000);
+    let firstRes: Response;
+    try {
+      firstRes = await fetch(`${baseUrl}/api/bazaar?page=1`, {
+        headers: { 'User-Agent': userAgent, Accept: 'application/json' },
+        signal: controller.signal,
+      });
+    } catch (err) {
+      clearTimeout(timeout);
+      return NextResponse.json({
+        success: false,
+        error: `Failed to reach RubinOT API: ${err instanceof Error ? err.message : 'timeout or network error'}. Cloudflare may be blocking server-side requests.`,
+      }, { status: 502 });
+    }
+    clearTimeout(timeout);
 
     if (!firstRes.ok) {
       return NextResponse.json({
@@ -75,9 +88,13 @@ export async function POST(request: NextRequest) {
     // Fetch remaining pages
     for (let p = 2; p <= totalPages; p++) {
       try {
+        const pc = new AbortController();
+        const pt = setTimeout(() => pc.abort(), 10_000);
         const res = await fetch(`${baseUrl}/api/bazaar?page=${p}`, {
           headers: { 'User-Agent': userAgent, Accept: 'application/json' },
+          signal: pc.signal,
         });
+        clearTimeout(pt);
 
         if (!res.ok) {
           console.error(`Cron: bazaar page ${p} returned ${res.status}`);
