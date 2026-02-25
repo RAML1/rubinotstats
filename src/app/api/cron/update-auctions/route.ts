@@ -10,18 +10,19 @@ export const maxDuration = 300; // 5 minutes max
  * Secured with CRON_SECRET env var.
  *
  * Usage:
- *   Railway cron → POST /api/cron/update-auctions
- *   Manual → curl -X POST .../api/cron/update-auctions -H "Authorization: Bearer $CRON_SECRET"
+ *   Railway cron → POST /api/cron/update-auctions -H "Authorization: Bearer $CRON_SECRET"
+ *   With basic auth → curl -u user:pass -X POST .../api/cron/update-auctions -H "X-Cron-Secret: $CRON_SECRET"
  */
 export async function POST(request: NextRequest) {
-  // Verify cron secret
+  // Verify cron secret (accept via Authorization header or X-Cron-Secret for basic auth compat)
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret) {
     return NextResponse.json({ error: 'CRON_SECRET not configured' }, { status: 500 });
   }
 
   const authHeader = request.headers.get('authorization');
-  if (authHeader !== `Bearer ${cronSecret}`) {
+  const cronHeader = request.headers.get('x-cron-secret');
+  if (authHeader !== `Bearer ${cronSecret}` && cronHeader !== cronSecret) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
