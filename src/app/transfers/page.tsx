@@ -3,6 +3,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import prisma from '@/lib/db/prisma';
 import { TransfersClient } from './TransfersClient';
 
+export const dynamic = 'force-dynamic';
+
 async function getTransfersData() {
   const [transfers, total, worlds] = await Promise.all([
     prisma.transfer.findMany({

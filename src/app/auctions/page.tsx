@@ -4,6 +4,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import prisma from '@/lib/db/prisma';
 import { AuctionsClient } from './AuctionsClient';
 
+export const dynamic = 'force-dynamic';
+
 async function getAuctionData() {
   const [auctions, worlds, vocations] = await Promise.all([
     prisma.auction.findMany({

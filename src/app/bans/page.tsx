@@ -3,6 +3,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import prisma from '@/lib/db/prisma';
 import { BansClient } from './BansClient';
 
+export const dynamic = 'force-dynamic';
+
 async function getBansData() {
   const [bans, total] = await Promise.all([
     prisma.ban.findMany({

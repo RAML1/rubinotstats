@@ -8,6 +8,8 @@ import { getSession } from '@/lib/auth-helpers';
 import { isPremium } from '@/lib/utils/premium';
 import { CurrentAuctionsClient } from './CurrentAuctionsClient';
 
+export const dynamic = 'force-dynamic';
+
 const getCurrentAuctionData = unstable_cache(
   async () => {
     const [auctions, worlds, vocations, worldTypes] = await Promise.all([
