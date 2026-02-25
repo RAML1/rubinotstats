@@ -70,6 +70,44 @@ function checkRateLimit(
 }
 
 // ---------------------------------------------------------------------------
+// API origin guard — block external tools/scripts from hitting /api/* routes
+// ---------------------------------------------------------------------------
+const ALLOWED_HOSTS = new Set([
+  'rubinotstats.com',
+  'www.rubinotstats.com',
+  'rubinotstats-web-production.up.railway.app',
+  'localhost:3000',
+  'localhost:3001',
+]);
+
+function isAllowedOrigin(request: NextRequest): boolean {
+  // Check Origin header (sent on fetch/XHR from browsers)
+  const origin = request.headers.get('origin');
+  if (origin) {
+    try {
+      const url = new URL(origin);
+      return ALLOWED_HOSTS.has(url.host);
+    } catch {
+      return false;
+    }
+  }
+
+  // Check Referer header (sent on navigation and some fetches)
+  const referer = request.headers.get('referer');
+  if (referer) {
+    try {
+      const url = new URL(referer);
+      return ALLOWED_HOSTS.has(url.host);
+    } catch {
+      return false;
+    }
+  }
+
+  // No Origin or Referer = external tool (curl, scripts, Postman)
+  return false;
+}
+
+// ---------------------------------------------------------------------------
 // Middleware
 // ---------------------------------------------------------------------------
 export function middleware(request: NextRequest) {
@@ -115,8 +153,27 @@ export function middleware(request: NextRequest) {
     });
   }
 
-  // Rate-limit API routes only (not pages)
+  // --- API-specific protections ---
   if (pathname.startsWith('/api/')) {
+    // Allow cron endpoint with valid secret (server-to-server)
+    if (pathname.startsWith('/api/cron') && request.headers.get('x-cron-secret')) {
+      // Auth is checked in the route handler itself
+      const response = NextResponse.next();
+      return response;
+    }
+
+    // Block external API access — only allow requests from our own site
+    if (!isAllowedOrigin(request)) {
+      return new NextResponse(
+        JSON.stringify({ error: 'Forbidden' }),
+        {
+          status: 403,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      );
+    }
+
+    // Rate-limit API routes
     const ip =
       request.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
       request.headers.get('cf-connecting-ip') ||
