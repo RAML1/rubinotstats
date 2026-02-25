@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: false,
         error: `Failed to reach RubinOT API: ${err instanceof Error ? err.message : 'timeout or network error'}. Cloudflare may be blocking server-side requests.`,
-      }, { status: 502 });
+      }, { status: 200 });
     }
     clearTimeout(timeout);
 
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: false,
         error: `RubinOT API returned ${firstRes.status}. Cloudflare may be blocking server-side requests. Use "pnpm update:bids" locally instead.`,
-      }, { status: 502 });
+      }, { status: 200 });
     }
 
     const firstData = await firstRes.json();
