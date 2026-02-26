@@ -146,8 +146,8 @@ export function BansClient({ initialBans, initialTotal, insights }: BansClientPr
       {/* Insights Charts */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Bans by Reason — horizontal bar with rose gradient scale */}
-        <Card className="border-border/50 bg-card/50 overflow-hidden">
-          <CardContent className="p-4">
+        <div className="overflow-hidden rounded-2xl" style={{ background: 'rgba(21,28,42,0.6)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.06)' }}>
+          <div className="p-4">
             <div className="flex items-center gap-2 mb-3">
               <Shield className="h-4 w-4 text-rose-400" />
               <h3 className="text-sm font-semibold">Bans by Rule</h3>
@@ -183,12 +183,12 @@ export function BansClient({ initialBans, initialTotal, insights }: BansClientPr
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Permanent vs Temporary — donut with glow */}
-        <Card className="border-border/50 bg-card/50 overflow-hidden">
-          <CardContent className="p-4">
+        <div className="overflow-hidden rounded-2xl" style={{ background: 'rgba(21,28,42,0.6)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.06)' }}>
+          <div className="p-4">
             <div className="flex items-center gap-2 mb-3">
               <AlertTriangle className="h-4 w-4 text-rose-400" />
               <h3 className="text-sm font-semibold">Ban Duration</h3>
@@ -245,12 +245,12 @@ export function BansClient({ initialBans, initialTotal, insights }: BansClientPr
                 </div>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Bans Over Time — gradient bars */}
-        <Card className="border-border/50 bg-card/50 overflow-hidden">
-          <CardContent className="p-4">
+        <div className="overflow-hidden rounded-2xl" style={{ background: 'rgba(21,28,42,0.6)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.06)' }}>
+          <div className="p-4">
             <div className="flex items-center gap-2 mb-3">
               <Calendar className="h-4 w-4 text-cyan-400" />
               <h3 className="text-sm font-semibold">Bans Over Time</h3>
@@ -283,110 +283,132 @@ export function BansClient({ initialBans, initialTotal, insights }: BansClientPr
                 <Bar dataKey="count" fill="url(#bansTimeGrad)" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
 
       {/* Stats + Search */}
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-1.5">
-            <Ban className="h-4 w-4 text-red-400" />
-            <span className="text-sm font-medium text-red-300">{total.toLocaleString()} active bans</span>
+          <div
+            className="inline-flex items-center gap-2 rounded-full px-4 py-2"
+            style={{ background: 'rgba(251,113,133,0.08)', border: '1px solid rgba(251,113,133,0.25)', color: '#fb7185' }}
+          >
+            <Ban className="h-4 w-4" />
+            <span className="text-sm font-bold">{total.toLocaleString()} active bans</span>
           </div>
         </div>
 
         <form onSubmit={handleSearch} className="relative w-full sm:w-72">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: 'rgba(236,240,247,0.38)' }} />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search player or reason..."
-            className="h-9 w-full rounded-lg border border-border/50 bg-card/50 pl-9 pr-3 text-sm outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30"
+            className="h-10 w-full rounded-lg pl-10 pr-3 text-sm font-medium outline-none transition-all"
+            style={{
+              background: 'rgba(21,28,42,0.7)',
+              backdropFilter: 'blur(12px)',
+              border: '1px solid rgba(255,255,255,0.10)',
+              color: '#ecf0f7',
+            }}
+            onFocus={(e) => { e.currentTarget.style.borderColor = 'rgba(245,158,11,0.5)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(245,158,11,0.1)'; }}
+            onBlur={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)'; e.currentTarget.style.boxShadow = 'none'; }}
           />
         </form>
       </div>
 
       {/* Table */}
-      <Card className="border-border/50 bg-card/50 overflow-hidden">
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border/50 bg-muted/30">
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Player</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Reason</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Banned</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Expires</th>
+      <div
+        className="overflow-hidden rounded-2xl"
+        style={{
+          background: 'rgba(21,28,42,0.6)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          border: '1px solid rgba(255,255,255,0.06)',
+        }}
+      >
+        <div className="overflow-x-auto">
+          <table className="w-full text-[13px]">
+            <thead>
+              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>
+                <th className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider" style={{ color: 'rgba(236,240,247,0.38)' }}>Player</th>
+                <th className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider" style={{ color: 'rgba(236,240,247,0.38)' }}>Reason</th>
+                <th className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider" style={{ color: 'rgba(236,240,247,0.38)' }}>Banned</th>
+                <th className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider" style={{ color: 'rgba(236,240,247,0.38)' }}>Expires</th>
+              </tr>
+            </thead>
+            <tbody className={loading ? 'opacity-50' : ''}>
+              {filteredBans.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="px-4 py-12 text-center text-muted-foreground">
+                    {search ? 'No bans match your search' : 'No ban data available yet — run the scraper first'}
+                  </td>
                 </tr>
-              </thead>
-              <tbody className={loading ? 'opacity-50' : ''}>
-                {filteredBans.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="px-4 py-12 text-center text-muted-foreground">
-                      {search ? 'No bans match your search' : 'No ban data available yet — run the scraper first'}
+              ) : (
+                filteredBans.map((ban) => (
+                  <tr
+                    key={ban.id}
+                    className="transition-colors"
+                    style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(245,158,11,0.03)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <td className="px-4 py-3 font-medium">{ban.playerName}</td>
+                    <td className={`px-4 py-3 ${getReasonColor(ban.reason)}`}>
+                      {ban.reason || '—'}
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      <span className="flex items-center gap-1.5">
+                        <Clock className="h-3.5 w-3.5" />
+                        {formatDate(ban.bannedAt)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      {ban.isPermanent ? (
+                        <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold" style={{ background: 'rgba(251,113,133,0.12)', border: '1px solid rgba(251,113,133,0.2)', color: '#fb7185' }}>
+                          <AlertTriangle className="h-3 w-3" />
+                          Permanent
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">{formatDate(ban.expiresAt)}</span>
+                      )}
                     </td>
                   </tr>
-                ) : (
-                  filteredBans.map((ban) => (
-                    <tr
-                      key={ban.id}
-                      className="border-b border-border/30 hover:bg-muted/20 transition-colors"
-                    >
-                      <td className="px-4 py-2.5 font-medium">{ban.playerName}</td>
-                      <td className={`px-4 py-2.5 ${getReasonColor(ban.reason)}`}>
-                        {ban.reason || '—'}
-                      </td>
-                      <td className="px-4 py-2.5 text-muted-foreground">
-                        <span className="flex items-center gap-1.5">
-                          <Clock className="h-3.5 w-3.5" />
-                          {formatDate(ban.bannedAt)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2.5">
-                        {ban.isPermanent ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-red-500/15 px-2 py-0.5 text-xs font-medium text-red-400">
-                            <AlertTriangle className="h-3 w-3" />
-                            Permanent
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">{formatDate(ban.expiresAt)}</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between border-t border-border/50 px-4 py-3">
-              <span className="text-xs text-muted-foreground">
-                Page {page} of {totalPages}
-              </span>
-              <div className="flex gap-1">
-                <button
-                  onClick={() => fetchPage(page - 1)}
-                  disabled={page <= 1 || loading}
-                  className="rounded-md p-1.5 hover:bg-accent disabled:opacity-30 disabled:cursor-not-allowed"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={() => fetchPage(page + 1)}
-                  disabled={page >= totalPages || loading}
-                  className="rounded-md p-1.5 hover:bg-accent disabled:opacity-30 disabled:cursor-not-allowed"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              </div>
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-3" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+            <span className="text-xs font-medium" style={{ color: 'rgba(236,240,247,0.38)' }}>
+              Page {page} of {totalPages}
+            </span>
+            <div className="flex gap-1">
+              <button
+                onClick={() => fetchPage(page - 1)}
+                disabled={page <= 1 || loading}
+                className="rounded-lg p-1.5 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                style={{ border: '1px solid rgba(255,255,255,0.10)', background: 'rgba(26,34,54,0.7)' }}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => fetchPage(page + 1)}
+                disabled={page >= totalPages || loading}
+                className="rounded-lg p-1.5 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                style={{ border: '1px solid rgba(255,255,255,0.10)', background: 'rgba(26,34,54,0.7)' }}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
