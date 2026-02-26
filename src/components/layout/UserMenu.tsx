@@ -1,7 +1,7 @@
 "use client";
 
 import { useSession, signIn, signOut } from "next-auth/react";
-import { LogIn, LogOut, Crown, Shield, User } from "lucide-react";
+import { LogOut, Crown, Shield } from "lucide-react";
 import Link from "next/link";
 import { useState, useRef, useEffect } from "react";
 
