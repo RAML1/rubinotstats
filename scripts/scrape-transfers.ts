@@ -18,6 +18,13 @@ const skipDb = process.argv.includes('--no-db');
 
 function parseDateStr(dateStr: string | null): Date | null {
   if (!dateStr) return null;
+  // RubinOT format: "DD/MM/YYYY HH:mm:ss"
+  const match = dateStr.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2}):(\d{2})$/);
+  if (match) {
+    const [, day, month, year, hour, min, sec] = match;
+    return new Date(`${year}-${month}-${day}T${hour}:${min}:${sec}`);
+  }
+  // Fallback
   const d = new Date(dateStr);
   return isNaN(d.getTime()) ? null : d;
 }
