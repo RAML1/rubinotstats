@@ -1647,13 +1647,21 @@ export function CurrentAuctionsClient({
               placeholder="Search by character name..."
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-              className="h-9 w-full rounded-lg border border-border/50 bg-secondary/50 pl-10 pr-4 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring"
+              className="h-9 w-full rounded-lg pl-10 pr-4 text-sm font-medium placeholder:text-muted-foreground/50 focus:outline-none transition-all"
+              style={{
+                background: 'rgba(26,34,54,0.7)',
+                backdropFilter: 'blur(12px)',
+                border: '1px solid rgba(255,255,255,0.10)',
+                color: '#ecf0f7',
+              }}
+              onFocus={(e) => { e.currentTarget.style.borderColor = 'rgba(245,158,11,0.5)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(245,158,11,0.1)'; }}
+              onBlur={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)'; e.currentTarget.style.boxShadow = 'none'; }}
             />
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {/* World dropdown — Radix Select */}
             <Select value={selectedWorld || '__all__'} onValueChange={(v) => { setSelectedWorld(v === '__all__' ? '' : v); setPage(1); }}>
-              <SelectTrigger className="h-9 w-[160px] bg-secondary/50 border-border/50 text-sm">
+              <SelectTrigger className="h-9 w-[160px] text-sm" style={{ background: 'rgba(26,34,54,0.7)', border: '1px solid rgba(255,255,255,0.10)' }}>
                 <Globe className="h-3.5 w-3.5 mr-1.5 shrink-0 text-muted-foreground" />
                 <SelectValue placeholder="All Worlds" />
               </SelectTrigger>
@@ -1672,7 +1680,10 @@ export function CurrentAuctionsClient({
                 placeholder="Min"
                 value={minLevel}
                 onChange={(e) => { setMinLevel(e.target.value); setPage(1); }}
-                className="h-9 w-[70px] rounded-md border border-border/50 bg-secondary/50 px-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring"
+                className="h-9 w-[70px] rounded-md px-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none transition-all"
+                style={{ background: 'rgba(26,34,54,0.7)', border: '1px solid rgba(255,255,255,0.10)' }}
+                onFocus={(e) => { e.currentTarget.style.borderColor = 'rgba(245,158,11,0.5)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(245,158,11,0.1)'; }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)'; e.currentTarget.style.boxShadow = 'none'; }}
               />
               <span className="text-xs text-muted-foreground">to</span>
               <input
@@ -1680,14 +1691,18 @@ export function CurrentAuctionsClient({
                 placeholder="Max"
                 value={maxLevel}
                 onChange={(e) => { setMaxLevel(e.target.value); setPage(1); }}
-                className="h-9 w-[70px] rounded-md border border-border/50 bg-secondary/50 px-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring"
+                className="h-9 w-[70px] rounded-md px-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none transition-all"
+                style={{ background: 'rgba(26,34,54,0.7)', border: '1px solid rgba(255,255,255,0.10)' }}
+                onFocus={(e) => { e.currentTarget.style.borderColor = 'rgba(245,158,11,0.5)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(245,158,11,0.1)'; }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)'; e.currentTarget.style.boxShadow = 'none'; }}
               />
             </div>
             {/* Clear */}
             {hasActiveFilters && (
               <button
                 onClick={clearFilters}
-                className="flex h-9 items-center gap-1 rounded-md border border-border/50 bg-secondary/50 px-3 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+                className="flex h-9 items-center gap-1 rounded-md px-3 text-xs text-muted-foreground hover:text-foreground transition-all"
+                style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.10)' }}
               >
                 <X className="h-3 w-3" /> Clear
               </button>
@@ -1710,9 +1725,12 @@ export function CurrentAuctionsClient({
               className={`flex h-7 items-center gap-1 rounded-full px-3 text-[11px] font-medium transition-colors ${
                 selectedVocation === v.label
                   ? 'text-white shadow-sm'
-                  : 'bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
-              style={selectedVocation === v.label ? { backgroundColor: v.color } : undefined}
+              style={selectedVocation === v.label
+                ? { backgroundColor: v.color }
+                : { background: 'rgba(26,34,54,0.7)', border: '1px solid rgba(255,255,255,0.10)' }
+              }
             >
               <Shield className="h-3 w-3" />
               {v.label}
@@ -1724,9 +1742,12 @@ export function CurrentAuctionsClient({
             className={`flex h-7 items-center gap-1 rounded-full px-3 text-[11px] font-medium transition-colors ${
               showTopOnly
                 ? 'text-white shadow-sm'
-                : 'bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary'
+                : 'text-muted-foreground hover:text-foreground'
             }`}
-            style={showTopOnly ? { backgroundColor: '#f59e0b' } : undefined}
+            style={showTopOnly
+              ? { backgroundColor: '#f59e0b' }
+              : { background: 'rgba(26,34,54,0.7)', border: '1px solid rgba(255,255,255,0.10)' }
+            }
           >
             <Crown className="h-3 w-3" />
             Top Auctions
@@ -1736,10 +1757,14 @@ export function CurrentAuctionsClient({
 
       {/* Sort Bar + Count */}
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-muted-foreground">
+        <div
+          className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1 text-sm font-semibold"
+          style={{ background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.2)', color: '#f59e0b' }}
+        >
+          <Zap className="h-3.5 w-3.5" />
           {filtered.length} auction{filtered.length !== 1 ? 's' : ''}
-          {!hideEnded && <span className="text-muted-foreground/60"> (including ended)</span>}
-        </p>
+          {!hideEnded && <span style={{ color: 'rgba(245,158,11,0.6)' }}> (incl. ended)</span>}
+        </div>
         <div className="flex flex-wrap items-center gap-1.5">
           {([
             ['auctionEnd', 'Ending'],
@@ -1751,7 +1776,11 @@ export function CurrentAuctionsClient({
             <button
               key={field}
               onClick={() => toggleSort(field)}
-              className={`flex h-8 items-center gap-1 rounded-md px-3 text-xs transition-colors ${sortField === field ? 'bg-primary/10 text-primary' : 'bg-secondary/50 text-muted-foreground hover:text-foreground'}`}
+              className={`flex h-8 items-center gap-1 rounded-full px-3 text-xs font-medium transition-all`}
+              style={sortField === field
+                ? { background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', color: '#f59e0b' }
+                : { background: 'transparent', border: '1px solid rgba(255,255,255,0.06)', color: 'rgba(236,240,247,0.38)' }
+              }
             >
               {label}
               {sortField === field && (
@@ -1762,7 +1791,11 @@ export function CurrentAuctionsClient({
           <div className="h-5 w-px bg-border/50 mx-1" />
           <button
             onClick={() => { setHideEnded(!hideEnded); setPage(1); }}
-            className={`flex h-8 items-center gap-1 rounded-md px-3 text-xs transition-colors ${!hideEnded ? 'bg-amber-500/10 text-amber-400' : 'bg-secondary/50 text-muted-foreground hover:text-foreground'}`}
+            className={`flex h-8 items-center gap-1 rounded-full px-3 text-xs font-medium transition-all`}
+            style={!hideEnded
+              ? { background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', color: '#f59e0b' }
+              : { background: 'transparent', border: '1px solid rgba(255,255,255,0.06)', color: 'rgba(236,240,247,0.38)' }
+            }
           >
             <Eye className="h-3 w-3" />
             {hideEnded ? 'Show Ended' : 'Hide Ended'}
@@ -1807,31 +1840,35 @@ export function CurrentAuctionsClient({
           <button
             onClick={() => setPage(1)}
             disabled={page === 1}
-            className="rounded-md border border-input bg-card/50 px-3 py-1.5 text-sm disabled:opacity-30"
+            className="rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-30 transition-all hover:text-amber-400"
+            style={{ background: 'rgba(26,34,54,0.7)', border: '1px solid rgba(255,255,255,0.10)', color: 'rgba(236,240,247,0.6)' }}
           >
             First
           </button>
           <button
             onClick={() => setPage(page - 1)}
             disabled={page === 1}
-            className="rounded-md border border-input bg-card/50 px-3 py-1.5 text-sm disabled:opacity-30"
+            className="rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-30 transition-all hover:text-amber-400"
+            style={{ background: 'rgba(26,34,54,0.7)', border: '1px solid rgba(255,255,255,0.10)', color: 'rgba(236,240,247,0.6)' }}
           >
             Prev
           </button>
-          <span className="px-3 text-sm text-muted-foreground">
+          <span className="px-3 text-sm font-medium" style={{ color: 'rgba(236,240,247,0.38)' }}>
             Page {page} of {totalPages}
           </span>
           <button
             onClick={() => setPage(page + 1)}
             disabled={page === totalPages}
-            className="rounded-md border border-input bg-card/50 px-3 py-1.5 text-sm disabled:opacity-30"
+            className="rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-30 transition-all hover:text-amber-400"
+            style={{ background: 'rgba(26,34,54,0.7)', border: '1px solid rgba(255,255,255,0.10)', color: 'rgba(236,240,247,0.6)' }}
           >
             Next
           </button>
           <button
             onClick={() => setPage(totalPages)}
             disabled={page === totalPages}
-            className="rounded-md border border-input bg-card/50 px-3 py-1.5 text-sm disabled:opacity-30"
+            className="rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-30 transition-all hover:text-amber-400"
+            style={{ background: 'rgba(26,34,54,0.7)', border: '1px solid rgba(255,255,255,0.10)', color: 'rgba(236,240,247,0.6)' }}
           >
             Last
           </button>
