@@ -252,6 +252,8 @@ model Auction {
   displayItems     String?  @map("display_items") @db.Text
   outfitNames      String?  @map("outfit_names") @db.Text
   mountNames       String?  @map("mount_names") @db.Text
+  // Weapon proficiency (JSON array of proficiency entries)
+  weaponProficiency String?  @map("weapon_proficiency") @db.Text
   // Timestamps
   createdAt          DateTime   @default(now()) @map("created_at")
   updatedAt          DateTime   @default(now()) @updatedAt @map("updated_at")
@@ -475,6 +477,8 @@ model CurrentAuction {
   // Outfit and mount names (JSON arrays of strings)
   outfitNames      String?  @map("outfit_names") @db.Text
   mountNames       String?  @map("mount_names") @db.Text
+  // Weapon proficiency (JSON array of proficiency entries)
+  weaponProficiency String?  @map("weapon_proficiency") @db.Text
   // Timestamps
   createdAt          DateTime   @default(now()) @map("created_at")
   updatedAt          DateTime   @default(now()) @updatedAt @map("updated_at")

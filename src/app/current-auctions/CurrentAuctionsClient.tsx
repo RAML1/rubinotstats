@@ -117,6 +117,7 @@ type SerializedCurrentAuction = {
   displayItems: string | null;
   outfitNames: string | null;
   mountNames: string | null;
+  weaponProficiency: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -850,6 +851,11 @@ function AuctionDetailModal({
             </div>
           )}
 
+          {/* Weapon Proficiency */}
+          {auction.weaponProficiency && (
+            <WeaponProficiencySection data={auction.weaponProficiency} />
+          )}
+
           {/* Stats */}
           <div>
             <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Character Stats</p>
@@ -1029,11 +1035,32 @@ function GemsCell({ gems }: { gems: string | null }) {
   );
 }
 
-const RUBINOT_BASE = 'https://rubinot.com.br';
+function VocationIcon({ vocation }: { vocation: string | null }) {
+  const v = (vocation || '').toLowerCase();
+  if (v.includes('knight')) return <Swords className="w-8 h-8 text-amber-400/70" />;
+  if (v.includes('paladin')) return <Crosshair className="w-8 h-8 text-green-400/70" />;
+  if (v.includes('sorcerer')) return <Wand2 className="w-8 h-8 text-purple-400/70" />;
+  if (v.includes('druid')) return <Heart className="w-8 h-8 text-blue-400/70" />;
+  if (v.includes('monk')) return <Hand className="w-8 h-8 text-orange-400/70" />;
+  return <Users className="w-8 h-8 text-muted-foreground/50" />;
+}
 
-function resolveOutfitUrl(url: string): string {
-  if (url.startsWith('http')) return url;
-  return `${RUBINOT_BASE}/${url.replace(/^\.\//, '')}`;
+function OutfitImage({ url, vocation, name }: { url: string | null; vocation: string | null; name: string | null }) {
+  const [failed, setFailed] = useState(false);
+
+  if (!url || failed) {
+    return <VocationIcon vocation={vocation} />;
+  }
+
+  return (
+    <img
+      src={url}
+      alt={name || 'Character outfit'}
+      className="w-14 h-14 object-contain"
+      loading="lazy"
+      onError={() => setFailed(true)}
+    />
+  );
 }
 
 interface DisplayItem {
@@ -1137,6 +1164,86 @@ function DisplayItemsLarge({ items }: { items: string }) {
   );
 }
 
+// ── Weapon Proficiency helpers ────────────────────────────────────────
+
+interface WeaponProf {
+  itemId: number;
+  experience: number;
+  weaponLevel: number;
+  masteryAchieved: boolean;
+  perks: number;
+}
+
+const WEAPON_LEVEL_COLORS: Record<number, string> = {
+  0: '#6b7280', // gray
+  1: '#22c55e', // green
+  2: '#3b82f6', // blue
+  3: '#a855f7', // purple
+  4: '#f59e0b', // amber
+  5: '#ef4444', // red
+  6: '#ec4899', // pink (mastery eligible)
+};
+
+function formatWpXp(xp: number): string {
+  if (xp >= 1_000_000) return `${(xp / 1_000_000).toFixed(1)}M`;
+  if (xp >= 1_000) return `${(xp / 1_000).toFixed(0)}K`;
+  return xp.toString();
+}
+
+function WeaponProficiencySection({ data }: { data: string }) {
+  let weapons: WeaponProf[];
+  try {
+    weapons = JSON.parse(data);
+  } catch {
+    return null;
+  }
+  if (!weapons || weapons.length === 0) return null;
+
+  // Sort by weapon level desc, then experience desc
+  const sorted = [...weapons].sort((a, b) => b.weaponLevel - a.weaponLevel || b.experience - a.experience);
+  // Show top 6 max
+  const shown = sorted.slice(0, 6);
+
+  return (
+    <div>
+      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+        Weapon Proficiency ({weapons.length})
+      </p>
+      <div className="grid grid-cols-3 gap-1.5">
+        {shown.map((wp) => (
+          <div
+            key={wp.itemId}
+            className="flex items-center gap-2 rounded-md px-2 py-1.5"
+            style={{ backgroundColor: '#252333', borderLeft: `3px solid ${WEAPON_LEVEL_COLORS[wp.weaponLevel] || WEAPON_LEVEL_COLORS[0]}` }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={`https://static.rubinot.com/objects/${wp.itemId}.gif`}
+              alt={`Weapon ${wp.itemId}`}
+              className="w-8 h-8 object-contain shrink-0"
+              loading="lazy"
+            />
+            <div className="min-w-0">
+              <div className="flex items-center gap-1">
+                <span className="text-xs font-bold" style={{ color: WEAPON_LEVEL_COLORS[wp.weaponLevel] || '#fff' }}>
+                  Lv.{wp.weaponLevel}
+                </span>
+                {wp.masteryAchieved && (
+                  <span className="text-[8px] font-bold text-pink-400 uppercase">M</span>
+                )}
+              </div>
+              <p className="text-[9px] text-muted-foreground/70 leading-tight">{formatWpXp(wp.experience)} XP</p>
+            </div>
+          </div>
+        ))}
+      </div>
+      {weapons.length > 6 && (
+        <p className="text-[9px] text-muted-foreground/50 mt-1">+{weapons.length - 6} more weapons</p>
+      )}
+    </div>
+  );
+}
+
 function getTopAuctionHighlight(auction: SerializedCurrentAuction): { label: string; reason: string; color: string } | null {
   const level = auction.level || 0;
   const mainSkill = Math.max(
@@ -1210,17 +1317,9 @@ function CurrentAuctionCard({
         {/* Header — outfit image + name + level/vocation + bid badge */}
         <div className="px-4 pt-4 pb-3">
           <div className="flex items-start gap-3">
-            {auction.outfitImageUrl && (
-              <div className="shrink-0 w-16 h-16 rounded-lg overflow-hidden flex items-center justify-center" style={{ backgroundColor: '#252333' }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={resolveOutfitUrl(auction.outfitImageUrl)}
-                  alt={auction.characterName}
-                  className="w-14 h-14 object-contain"
-                  loading="lazy"
-                />
-              </div>
-            )}
+            <div className="shrink-0 w-16 h-16 rounded-lg overflow-hidden flex items-center justify-center" style={{ backgroundColor: '#252333' }}>
+              <OutfitImage url={auction.outfitImageUrl} vocation={auction.vocation} name={auction.characterName} />
+            </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-start justify-between gap-1.5">
                 <div className="min-w-0 flex-1">

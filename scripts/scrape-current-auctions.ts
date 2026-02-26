@@ -146,6 +146,7 @@ async function upsertCurrentAuction(list: CurrentListAuction, detail: ScrapedAuc
       displayItems: detail.displayItems,
       outfitNames: detail.outfitNames,
       mountNames: detail.mountNames,
+      weaponProficiency: detail.weaponProficiency,
     });
   }
 
@@ -258,6 +259,7 @@ async function archiveEndedAuctions(seenIds: Set<string>): Promise<number> {
             displayItems: auction.displayItems,
             outfitNames: auction.outfitNames,
             mountNames: auction.mountNames,
+            weaponProficiency: auction.weaponProficiency,
           } as any,
         });
         archived++;

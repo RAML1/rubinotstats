@@ -166,6 +166,7 @@ async function upsertAuction(a: ScrapedAuction): Promise<void> {
     displayItems: a.displayItems,
     outfitNames: a.outfitNames,
     mountNames: a.mountNames,
+    weaponProficiency: a.weaponProficiency,
     url: a.url,
   };
   await prisma.auction.upsert({

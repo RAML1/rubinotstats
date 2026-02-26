@@ -89,6 +89,8 @@ export interface ScrapedAuction {
   // Outfit and mount names (JSON strings)
   outfitNames: string | null;
   mountNames: string | null;
+  // Weapon proficiency (JSON string)
+  weaponProficiency: string | null;
   // Calculated
   coinsPerLevel: number | null;
   url: string;
@@ -147,6 +149,14 @@ interface ApiBazaarListResponse {
   };
 }
 
+interface ApiWeaponProficiency {
+  itemId: number;
+  experience: number;
+  weaponLevel: number;
+  masteryAchieved: boolean;
+  activePerks: { lane: number; index: number }[];
+}
+
 interface ApiBazaarDetailResponse {
   auction: {
     id: number;
@@ -169,37 +179,16 @@ interface ApiBazaarDetailResponse {
     lookType: number;
   };
   general: {
-    hitPoints: number;
+    health: number;
+    healthMax: number;
     mana: number;
-    capacity: number;
-    speed: number;
-    blessings: number;
-    mounts: number;
-    outfits: number;
-    titles: number;
-    experience: number;
-    creation: string;
-    achievementPoints: number;
+    manaMax: number;
+    manaSpent: string;
+    cap: number;
+    stamina: number;
+    soul: number;
+    experience: number | string;
     magLevel: number;
-    linkedTasks: number;
-    dailyRewardStreak: number;
-    charmExpansion: boolean;
-    charmPoints: number;
-    spentCharmPoints: number;
-    unusedCharmPoints: number;
-    preySlots: number;
-    preyWildcards: number;
-    huntingTaskPoints: number;
-    hirelings: number;
-    hirelingJobs: number;
-    hasLootPouch: boolean;
-    bossPoints: number;
-    storeItems: number;
-    exaltedDust: string;
-    gold: number;
-    bestiary: number;
-    weeklyTaskExpansion: boolean;
-    battlePassDeluxe: boolean;
     skills: {
       fist: number;
       fistTries: number;
@@ -216,6 +205,35 @@ interface ApiBazaarDetailResponse {
       fishing: number;
       fishingTries: number;
     };
+    mountsCount: number;
+    outfitsCount: number;
+    titlesCount: number;
+    linkedTasks: number;
+    createDate: number;
+    balance: string;
+    totalMoney: string;
+    achievementPoints: number;
+    charmPoints: number;
+    spentCharmPoints: number;
+    availableCharmPoints: number;
+    spentMinorEchoes: number;
+    availableMinorEchoes: number;
+    charmExpansion: boolean;
+    streakDays: number;
+    huntingTaskPoints: number;
+    thirdPrey: boolean;
+    thirdHunting: boolean;
+    preyWildcards: number;
+    hirelingCount: number;
+    hirelingJobs: number;
+    hirelingOutfits: number;
+    dust: number;
+    dustMax: number;
+    bossPoints: number;
+    wheelPoints: number;
+    maxWheelPoints: number;
+    gpActive: boolean;
+    gpPoints: number;
   };
   items: { itemId: number; clientId: number; tier: number; count: number; name: string }[];
   itemsTotal: number;
@@ -223,12 +241,23 @@ interface ApiBazaarDetailResponse {
   storeItemsTotal: number;
   outfits: { name: string; lookType: number; addons: number }[];
   mounts: { name: string; lookType: number }[];
+  familiars: { name: string; lookType: number }[];
   charms: { name: string; cost: number }[];
-  blessings: { name: string }[];
+  blessings: { name: string; count: number }[];
   titles: { name: string }[];
-  gems: { type: string; mods: string[] }[];
+  gems: { id: number; domain: number; type: number; lesserBonusId: number; regularBonusId: number; supremeBonusId: number }[];
+  bosstiaries: { name: string; kills: number }[];
+  bosstiariosTotal: number;
+  weaponProficiency: ApiWeaponProficiency[];
   achievements: { name: string; grade: number }[];
   highlightItems: { itemId: number; clientId: number; tier: number; count: number; name: string }[];
+  highlightAugments: { text: string; argType: number }[];
+  bountyTalismans: unknown[];
+  bountyPoints: number;
+  totalBountyPoints: number;
+  bountyRerolls: number;
+  auras: unknown[];
+  battlepassSeasons: { season: number; points: number; active: number }[];
 }
 
 // ── Vocation name map ──────────────────────────────────────────────────
@@ -305,18 +334,21 @@ function timestampToDateString(ts: number | string | null | undefined): string |
 }
 
 // ── Outfit image URL builder ───────────────────────────────────────────
+// Uses the public outfit-images.ots.me service to generate static outfit PNGs
+// from the lookType + color/addon parameters provided by the RubinOT API.
 
-function buildOutfitImageUrl(player: { lookType: number; lookHead?: number; lookBody?: number; lookLegs?: number; lookFeet?: number; lookAddons?: number; direction?: number }): string {
+function buildOutfitImageUrl(player: { lookType: number; lookHead?: number; lookBody?: number; lookLegs?: number; lookFeet?: number; lookAddons?: number; direction?: number }): string | null {
+  if (!player.lookType) return null;
   const params = new URLSearchParams({
-    id: player.lookType.toString(),
-    head: (player.lookHead ?? 0).toString(),
-    body: (player.lookBody ?? 0).toString(),
-    legs: (player.lookLegs ?? 0).toString(),
-    feet: (player.lookFeet ?? 0).toString(),
-    addons: (player.lookAddons ?? 0).toString(),
-    direction: (player.direction ?? 3).toString(),
+    id: String(player.lookType),
+    addons: String(player.lookAddons ?? 0),
+    head: String(player.lookHead ?? 0),
+    body: String(player.lookBody ?? 0),
+    legs: String(player.lookLegs ?? 0),
+    feet: String(player.lookFeet ?? 0),
+    direction: '3',
   });
-  return `${RUBINOT_URLS.base}/AnimatedOutfits/animoutfit.php?${params.toString()}`;
+  return `https://outfit-images.ots.me/latest/animoutfit.php?${params.toString()}`;
 }
 
 // ── API fetchers (run inside browser page context) ─────────────────────
@@ -421,7 +453,7 @@ export function apiDetailToScrapedAuction(
   // Build display items from highlight items
   const displayItems = detail.highlightItems?.length > 0
     ? JSON.stringify(detail.highlightItems.map(item => ({
-        url: `${RUBINOT_URLS.base}/item-images/${item.clientId}.gif`,
+        url: `https://static.rubinot.com/objects/${item.clientId}.gif`,
         name: item.name,
         tier: item.tier,
       })))
@@ -440,6 +472,17 @@ export function apiDetailToScrapedAuction(
   // Build gems
   const gems = detail.gems?.length > 0
     ? JSON.stringify(detail.gems)
+    : null;
+
+  // Build weapon proficiency (store itemId, experience, weaponLevel, masteryAchieved)
+  const weaponProficiency = detail.weaponProficiency?.length > 0
+    ? JSON.stringify(detail.weaponProficiency.map(wp => ({
+        itemId: wp.itemId,
+        experience: wp.experience,
+        weaponLevel: wp.weaponLevel,
+        masteryAchieved: wp.masteryAchieved,
+        perks: wp.activePerks?.length ?? 0,
+      })))
     : null;
 
   // Quest availability from achievements
@@ -473,34 +516,34 @@ export function apiDetailToScrapedAuction(
     distance: sk.dist ?? null,
     shielding: sk.shielding ?? null,
     fishing: sk.fishing ?? null,
-    hitPoints: general.hitPoints ?? null,
-    mana: general.mana ?? null,
-    capacity: general.capacity ?? null,
-    speed: general.speed ?? null,
+    hitPoints: general.health ?? general.healthMax ?? null,
+    mana: general.mana ?? general.manaMax ?? null,
+    capacity: general.cap ?? null,
+    speed: null, // no longer in API
     experience: general.experience?.toString() ?? null,
-    creationDate: general.creation ?? null,
+    creationDate: general.createDate ? timestampToDateString(general.createDate) : null,
     achievementPoints: general.achievementPoints ?? null,
-    mountsCount: general.mounts ?? detail.mounts?.length ?? null,
-    outfitsCount: general.outfits ?? detail.outfits?.length ?? null,
-    titlesCount: general.titles ?? detail.titles?.length ?? null,
+    mountsCount: general.mountsCount ?? detail.mounts?.length ?? null,
+    outfitsCount: general.outfitsCount ?? detail.outfits?.length ?? null,
+    titlesCount: general.titlesCount ?? detail.titles?.length ?? null,
     linkedTasks: general.linkedTasks ?? null,
     charmExpansion: general.charmExpansion ?? null,
     charmPoints: general.charmPoints ?? null,
-    unusedCharmPoints: general.unusedCharmPoints ?? null,
+    unusedCharmPoints: general.availableCharmPoints ?? null,
     spentCharmPoints: general.spentCharmPoints ?? null,
-    preySlots: general.preySlots ?? null,
+    preySlots: general.thirdPrey ? 3 : 2,
     preyWildcards: general.preyWildcards ?? null,
     huntingTaskPoints: general.huntingTaskPoints ?? null,
-    hirelings: general.hirelings ?? null,
+    hirelings: general.hirelingCount ?? null,
     hirelingJobs: general.hirelingJobs ?? null,
     hasLootPouch,
-    storeItemsCount: general.storeItems ?? detail.storeItemsTotal ?? null,
+    storeItemsCount: detail.storeItemsTotal ?? detail.storeItems?.length ?? null,
     bossPoints: general.bossPoints ?? null,
-    blessingsCount: general.blessings ?? detail.blessings?.length ?? null,
-    exaltedDust: general.exaltedDust ?? null,
-    gold: general.gold ?? null,
-    bestiary: general.bestiary ?? null,
-    dailyRewardStreak: general.dailyRewardStreak ?? null,
+    blessingsCount: detail.blessings?.length ?? null,
+    exaltedDust: general.dust != null && general.dustMax != null ? `${general.dust}/${general.dustMax}` : null,
+    gold: general.totalMoney ? parseInt(general.totalMoney, 10) || 0 : null,
+    bestiary: detail.bosstiariosTotal ?? null,
+    dailyRewardStreak: general.streakDays ?? null,
     ...quests,
     magicLevelPct: null, // TODO: compute from magLevel tries if API provides
     fistPct: skillPctFromTries(sk.fistTries),
@@ -512,11 +555,12 @@ export function apiDetailToScrapedAuction(
     fishingPct: skillPctFromTries(sk.fishingTries),
     outfitImageUrl: listAuction?.outfitImageUrl ?? buildOutfitImageUrl(player as any),
     gems,
-    weeklyTaskExpansion: general.weeklyTaskExpansion ?? null,
-    battlePassDeluxe: general.battlePassDeluxe ?? null,
+    weeklyTaskExpansion: general.thirdHunting ?? null,
+    battlePassDeluxe: general.gpActive ?? null,
     displayItems,
     outfitNames,
     mountNames,
+    weaponProficiency,
     coinsPerLevel,
     url: `${RUBINOT_URLS.base}/bazaar/${auction.id}`,
   };
