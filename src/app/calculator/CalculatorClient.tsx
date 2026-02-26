@@ -63,10 +63,13 @@ function VocationSpeedHint({ vocation, category }: { vocation: Vocation; categor
   }
 
   return (
-    <div className="flex items-center gap-2 py-2 px-3 rounded-lg bg-background/40 border border-border/20">
+    <div
+      className="inline-flex items-center gap-2 py-1.5 px-3 rounded-full text-xs font-medium"
+      style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)', color: '#f59e0b' }}
+    >
       <div className={`w-2 h-2 rounded-full ${dotColor} shrink-0`} />
-      <span className="text-sm text-foreground/70">{speed}</span>
-      <span className="text-xs text-muted-foreground/50 ml-auto">(b={b})</span>
+      <span>{speed}</span>
+      <span style={{ color: 'rgba(245,158,11,0.5)' }}>(b={b})</span>
     </div>
   );
 }
@@ -91,7 +94,13 @@ function StyledSelect({
         <select
           value={value}
           onChange={onChange}
-          className="w-full appearance-none px-4 py-3 bg-[#252333] border border-[#4a4857] rounded-lg text-base font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/40 cursor-pointer"
+          className="w-full appearance-none px-4 py-3 rounded-lg text-sm font-medium text-foreground cursor-pointer focus:outline-none transition-all"
+          style={{
+            background: 'rgba(10,14,23,0.6)',
+            border: '1px solid rgba(255,255,255,0.10)',
+          }}
+          onFocus={(e) => { e.currentTarget.style.borderColor = 'rgba(245,158,11,0.5)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(245,158,11,0.1)'; }}
+          onBlur={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)'; e.currentTarget.style.boxShadow = 'none'; }}
         >
           {children}
         </select>
@@ -131,7 +140,13 @@ function StyledInput({
         value={value}
         onChange={onChange}
         placeholder={placeholder}
-        className="w-full px-4 py-3 bg-background/60 border border-border/40 rounded-lg text-base font-medium text-foreground placeholder-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/40"
+        className="w-full px-4 py-3 rounded-lg text-sm font-medium text-foreground placeholder-muted-foreground/50 focus:outline-none transition-all"
+        style={{
+          background: 'rgba(10,14,23,0.6)',
+          border: '1px solid rgba(255,255,255,0.10)',
+        }}
+        onFocus={(e) => { e.currentTarget.style.borderColor = 'rgba(245,158,11,0.5)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(245,158,11,0.1)'; }}
+        onBlur={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)'; e.currentTarget.style.boxShadow = 'none'; }}
       />
     </div>
   );
@@ -197,42 +212,45 @@ export default function CalculatorClient() {
   return (
     <div className="space-y-6">
       {/* Mode Toggle */}
-      <div className="grid grid-cols-2 gap-3">
-        <button
-          onClick={() => setMode('target')}
-          className={`relative py-4 px-5 rounded-xl font-semibold text-base transition-all ${
-            mode === 'target'
-              ? 'bg-gradient-to-br from-primary/20 to-primary/5 border-2 border-primary/40 text-foreground shadow-lg shadow-primary/10'
-              : 'bg-card/30 border border-border/30 text-muted-foreground hover:text-foreground hover:border-border/50'
-          }`}
+      <div className="flex justify-center">
+        <div
+          className="inline-flex rounded-full p-1"
+          style={{
+            background: 'rgba(21,28,42,0.8)',
+            backdropFilter: 'blur(12px)',
+            border: '1px solid rgba(255,255,255,0.10)',
+          }}
         >
-          <Target className="w-5 h-5 inline-block mr-2 -mt-0.5" />
-          Weapons Needed
-          {mode === 'target' && (
-            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-0.5 bg-primary rounded-full" />
-          )}
-        </button>
-        <button
-          onClick={() => setMode('weapons')}
-          className={`relative py-4 px-5 rounded-xl font-semibold text-base transition-all ${
-            mode === 'weapons'
-              ? 'bg-gradient-to-br from-primary/20 to-primary/5 border-2 border-primary/40 text-foreground shadow-lg shadow-primary/10'
-              : 'bg-card/30 border border-border/30 text-muted-foreground hover:text-foreground hover:border-border/50'
-          }`}
-        >
-          <Swords className="w-5 h-5 inline-block mr-2 -mt-0.5" />
-          Skill Gain
-          {mode === 'weapons' && (
-            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-0.5 bg-primary rounded-full" />
-          )}
-        </button>
+          <button
+            onClick={() => setMode('target')}
+            className="inline-flex items-center gap-2 rounded-full px-6 py-2.5 text-sm font-semibold transition-all"
+            style={mode === 'target'
+              ? { background: 'linear-gradient(135deg, rgba(245,158,11,0.2), rgba(245,158,11,0.1))', color: '#f59e0b', boxShadow: '0 0 16px rgba(245,158,11,0.15), inset 0 0 0 1px rgba(245,158,11,0.3)' }
+              : { color: 'rgba(236,240,247,0.6)' }
+            }
+          >
+            <Target className="w-4 h-4" />
+            Weapons Needed
+          </button>
+          <button
+            onClick={() => setMode('weapons')}
+            className="inline-flex items-center gap-2 rounded-full px-6 py-2.5 text-sm font-semibold transition-all"
+            style={mode === 'weapons'
+              ? { background: 'linear-gradient(135deg, rgba(245,158,11,0.2), rgba(245,158,11,0.1))', color: '#f59e0b', boxShadow: '0 0 16px rgba(245,158,11,0.15), inset 0 0 0 1px rgba(245,158,11,0.3)' }
+              : { color: 'rgba(236,240,247,0.6)' }
+            }
+          >
+            <Swords className="w-4 h-4" />
+            Skill Gain
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         {/* Input Card */}
-        <Card className="border-border/30 bg-card/40 backdrop-blur lg:col-span-3 overflow-hidden">
+        <div className="lg:col-span-3 overflow-hidden rounded-2xl" style={{ background: 'rgba(21,28,42,0.6)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.06)' }}>
           {/* Colored top accent bar */}
-          <div className="h-1" style={{ backgroundColor: vocColor }} />
+          <div className="h-[3px]" style={{ background: `linear-gradient(90deg, ${vocColor}, ${vocColor}66)` }} />
 
           <div className="p-6 space-y-6">
             {/* Vocation + Skill row */}
@@ -354,12 +372,12 @@ export default function CalculatorClient() {
               </div>
             </div>
           </div>
-        </Card>
+        </div>
 
         {/* Results Card */}
-        <Card className="border-border/30 bg-card/40 backdrop-blur lg:col-span-2 overflow-hidden">
+        <div className="lg:col-span-2 overflow-hidden rounded-2xl" style={{ background: 'rgba(21,28,42,0.6)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.06)' }}>
           {/* Colored top accent bar */}
-          <div className="h-1" style={{ backgroundColor: vocColor }} />
+          <div className="h-[3px]" style={{ background: `linear-gradient(90deg, ${vocColor}, ${vocColor}66)` }} />
 
           <div className="p-6">
             {mode === 'target' && weaponsResult && (
@@ -514,12 +532,12 @@ export default function CalculatorClient() {
               </div>
             )}
           </div>
-        </Card>
+        </div>
       </div>
 
       {/* Multiplier Reference Table */}
-      <Card className="border-border/30 bg-card/40 backdrop-blur overflow-hidden">
-        <div className="h-1" style={{ backgroundColor: vocColor }} />
+      <div className="overflow-hidden rounded-2xl" style={{ background: 'rgba(21,28,42,0.6)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.06)' }}>
+        <div className="h-[3px]" style={{ background: `linear-gradient(90deg, ${vocColor}, ${vocColor}66)` }} />
         <div className="p-6">
           <div className="flex items-center gap-2 mb-4">
             <Zap className="w-5 h-5" style={{ color: vocColor }} />
@@ -558,7 +576,7 @@ export default function CalculatorClient() {
             })}
           </div>
         </div>
-      </Card>
+      </div>
     </div>
   );
 }
