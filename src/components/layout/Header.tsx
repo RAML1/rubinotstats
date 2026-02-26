@@ -39,8 +39,13 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-30">
-      {/* Top bar — logo, ad banner, tip message */}
-      <div className="bg-primary">
+      {/* Top bar — amber gradient */}
+      <div
+        className="relative overflow-hidden"
+        style={{
+          background: 'linear-gradient(135deg, rgba(180,83,9,0.95) 0%, rgba(217,119,6,0.9) 40%, rgba(245,158,11,0.85) 100%)',
+        }}
+      >
         <div className="container mx-auto flex h-12 items-center gap-4 px-4">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2 text-white shrink-0">
@@ -52,9 +57,9 @@ export function Header() {
 
           {/* Ad Banner — center */}
           <div className="hidden md:flex flex-1 items-center justify-center">
-            <div className="flex items-center gap-2.5 rounded-lg border border-amber-400/30 bg-amber-400/10 px-5 py-1.5 animate-pulse">
-              <Megaphone className="h-4 w-4 text-amber-400" />
-              <span className="text-sm font-medium text-amber-200">
+            <div className="flex items-center gap-2.5 rounded-lg border border-white/20 bg-white/10 px-5 py-1.5 animate-pulse backdrop-blur-sm">
+              <Megaphone className="h-4 w-4 text-white/90" />
+              <span className="text-sm font-medium text-white/90">
                 Your awesome service page here, travecos also welcome to advertise
               </span>
             </div>
@@ -63,9 +68,9 @@ export function Header() {
           {/* Right side — tip + auth + mobile menu */}
           <div className="ml-auto flex items-center gap-3">
             {/* Tip message */}
-            <div className="hidden lg:flex items-center gap-1.5 rounded-full bg-amber-400/15 border border-amber-400/25 px-3 py-1">
-              <Heart className="h-3 w-3 text-amber-400 fill-amber-400" />
-              <span className="text-[11px] text-amber-300">
+            <div className="hidden lg:flex items-center gap-1.5 rounded-full bg-white/10 border border-white/20 px-3 py-1 backdrop-blur-sm">
+              <Heart className="h-3 w-3 text-white fill-white" />
+              <span className="text-[11px] text-white/90">
                 Want to show love? Tip <strong>Super Bonk Lee</strong> so he can stop using plate set
               </span>
             </div>
@@ -85,10 +90,18 @@ export function Header() {
         </div>
       </div>
 
-      {/* Navigation bar — below the top bar */}
-      <div className="border-b border-border/50 bg-card/80 backdrop-blur-sm">
+      {/* Navigation bar — glassmorphic */}
+      <div
+        className="border-b"
+        style={{
+          backgroundColor: 'rgba(15, 20, 32, 0.85)',
+          borderColor: 'rgba(255,255,255,0.06)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+        }}
+      >
         <div className="container mx-auto px-4">
-          <nav className="hidden items-center gap-1 md:flex h-10">
+          <nav className="hidden items-center gap-0.5 md:flex h-10">
             {navItems.map(({ href, label, icon: Icon }) => {
               const isActive =
                 href === "/"
@@ -98,14 +111,23 @@ export function Header() {
                 <Link
                   key={href}
                   href={href}
-                  className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                  className={`relative flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-colors ${
                     isActive
-                      ? "bg-primary/15 text-primary"
-                      : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                      ? "text-amber-400"
+                      : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   <Icon className="h-4 w-4" />
                   {label}
+                  {isActive && (
+                    <span
+                      className="absolute bottom-0 left-2 right-2 h-0.5 rounded-full"
+                      style={{
+                        backgroundColor: '#f59e0b',
+                        boxShadow: '0 0 8px rgba(245,158,11,0.6), 0 0 16px rgba(245,158,11,0.3)',
+                      }}
+                    />
+                  )}
                 </Link>
               );
             })}

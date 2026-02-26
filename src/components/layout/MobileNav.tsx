@@ -48,14 +48,27 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
       />
 
       {/* Slide-in panel */}
-      <div className="fixed inset-y-0 right-0 z-50 w-full max-w-xs bg-card shadow-2xl">
+      <div
+        className="fixed inset-y-0 right-0 z-50 w-full max-w-xs shadow-2xl"
+        style={{
+          backgroundColor: 'rgba(15, 20, 32, 0.95)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+        }}
+      >
         <div className="flex h-full flex-col">
-          {/* Header with logo */}
-          <div className="flex items-center justify-between border-b px-5 py-4">
+          {/* Header — amber gradient strip */}
+          <div
+            className="flex items-center justify-between px-5 py-4"
+            style={{
+              borderBottom: '1px solid rgba(245,158,11,0.2)',
+              background: 'linear-gradient(135deg, rgba(180,83,9,0.15) 0%, rgba(245,158,11,0.08) 100%)',
+            }}
+          >
             <Logo size="sm" />
             <button
               onClick={onClose}
-              className="rounded-full p-2 hover:bg-accent"
+              className="rounded-full p-2 text-muted-foreground hover:text-foreground hover:bg-white/5"
               aria-label="Close menu"
             >
               <X className="h-5 w-5" />
@@ -74,9 +87,13 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
                   onClick={onClose}
                   className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-colors ${
                     isActive
-                      ? "bg-primary/15 text-primary"
-                      : "text-foreground hover:bg-accent"
+                      ? "text-amber-400"
+                      : "text-foreground hover:bg-white/5"
                   }`}
+                  style={isActive ? {
+                    backgroundColor: 'rgba(245,158,11,0.1)',
+                    borderLeft: '3px solid #f59e0b',
+                  } : undefined}
                 >
                   <Icon className="h-5 w-5" />
                   {label}
