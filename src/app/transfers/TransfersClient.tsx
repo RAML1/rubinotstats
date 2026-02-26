@@ -8,10 +8,10 @@ import {
   Bar,
   XAxis,
   YAxis,
+  CartesianGrid,
   Tooltip,
   ResponsiveContainer,
   Cell,
-  Legend,
 } from 'recharts';
 
 interface TransferEntry {
@@ -43,21 +43,30 @@ function formatDate(iso: string | null): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-const LEVEL_COLORS: Record<string, string> = {
-  '1-99': '#3b82f6',
-  '100-499': '#22c55e',
-  '500-999': '#eab308',
-  '1000+': '#ef4444',
+const LEVEL_GRADIENT_MAP: Record<string, { color: string; id: string }> = {
+  '1-99':    { color: '#00D4FF', id: 'lvlGrad1' },
+  '100-499': { color: '#34D399', id: 'lvlGrad2' },
+  '500-999': { color: '#FFBE0B', id: 'lvlGrad3' },
+  '1000+':   { color: '#FB7185', id: 'lvlGrad4' },
 };
 
-function ChartTooltip({ active, payload, label }: any) {
+function GlassTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-lg border border-border/50 bg-card/95 px-3 py-2 text-xs shadow-lg backdrop-blur">
-      <p className="font-medium text-foreground mb-1">{label || payload[0]?.payload?.route || payload[0]?.name}</p>
+    <div
+      style={{
+        backgroundColor: 'rgba(15, 15, 26, 0.92)',
+        backdropFilter: 'blur(12px)',
+        border: '1px solid rgba(255, 255, 255, 0.08)',
+        borderRadius: '12px',
+        padding: '10px 14px',
+        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
+      }}
+    >
+      <p className="font-medium text-[11px] text-white/90 mb-0.5">{label || payload[0]?.payload?.route || payload[0]?.name}</p>
       {payload.map((p: any, i: number) => (
-        <p key={i} className="text-muted-foreground">
-          <span style={{ color: p.color }}>{p.name || p.dataKey}:</span> {p.value}
+        <p key={i} className="text-[11px]" style={{ color: 'rgba(255,255,255,0.55)' }}>
+          <span style={{ color: p.color || p.fill }}>{p.name || p.dataKey}:</span> {p.value}
         </p>
       ))}
     </div>
@@ -68,11 +77,11 @@ function FlowLegend() {
   return (
     <div className="flex items-center justify-center gap-4 mt-1">
       <div className="flex items-center gap-1.5">
-        <div className="h-2.5 w-2.5 rounded-sm bg-green-500/80" />
+        <div className="h-2.5 w-2.5 rounded-sm" style={{ background: 'linear-gradient(180deg, #2DD4BF, rgba(45,212,191,0.3))' }} />
         <span className="text-[10px] text-muted-foreground">Arrivals</span>
       </div>
       <div className="flex items-center gap-1.5">
-        <div className="h-2.5 w-2.5 rounded-sm bg-red-500/80" />
+        <div className="h-2.5 w-2.5 rounded-sm" style={{ background: 'linear-gradient(180deg, #FB7185, rgba(251,113,133,0.3))' }} />
         <span className="text-[10px] text-muted-foreground">Departures</span>
       </div>
     </div>
@@ -144,21 +153,32 @@ export function TransfersClient({ initialTransfers, initialTotal, worlds, insigh
     <div className="space-y-6">
       {/* Insights Charts */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* World Net Flow */}
+        {/* World Net Flow — gradient grouped bars */}
         <Card className="border-border/50 bg-card/50 overflow-hidden md:col-span-2">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-3">
-              <TrendingUp className="h-4 w-4 text-blue-400" />
+              <TrendingUp className="h-4 w-4 text-teal-400" />
               <h3 className="text-sm font-semibold">World Population Flow</h3>
             </div>
             <ResponsiveContainer width="100%" height={180}>
               <BarChart
                 data={insights.worldFlow}
-                margin={{ left: -10, right: 8, top: 0, bottom: 0 }}
+                margin={{ left: -10, right: 8, top: 4, bottom: 0 }}
               >
+                <defs>
+                  <linearGradient id="arrivalGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#2DD4BF" stopOpacity={0.85} />
+                    <stop offset="100%" stopColor="#2DD4BF" stopOpacity={0.15} />
+                  </linearGradient>
+                  <linearGradient id="departGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#FB7185" stopOpacity={0.85} />
+                    <stop offset="100%" stopColor="#FB7185" stopOpacity={0.15} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 6" stroke="rgba(255,255,255,0.04)" vertical={false} />
                 <XAxis
                   dataKey="world"
-                  tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }}
+                  tick={{ fontSize: 9, fill: 'rgba(255,255,255,0.4)' }}
                   axisLine={false}
                   tickLine={false}
                   interval={0}
@@ -167,49 +187,59 @@ export function TransfersClient({ initialTransfers, initialTotal, worlds, insigh
                   height={40}
                 />
                 <YAxis
-                  tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                  tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.4)' }}
                   axisLine={false}
                   tickLine={false}
                   width={25}
                 />
-                <Tooltip content={<ChartTooltip />} cursor={{ fill: 'hsl(var(--muted) / 0.3)' }} />
-                <Bar dataKey="arrivals" name="Arrivals" fill="#22c55e" fillOpacity={0.7} radius={[4, 4, 0, 0]} />
-                <Bar dataKey="departures" name="Departures" fill="#ef4444" fillOpacity={0.7} radius={[4, 4, 0, 0]} />
+                <Tooltip content={<GlassTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
+                <Bar dataKey="arrivals" name="Arrivals" fill="url(#arrivalGrad)" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="departures" name="Departures" fill="url(#departGrad)" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
             <FlowLegend />
           </CardContent>
         </Card>
 
-        {/* Level Distribution */}
+        {/* Level Distribution — gradient bars per level range */}
         <Card className="border-border/50 bg-card/50 overflow-hidden">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-3">
-              <BarChart3 className="h-4 w-4 text-yellow-400" />
+              <BarChart3 className="h-4 w-4 text-amber-400" />
               <h3 className="text-sm font-semibold">Transfer Levels</h3>
             </div>
             <ResponsiveContainer width="100%" height={180}>
               <BarChart
                 data={insights.levelDistribution}
-                margin={{ left: -10, right: 8, top: 0, bottom: 0 }}
+                margin={{ left: -10, right: 8, top: 4, bottom: 0 }}
               >
+                <defs>
+                  {Object.entries(LEVEL_GRADIENT_MAP).map(([, { color, id }]) => (
+                    <linearGradient key={id} id={id} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={color} stopOpacity={0.85} />
+                      <stop offset="100%" stopColor={color} stopOpacity={0.15} />
+                    </linearGradient>
+                  ))}
+                </defs>
+                <CartesianGrid strokeDasharray="3 6" stroke="rgba(255,255,255,0.04)" vertical={false} />
                 <XAxis
                   dataKey="range"
-                  tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                  tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.4)' }}
                   axisLine={false}
                   tickLine={false}
                 />
                 <YAxis
-                  tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                  tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.4)' }}
                   axisLine={false}
                   tickLine={false}
                   width={25}
                 />
-                <Tooltip content={<ChartTooltip />} cursor={{ fill: 'hsl(var(--muted) / 0.3)' }} />
-                <Bar dataKey="count" name="Players" radius={[4, 4, 0, 0]}>
-                  {insights.levelDistribution.map((entry) => (
-                    <Cell key={entry.range} fill={LEVEL_COLORS[entry.range] || '#6b7280'} fillOpacity={0.8} />
-                  ))}
+                <Tooltip content={<GlassTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
+                <Bar dataKey="count" name="Players" radius={[6, 6, 0, 0]}>
+                  {insights.levelDistribution.map((entry) => {
+                    const cfg = LEVEL_GRADIENT_MAP[entry.range];
+                    return <Cell key={entry.range} fill={cfg ? `url(#${cfg.id})` : '#6b7280'} />;
+                  })}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>

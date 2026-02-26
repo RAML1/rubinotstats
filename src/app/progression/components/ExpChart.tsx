@@ -150,19 +150,28 @@ export default function ExpChart({ snapshots, compareSnapshots, compareName }: E
     if (active && payload && payload.length) {
       const data = payload[0].payload;
       return (
-        <div className="rounded-lg border border-border bg-background/95 px-3 py-2 shadow-lg backdrop-blur">
-          <p className="text-xs font-medium text-foreground">{data.date}</p>
-          <p className="text-xs text-muted-foreground">
-            Exp Gained: <span className="font-semibold text-purple-400">{formatNumber(data.expGained)}</span>
+        <div
+          style={{
+            backgroundColor: 'rgba(15, 15, 26, 0.92)',
+            backdropFilter: 'blur(12px)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            borderRadius: '12px',
+            padding: '10px 14px',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
+          }}
+        >
+          <p className="text-[11px] font-medium text-white/90">{data.date}</p>
+          <p className="text-[11px]" style={{ color: 'rgba(255,255,255,0.55)' }}>
+            Exp Gained: <span className="font-semibold" style={{ color: '#A78BFA' }}>{formatNumber(data.expGained)}</span>
           </p>
           {hasCompare && data.compareExpGained > 0 && (
-            <p className="text-xs text-muted-foreground">
-              {compareName || 'Compare'}: <span className="font-semibold text-amber-400">{formatNumber(data.compareExpGained)}</span>
+            <p className="text-[11px]" style={{ color: 'rgba(255,255,255,0.55)' }}>
+              {compareName || 'Compare'}: <span className="font-semibold" style={{ color: '#FFBE0B' }}>{formatNumber(data.compareExpGained)}</span>
             </p>
           )}
           {data.level && (
-            <p className="text-xs text-muted-foreground">
-              Level: <span className="font-semibold text-foreground">{data.level}</span>
+            <p className="text-[11px]" style={{ color: 'rgba(255,255,255,0.55)' }}>
+              Level: <span className="font-semibold text-white/90">{data.level}</span>
             </p>
           )}
         </div>
@@ -218,38 +227,48 @@ export default function ExpChart({ snapshots, compareSnapshots, compareName }: E
             <AreaChart data={mergedData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="expGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="hsl(270, 70%, 60%)" stopOpacity={0.8} />
-                  <stop offset="95%" stopColor="hsl(270, 70%, 60%)" stopOpacity={0} />
+                  <stop offset="5%" stopColor="#A78BFA" stopOpacity={0.5} />
+                  <stop offset="95%" stopColor="#A78BFA" stopOpacity={0} />
                 </linearGradient>
                 <linearGradient id="compareGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="hsl(38, 92%, 50%)" stopOpacity={0.6} />
-                  <stop offset="95%" stopColor="hsl(38, 92%, 50%)" stopOpacity={0} />
+                  <stop offset="5%" stopColor="#FFBE0B" stopOpacity={0.4} />
+                  <stop offset="95%" stopColor="#FFBE0B" stopOpacity={0} />
                 </linearGradient>
+                <filter id="expGlow" height="200%">
+                  <feGaussianBlur stdDeviation="3" result="coloredBlur" />
+                  <feMerge>
+                    <feMergeNode in="coloredBlur" />
+                    <feMergeNode in="SourceGraphic" />
+                  </feMerge>
+                </filter>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 40%, 20%)" />
+              <CartesianGrid strokeDasharray="3 6" stroke="rgba(255,255,255,0.04)" vertical={false} />
               <XAxis
                 dataKey="date"
-                stroke="hsl(215, 20%, 65%)"
-                tick={{ fill: 'hsl(215, 20%, 65%)', fontSize: 12 }}
+                tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 11 }}
+                axisLine={false}
+                tickLine={false}
               />
               <YAxis
-                stroke="hsl(215, 20%, 65%)"
-                tick={{ fill: 'hsl(215, 20%, 65%)', fontSize: 12 }}
+                tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 11 }}
+                axisLine={false}
+                tickLine={false}
                 tickFormatter={formatYAxis}
               />
               <Tooltip content={<CustomTooltip />} />
               <Area
                 type="monotone"
                 dataKey="expGained"
-                stroke="hsl(270, 70%, 60%)"
+                stroke="#A78BFA"
                 strokeWidth={2}
                 fill="url(#expGradient)"
+                style={{ filter: 'url(#expGlow)' }}
               />
               {hasCompare && (
                 <Area
                   type="monotone"
                   dataKey="compareExpGained"
-                  stroke="hsl(38, 92%, 50%)"
+                  stroke="#FFBE0B"
                   strokeWidth={2}
                   fill="url(#compareGradient)"
                 />

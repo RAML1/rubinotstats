@@ -8,6 +8,7 @@ import {
   Bar,
   XAxis,
   YAxis,
+  CartesianGrid,
   Tooltip,
   ResponsiveContainer,
   PieChart,
@@ -58,18 +59,33 @@ function getReasonColor(reason: string | null): string {
   return 'text-muted-foreground';
 }
 
+// Rose-based gradient scale for ban reasons (single-hue, varying intensity)
 const REASON_COLORS = [
-  '#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899',
+  '#FB7185', '#F472B6', '#E879A8', '#D97098', '#C96B8A', '#B9617C', '#A85870',
 ];
 
-const PIE_COLORS = ['#ef4444', '#3b82f6'];
+const PIE_COLORS = ['#FB7185', '#00D4FF'];
 
-function ChartTooltip({ active, payload, label }: any) {
+function GlassTooltip({ active, payload, label, suffix = '' }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-lg border border-border/50 bg-card/95 px-3 py-2 text-xs shadow-lg backdrop-blur">
-      <p className="font-medium text-foreground">{label || payload[0]?.name}</p>
-      <p className="text-muted-foreground">{payload[0]?.value} bans</p>
+    <div
+      style={{
+        backgroundColor: 'rgba(15, 15, 26, 0.92)',
+        backdropFilter: 'blur(12px)',
+        border: '1px solid rgba(255, 255, 255, 0.08)',
+        borderRadius: '12px',
+        padding: '10px 14px',
+        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
+      }}
+    >
+      <p className="font-medium text-[11px] text-white/90 mb-0.5">{label || payload[0]?.name}</p>
+      {payload.map((p: any, i: number) => (
+        <p key={i} className="text-[11px]" style={{ color: 'rgba(255,255,255,0.55)' }}>
+          <span style={{ color: p.color || p.fill || '#FB7185' }}>{p.name || p.dataKey}</span>
+          {': '}{p.value}{suffix}
+        </p>
+      ))}
     </div>
   );
 }
@@ -129,11 +145,11 @@ export function BansClient({ initialBans, initialTotal, insights }: BansClientPr
     <div className="space-y-6">
       {/* Insights Charts */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Bans by Reason */}
+        {/* Bans by Reason — horizontal bar with rose gradient scale */}
         <Card className="border-border/50 bg-card/50 overflow-hidden">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-3">
-              <Shield className="h-4 w-4 text-red-400" />
+              <Shield className="h-4 w-4 text-rose-400" />
               <h3 className="text-sm font-semibold">Bans by Rule</h3>
             </div>
             <ResponsiveContainer width="100%" height={160}>
@@ -142,19 +158,27 @@ export function BansClient({ initialBans, initialTotal, insights }: BansClientPr
                 layout="vertical"
                 margin={{ left: 0, right: 8, top: 0, bottom: 0 }}
               >
+                <defs>
+                  {insights.byReason.map((_, i) => (
+                    <linearGradient key={`rg-${i}`} id={`reasonGrad-${i}`} x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor={REASON_COLORS[i % REASON_COLORS.length]} stopOpacity={0.1} />
+                      <stop offset="100%" stopColor={REASON_COLORS[i % REASON_COLORS.length]} stopOpacity={0.85} />
+                    </linearGradient>
+                  ))}
+                </defs>
                 <XAxis type="number" hide />
                 <YAxis
                   type="category"
                   dataKey="reason"
                   width={70}
-                  tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+                  tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.4)' }}
                   axisLine={false}
                   tickLine={false}
                 />
-                <Tooltip content={<ChartTooltip />} cursor={{ fill: 'hsl(var(--muted) / 0.3)' }} />
-                <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+                <Tooltip content={<GlassTooltip suffix=" bans" />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
+                <Bar dataKey="count" radius={[0, 6, 6, 0]}>
                   {insights.byReason.map((_, i) => (
-                    <Cell key={i} fill={REASON_COLORS[i % REASON_COLORS.length]} fillOpacity={0.8} />
+                    <Cell key={i} fill={`url(#reasonGrad-${i})`} />
                   ))}
                 </Bar>
               </BarChart>
@@ -162,41 +186,58 @@ export function BansClient({ initialBans, initialTotal, insights }: BansClientPr
           </CardContent>
         </Card>
 
-        {/* Permanent vs Temporary */}
+        {/* Permanent vs Temporary — donut with glow */}
         <Card className="border-border/50 bg-card/50 overflow-hidden">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-3">
-              <AlertTriangle className="h-4 w-4 text-red-400" />
+              <AlertTriangle className="h-4 w-4 text-rose-400" />
               <h3 className="text-sm font-semibold">Ban Duration</h3>
             </div>
             <div className="flex items-center gap-4">
               <ResponsiveContainer width="50%" height={140}>
                 <PieChart>
+                  <defs>
+                    <filter id="pieGlow" height="200%">
+                      <feGaussianBlur stdDeviation="3" result="coloredBlur" />
+                      <feMerge>
+                        <feMergeNode in="coloredBlur" />
+                        <feMergeNode in="SourceGraphic" />
+                      </feMerge>
+                    </filter>
+                    <linearGradient id="permGrad" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0%" stopColor="#FB7185" stopOpacity={0.9} />
+                      <stop offset="100%" stopColor="#E11D48" stopOpacity={0.7} />
+                    </linearGradient>
+                    <linearGradient id="tempGrad" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0%" stopColor="#00D4FF" stopOpacity={0.9} />
+                      <stop offset="100%" stopColor="#0891B2" stopOpacity={0.7} />
+                    </linearGradient>
+                  </defs>
                   <Pie
                     data={pieData}
                     dataKey="value"
-                    innerRadius={35}
-                    outerRadius={55}
-                    paddingAngle={3}
+                    innerRadius={32}
+                    outerRadius={54}
+                    paddingAngle={4}
                     strokeWidth={0}
+                    style={{ filter: 'url(#pieGlow)' }}
                   >
-                    {pieData.map((_, i) => (
-                      <Cell key={i} fill={PIE_COLORS[i]} fillOpacity={0.8} />
-                    ))}
+                    <Cell fill="url(#permGrad)" />
+                    <Cell fill="url(#tempGrad)" />
                   </Pie>
-                  <Tooltip content={<ChartTooltip />} />
+                  <Tooltip content={<GlassTooltip suffix=" bans" />} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="space-y-3 flex-1">
                 <div className="flex items-center gap-2">
-                  <div className="h-3 w-3 rounded-full bg-red-500/80" />
+                  <div className="h-3 w-3 rounded-full" style={{ background: 'linear-gradient(135deg, #FB7185, #E11D48)' }} />
                   <div>
                     <p className="text-lg font-bold">{insights.permanent}</p>
                     <p className="text-xs text-muted-foreground">Permanent</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="h-3 w-3 rounded-full bg-blue-500/80" />
+                  <div className="h-3 w-3 rounded-full" style={{ background: 'linear-gradient(135deg, #00D4FF, #0891B2)' }} />
                   <div>
                     <p className="text-lg font-bold">{insights.temporary}</p>
                     <p className="text-xs text-muted-foreground">Temporary</p>
@@ -207,32 +248,39 @@ export function BansClient({ initialBans, initialTotal, insights }: BansClientPr
           </CardContent>
         </Card>
 
-        {/* Bans Over Time */}
+        {/* Bans Over Time — gradient bars */}
         <Card className="border-border/50 bg-card/50 overflow-hidden">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-3">
-              <Calendar className="h-4 w-4 text-blue-400" />
+              <Calendar className="h-4 w-4 text-cyan-400" />
               <h3 className="text-sm font-semibold">Bans Over Time</h3>
             </div>
             <ResponsiveContainer width="100%" height={160}>
               <BarChart
                 data={insights.byDate.map(d => ({ ...d, label: formatShortDate(d.date) }))}
-                margin={{ left: -10, right: 8, top: 0, bottom: 0 }}
+                margin={{ left: -10, right: 8, top: 4, bottom: 0 }}
               >
+                <defs>
+                  <linearGradient id="bansTimeGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#FB7185" stopOpacity={0.85} />
+                    <stop offset="100%" stopColor="#FB7185" stopOpacity={0.15} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 6" stroke="rgba(255,255,255,0.04)" vertical={false} />
                 <XAxis
                   dataKey="label"
-                  tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                  tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.4)' }}
                   axisLine={false}
                   tickLine={false}
                 />
                 <YAxis
-                  tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                  tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.4)' }}
                   axisLine={false}
                   tickLine={false}
                   width={30}
                 />
-                <Tooltip content={<ChartTooltip />} cursor={{ fill: 'hsl(var(--muted) / 0.3)' }} />
-                <Bar dataKey="count" fill="#ef4444" fillOpacity={0.7} radius={[4, 4, 0, 0]} />
+                <Tooltip content={<GlassTooltip suffix=" bans" />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
+                <Bar dataKey="count" fill="url(#bansTimeGrad)" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>

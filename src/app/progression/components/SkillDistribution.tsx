@@ -81,9 +81,18 @@ export default function SkillDistribution({ snapshots }: SkillDistributionProps)
     if (active && payload && payload.length) {
       const data = payload[0];
       return (
-        <div className="bg-secondary/95 border border-border/50 rounded-lg p-2 backdrop-blur">
-          <p className="text-sm font-semibold text-foreground">{data.payload.name}</p>
-          <p className="text-sm text-muted-foreground">
+        <div
+          style={{
+            backgroundColor: 'rgba(15, 15, 26, 0.92)',
+            backdropFilter: 'blur(12px)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            borderRadius: '12px',
+            padding: '10px 14px',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
+          }}
+        >
+          <p className="text-[11px] font-medium text-white/90">{data.payload.name}</p>
+          <p className="text-[11px]" style={{ color: 'rgba(255,255,255,0.55)' }}>
             +{data.value} points
           </p>
         </div>
@@ -132,15 +141,27 @@ export default function SkillDistribution({ snapshots }: SkillDistributionProps)
           {/* Chart */}
           <ResponsiveContainer width="100%" height={250}>
             <PieChart>
+              <defs>
+                <filter id="skillGlow" height="200%">
+                  <feGaussianBlur stdDeviation="2.5" result="coloredBlur" />
+                  <feMerge>
+                    <feMergeNode in="coloredBlur" />
+                    <feMergeNode in="SourceGraphic" />
+                  </feMerge>
+                </filter>
+              </defs>
               <Pie
                 data={chartData}
                 dataKey="value"
                 innerRadius={60}
                 outerRadius={90}
+                paddingAngle={3}
+                strokeWidth={0}
                 label={<CustomLabel />}
+                style={{ filter: 'url(#skillGlow)' }}
               >
                 {chartData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
+                  <Cell key={`cell-${index}`} fill={entry.color} fillOpacity={0.85} />
                 ))}
               </Pie>
               <Tooltip content={<CustomTooltip />} />

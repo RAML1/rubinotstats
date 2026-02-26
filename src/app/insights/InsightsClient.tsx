@@ -174,10 +174,21 @@ function getVocIcon(voc: string) {
 
 const LEVEL_BAND_ORDER = ["8-99", "100-199", "200-299", "300-499", "500+"];
 
-const TOOLTIP_STYLE = {
-  contentStyle: { backgroundColor: "#1a1a2e", border: "1px solid #333", borderRadius: "8px" },
-  labelStyle: { color: "#999" },
+const GLASS_TOOLTIP = {
+  contentStyle: {
+    backgroundColor: "rgba(15, 15, 26, 0.92)",
+    backdropFilter: "blur(12px)",
+    border: "1px solid rgba(255, 255, 255, 0.08)",
+    borderRadius: "12px",
+    boxShadow: "0 8px 32px rgba(0, 0, 0, 0.5)",
+    padding: "10px 14px",
+  },
+  labelStyle: { color: "rgba(255,255,255,0.6)", fontSize: 11, fontWeight: 500 },
+  itemStyle: { color: "rgba(255,255,255,0.55)", fontSize: 11 },
 };
+
+const GRID_STYLE = { strokeDasharray: "3 6", stroke: "rgba(255,255,255,0.04)" };
+const AXIS_TICK = { fill: "rgba(255,255,255,0.4)" };
 
 // ── Section Component ────────────────────────────────────────────────
 function Section({ icon: Icon, title, subtitle, iconColor, children }: {
@@ -269,35 +280,43 @@ export function InsightsClient() {
                   <AreaChart data={data.priceTrends}>
                     <defs>
                       <linearGradient id="priceGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                        <stop offset="5%" stopColor="#A78BFA" stopOpacity={0.4} />
+                        <stop offset="95%" stopColor="#A78BFA" stopOpacity={0} />
                       </linearGradient>
                       <linearGradient id="medianGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#22c55e" stopOpacity={0.15} />
-                        <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                        <stop offset="5%" stopColor="#34D399" stopOpacity={0.2} />
+                        <stop offset="95%" stopColor="#34D399" stopOpacity={0} />
                       </linearGradient>
+                      <filter id="lineGlow" height="200%">
+                        <feGaussianBlur stdDeviation="3" result="coloredBlur" />
+                        <feMerge>
+                          <feMergeNode in="coloredBlur" />
+                          <feMergeNode in="SourceGraphic" />
+                        </feMerge>
+                      </filter>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                    <CartesianGrid {...GRID_STYLE} vertical={false} />
                     <XAxis
                       dataKey="week"
                       tickFormatter={(v: string) => {
                         const d = new Date(v);
                         return `${d.getMonth() + 1}/${d.getDate()}`;
                       }}
-                      stroke="#666"
-                      fontSize={11}
+                      tick={{ ...AXIS_TICK, fontSize: 11 }}
+                      axisLine={false}
+                      tickLine={false}
                     />
-                    <YAxis tickFormatter={(v: number) => formatNumber(v)} stroke="#666" fontSize={11} />
+                    <YAxis tickFormatter={(v: number) => formatNumber(v)} tick={{ ...AXIS_TICK, fontSize: 11 }} axisLine={false} tickLine={false} />
                     <Tooltip
-                      {...TOOLTIP_STYLE}
+                      {...GLASS_TOOLTIP}
                       formatter={(value: number, name: string) => [
                         formatNumber(value) + " TC",
                         name === "avg_price" ? "Avg Price" : "Median Price",
                       ]}
                       labelFormatter={(label: string) => `Week of ${label}`}
                     />
-                    <Area type="monotone" dataKey="avg_price" stroke="#8b5cf6" fill="url(#priceGradient)" strokeWidth={2} name="avg_price" />
-                    <Area type="monotone" dataKey="median_price" stroke="#22c55e" fill="url(#medianGradient)" strokeWidth={1.5} strokeDasharray="4 2" name="median_price" />
+                    <Area type="monotone" dataKey="avg_price" stroke="#A78BFA" fill="url(#priceGradient)" strokeWidth={2} name="avg_price" style={{ filter: "url(#lineGlow)" }} />
+                    <Area type="monotone" dataKey="median_price" stroke="#34D399" fill="url(#medianGradient)" strokeWidth={1.5} strokeDasharray="4 2" name="median_price" />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
@@ -312,6 +331,15 @@ export function InsightsClient() {
             <div className="h-[300px] flex flex-col items-center justify-center">
               <ResponsiveContainer width="100%" height={220}>
                 <PieChart>
+                  <defs>
+                    <filter id="pieGlow2" height="200%">
+                      <feGaussianBlur stdDeviation="2.5" result="coloredBlur" />
+                      <feMerge>
+                        <feMergeNode in="coloredBlur" />
+                        <feMergeNode in="SourceGraphic" />
+                      </feMerge>
+                    </filter>
+                  </defs>
                   <Pie
                     data={data.vocationMarketShare}
                     dataKey="sold"
@@ -320,14 +348,16 @@ export function InsightsClient() {
                     cy="50%"
                     innerRadius={50}
                     outerRadius={85}
-                    paddingAngle={2}
+                    paddingAngle={3}
+                    strokeWidth={0}
+                    style={{ filter: "url(#pieGlow2)" }}
                   >
                     {data.vocationMarketShare.map((entry, idx) => (
-                      <Cell key={entry.vocation} fill={VOCATION_COLORS[entry.vocation] || PIE_COLORS[idx % PIE_COLORS.length]} />
+                      <Cell key={entry.vocation} fill={VOCATION_COLORS[entry.vocation] || PIE_COLORS[idx % PIE_COLORS.length]} fillOpacity={0.85} />
                     ))}
                   </Pie>
                   <Tooltip
-                    {...TOOLTIP_STYLE}
+                    {...GLASS_TOOLTIP}
                     formatter={(value: number, name: string) => [
                       `${formatNumber(value)} sold`,
                       name,
@@ -357,11 +387,17 @@ export function InsightsClient() {
             <div className="h-[280px]">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={data.priceDistribution}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                  <XAxis dataKey="price_range" stroke="#666" fontSize={10} />
-                  <YAxis tickFormatter={(v: number) => formatNumber(v)} stroke="#666" fontSize={11} />
-                  <Tooltip {...TOOLTIP_STYLE} formatter={(value: number) => [formatNumber(value), "Auctions"]} />
-                  <Bar dataKey="count" fill="#8b5cf6" radius={[4, 4, 0, 0]} opacity={0.85} />
+                  <defs>
+                    <linearGradient id="priceDistGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#A78BFA" stopOpacity={0.85} />
+                      <stop offset="100%" stopColor="#A78BFA" stopOpacity={0.15} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid {...GRID_STYLE} vertical={false} />
+                  <XAxis dataKey="price_range" tick={{ ...AXIS_TICK, fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis tickFormatter={(v: number) => formatNumber(v)} tick={{ ...AXIS_TICK, fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <Tooltip {...GLASS_TOOLTIP} formatter={(value: number) => [formatNumber(value), "Auctions"]} />
+                  <Bar dataKey="count" fill="url(#priceDistGrad)" radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -375,17 +411,23 @@ export function InsightsClient() {
             <div className="h-[280px]">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={data.sellRateByPrice}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                  <XAxis dataKey="bid_range" stroke="#666" fontSize={10} />
-                  <YAxis tickFormatter={(v: number) => `${v}%`} stroke="#666" fontSize={11} domain={[0, 100]} />
+                  <defs>
+                    <linearGradient id="sellRateGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#34D399" stopOpacity={0.85} />
+                      <stop offset="100%" stopColor="#34D399" stopOpacity={0.15} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid {...GRID_STYLE} vertical={false} />
+                  <XAxis dataKey="bid_range" tick={{ ...AXIS_TICK, fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis tickFormatter={(v: number) => `${v}%`} tick={{ ...AXIS_TICK, fontSize: 11 }} axisLine={false} tickLine={false} domain={[0, 100]} />
                   <Tooltip
-                    {...TOOLTIP_STYLE}
+                    {...GLASS_TOOLTIP}
                     formatter={(value: number, name: string) => {
                       if (name === "sell_rate") return [`${value}%`, "Sell Rate"];
                       return [formatNumber(value), name === "sold" ? "Sold" : "Total"];
                     }}
                   />
-                  <Bar dataKey="sell_rate" fill="#4ade80" radius={[4, 4, 0, 0]} opacity={0.85} />
+                  <Bar dataKey="sell_rate" fill="url(#sellRateGrad)" radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -402,15 +444,26 @@ export function InsightsClient() {
             <div className="h-[350px]">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={barChartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                  <XAxis dataKey="levelBand" stroke="#666" fontSize={11} />
-                  <YAxis tickFormatter={(v: number) => formatNumber(v)} stroke="#666" fontSize={11} />
+                  <defs>
+                    {vocations.map((voc) => {
+                      const color = VOCATION_COLORS[voc] || "#888";
+                      return (
+                        <linearGradient key={`vg-${voc}`} id={`vocGrad-${voc.replace(/\s/g, "")}`} x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor={color} stopOpacity={0.85} />
+                          <stop offset="100%" stopColor={color} stopOpacity={0.2} />
+                        </linearGradient>
+                      );
+                    })}
+                  </defs>
+                  <CartesianGrid {...GRID_STYLE} vertical={false} />
+                  <XAxis dataKey="levelBand" tick={{ ...AXIS_TICK, fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tickFormatter={(v: number) => formatNumber(v)} tick={{ ...AXIS_TICK, fontSize: 11 }} axisLine={false} tickLine={false} />
                   <Tooltip
-                    {...TOOLTIP_STYLE}
+                    {...GLASS_TOOLTIP}
                     formatter={(value: number, name: string) => [formatNumber(value) + " TC", name]}
                   />
                   {vocations.map((voc) => (
-                    <Bar key={voc} dataKey={voc} fill={VOCATION_COLORS[voc] || "#888"} radius={[2, 2, 0, 0]} opacity={0.8} />
+                    <Bar key={voc} dataKey={voc} fill={`url(#vocGrad-${voc.replace(/\s/g, "")})`} radius={[6, 6, 0, 0]} />
                   ))}
                 </BarChart>
               </ResponsiveContainer>
