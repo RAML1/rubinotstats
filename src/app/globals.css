@@ -1,26 +1,26 @@
 @import "tailwindcss";
 
 :root {
-  /* Friendly dark theme — warm navy with purple accents (ExevoPan-inspired) */
-  --background: 230 25% 9%;
+  /* Dark fantasy theme — deep navy with amber/gold accents */
+  --background: 220 30% 7%;
   --foreground: 220 20% 93%;
-  --card: 230 25% 12%;
+  --card: 220 28% 10%;
   --card-foreground: 220 20% 93%;
-  --popover: 230 25% 12%;
+  --popover: 220 28% 10%;
   --popover-foreground: 220 20% 93%;
-  --primary: 262 83% 58%;
+  --primary: 38 92% 50%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 230 20% 16%;
+  --secondary: 220 22% 14%;
   --secondary-foreground: 220 20% 93%;
-  --muted: 230 20% 16%;
-  --muted-foreground: 220 15% 58%;
-  --accent: 262 40% 22%;
-  --accent-foreground: 262 80% 80%;
+  --muted: 220 22% 14%;
+  --muted-foreground: 220 15% 55%;
+  --accent: 38 40% 18%;
+  --accent-foreground: 38 80% 70%;
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
-  --border: 230 20% 18%;
-  --input: 230 20% 18%;
-  --ring: 262 83% 58%;
+  --border: 220 22% 16%;
+  --input: 220 22% 16%;
+  --ring: 38 92% 50%;
   --radius: 0.75rem;
   --chart-green: 160 84% 39%;
   --chart-orange: 38 92% 50%;
