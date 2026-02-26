@@ -237,12 +237,19 @@ function HomeSkeleton() {
 export default function HomePage() {
   return (
     <div className="container mx-auto space-y-8 px-4 py-8">
-      {/* Hero — compact */}
+      {/* Hero — logo with ambient glow */}
       <section className="flex flex-col items-center space-y-3 text-center">
-        <LogoIcon size={56} className="text-white" />
+        <div
+          className="relative"
+          style={{
+            filter: 'drop-shadow(0 0 24px rgba(245,158,11,0.3)) drop-shadow(0 0 48px rgba(245,158,11,0.15))',
+          }}
+        >
+          <LogoIcon size={56} className="text-white" />
+        </div>
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
           <span className="text-foreground">RubinOT</span>{' '}
-          <span className="text-primary">Stats</span>
+          <span className="text-amber-400">Stats</span>
         </h1>
         <p className="max-w-lg text-sm text-muted-foreground">
           Character Progression Tracker &amp; Auction Intelligence

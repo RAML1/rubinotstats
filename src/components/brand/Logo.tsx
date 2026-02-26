@@ -46,7 +46,7 @@ export function LogoIcon({ size = 32, className }: LogoIconProps) {
         fill="#f59e0b"
       />
       {/* Inner circle cutout (creates donut effect) */}
-      <circle cx="50" cy="50" r="12" fill="hsl(230 25% 9%)" />
+      <circle cx="50" cy="50" r="12" fill="hsl(220 30% 7%)" />
       {/* Pupil highlight */}
       <circle cx="50" cy="50" r="4" fill="white" />
     </svg>
