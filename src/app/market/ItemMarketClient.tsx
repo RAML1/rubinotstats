@@ -577,7 +577,7 @@ function CreateListingForm({
           type="submit"
           disabled={loading}
           className="flex items-center gap-1.5 rounded-md px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50"
-          style={{ backgroundColor: '#3b2e6e', border: '1px solid #5b4e9e', color: '#c4b5fd' }}
+          style={{ backgroundColor: '#4a3519', border: '1px solid #7a5a2a', color: '#fbbf24' }}
         >
           {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
           {loading ? 'Posting...' : 'Post Listing'}
@@ -733,7 +733,7 @@ export function ItemMarketClient() {
           <DialogTrigger asChild>
             <button
               className="flex items-center gap-1.5 rounded-md px-4 py-2 text-sm font-semibold transition-colors shrink-0"
-              style={{ backgroundColor: '#3b2e6e', border: '1px solid #5b4e9e', color: '#c4b5fd' }}
+              style={{ backgroundColor: '#4a3519', border: '1px solid #7a5a2a', color: '#fbbf24' }}
             >
               <Plus className="h-4 w-4" />
               Post Item

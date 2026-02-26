@@ -505,7 +505,7 @@ export function InsightsClient() {
                                 className="h-full rounded transition-all"
                                 style={{
                                   width: `${width}%`,
-                                  background: `linear-gradient(90deg, #8b5cf6 0%, #a855f7 100%)`,
+                                  background: `linear-gradient(90deg, #d97706 0%, #f59e0b 100%)`,
                                   opacity: 0.7 + (width / 100) * 0.3,
                                 }}
                               />
