@@ -35,37 +35,37 @@ export function BoostedBanner() {
   if (!data || (!data.creature && !data.boss)) return null;
 
   return (
-    <div className="hidden lg:flex items-center gap-3">
+    <div className="hidden lg:flex items-center gap-2 shrink-0">
       {data.creature && (
         <div className="flex items-center gap-1.5 rounded-full bg-white/10 border border-white/20 px-2.5 py-0.5 backdrop-blur-sm">
-          <Sparkles className="h-3 w-3 text-amber-300" />
+          <Sparkles className="h-3 w-3 text-amber-300 shrink-0" />
           {data.creature.looktype && (
             <img
               src={outfitUrl(data.creature.looktype)}
               alt={data.creature.name}
-              width={24}
-              height={24}
-              className="h-6 w-6 object-contain"
+              width={20}
+              height={20}
+              className="h-5 w-5 object-contain shrink-0"
             />
           )}
-          <span className="text-[11px] text-white/90 font-medium max-w-[100px] truncate">
+          <span className="text-[11px] text-white/90 font-medium whitespace-nowrap">
             {data.creature.name}
           </span>
         </div>
       )}
       {data.boss && (
         <div className="flex items-center gap-1.5 rounded-full bg-white/10 border border-white/20 px-2.5 py-0.5 backdrop-blur-sm">
-          <Sparkles className="h-3 w-3 text-red-300" />
+          <Sparkles className="h-3 w-3 text-red-300 shrink-0" />
           {data.boss.looktype && (
             <img
               src={outfitUrl(data.boss.looktype)}
               alt={data.boss.name}
-              width={24}
-              height={24}
-              className="h-6 w-6 object-contain"
+              width={20}
+              height={20}
+              className="h-5 w-5 object-contain shrink-0"
             />
           )}
-          <span className="text-[11px] text-white/90 font-medium max-w-[100px] truncate">
+          <span className="text-[11px] text-white/90 font-medium whitespace-nowrap">
             {data.boss.name}
           </span>
         </div>
