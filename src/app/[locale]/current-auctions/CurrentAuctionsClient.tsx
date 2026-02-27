@@ -134,6 +134,7 @@ type ValuationData = {
   minPrice: number;
   maxPrice: number;
   sampleSize: number;
+  itemBonus?: number;
 };
 
 type FeaturedAuctionInfo = {
@@ -791,6 +792,11 @@ function AuctionDetailModal({
                   <p className="text-lg font-bold" style={{ color: '#4ade80' }}>
                     ~{formatNumber(valuation.estimatedValue)} TC
                   </p>
+                  {valuation.itemBonus ? (
+                    <p className="text-[9px]" style={{ color: '#7aaa7a' }}>
+                      Includes +{formatNumber(valuation.itemBonus)} TC from items
+                    </p>
+                  ) : null}
                 </div>
                 <div className="text-right">
                   <p className="text-[9px]" style={{ color: '#5a8a5a' }}>Range</p>
@@ -1407,12 +1413,17 @@ function CurrentAuctionCard({
         {valuation && valuation.sampleSize >= 3 ? (
           <div className="px-4 pb-3">
             <div
-              className="flex items-center gap-1.5 rounded-md px-2.5 py-2"
+              className="flex flex-col rounded-md px-2.5 py-2"
               style={{ backgroundColor: '#1a2a1a', border: '1px solid #2a4a2a' }}
-              title={`Range: ${formatNumber(valuation.minPrice)} – ${formatNumber(valuation.maxPrice)} TC (${valuation.sampleSize} sales)`}
+              title={`Range: ${formatNumber(valuation.minPrice)} – ${formatNumber(valuation.maxPrice)} TC (${valuation.sampleSize} sales)${valuation.itemBonus ? `\nIncludes +${formatNumber(valuation.itemBonus)} TC for equipped items` : ''}`}
             >
-              <span className="text-[9px] font-medium shrink-0" style={{ color: '#5a8a5a' }}>Similar characters sold for</span>
-              <span className="text-xs font-bold ml-auto" style={{ color: '#4ade80' }}>~{formatNumber(valuation.estimatedValue)} TC</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[9px] font-medium shrink-0" style={{ color: '#5a8a5a' }}>Similar characters sold for</span>
+                <span className="text-xs font-bold ml-auto" style={{ color: '#4ade80' }}>~{formatNumber(valuation.estimatedValue)} TC</span>
+              </div>
+              {valuation.itemBonus ? (
+                <span className="text-[8px] mt-0.5" style={{ color: '#7aaa7a' }}>+{formatNumber(valuation.itemBonus)} TC from items</span>
+              ) : null}
             </div>
           </div>
         ) : !userIsPremium ? (

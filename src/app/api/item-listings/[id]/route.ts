@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db/prisma';
+import { requireAdmin } from '@/lib/auth-helpers';
 
 // PATCH: Mark listing as sold or deactivate
 export async function PATCH(
@@ -64,10 +65,14 @@ export async function DELETE(
       return NextResponse.json({ success: false, error: 'Listing not found' }, { status: 404 });
     }
 
-    const tokenMatch = creatorToken && listing.creatorToken && listing.creatorToken === creatorToken;
-    const nameMatch = characterName && listing.characterName === characterName;
-    if (!tokenMatch && !nameMatch) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 403 });
+    // Admin bypass: admins can delete any listing
+    const adminSession = await requireAdmin();
+    if (!adminSession) {
+      const tokenMatch = creatorToken && listing.creatorToken && listing.creatorToken === creatorToken;
+      const nameMatch = characterName && listing.characterName === characterName;
+      if (!tokenMatch && !nameMatch) {
+        return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 403 });
+      }
     }
 
     await prisma.itemListing.delete({ where: { id: listingId } });

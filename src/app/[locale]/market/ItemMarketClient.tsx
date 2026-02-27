@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useSession } from 'next-auth/react';
 import {
   Plus,
   Search,
@@ -216,11 +217,13 @@ function TierBadge({ tier }: { tier: number }) {
 function ItemListingCard({
   listing,
   isOwner,
+  isAdmin,
   onMarkSold,
   onRemove,
 }: {
   listing: ItemListing;
   isOwner: boolean;
+  isAdmin: boolean;
   onMarkSold: (id: number) => void;
   onRemove: (id: number) => void;
 }) {
@@ -343,6 +346,20 @@ function ItemListingCard({
                 <Trash2 className="h-3 w-3" />
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Admin delete (when not the owner) */}
+        {!isOwner && isAdmin && (
+          <div className="px-3.5 pb-2">
+            <button
+              onClick={() => onRemove(listing.id)}
+              className="flex items-center justify-center gap-1 rounded-md w-full py-1.5 text-[10px] font-semibold transition-colors"
+              style={{ backgroundColor: '#3a1a1a', border: '1px solid #5a2a2a', color: '#f87171' }}
+            >
+              <Trash2 className="h-3 w-3" />
+              Admin Remove
+            </button>
           </div>
         )}
 
@@ -590,6 +607,9 @@ function CreateListingForm({
 // ── Main Component ──────────────────────────────────────────────────
 
 export function ItemMarketClient() {
+  const { data: session } = useSession();
+  const isAdmin = !!session?.user?.isAdmin;
+
   const [listings, setListings] = useState<ItemListing[]>([]);
   const [worlds, setWorlds] = useState<string[]>([]);
   const [allWorlds, setAllWorlds] = useState<string[]>([]);
@@ -670,11 +690,13 @@ export function ItemMarketClient() {
   };
 
   const handleRemove = async (id: number) => {
-    if (!myToken) return;
+    // Admin can delete without a token; regular users need their token
+    const url = myToken
+      ? `/api/item-listings/${id}?creatorToken=${myToken}`
+      : `/api/item-listings/${id}`;
+    if (!myToken && !isAdmin) return;
     try {
-      const res = await fetch(`/api/item-listings/${id}?creatorToken=${myToken}`, {
-        method: 'DELETE',
-      });
+      const res = await fetch(url, { method: 'DELETE' });
       const data = await res.json();
       if (data.success) fetchListings();
     } catch { /* silently handle */ }
@@ -781,6 +803,7 @@ export function ItemMarketClient() {
               key={listing.id}
               listing={listing}
               isOwner={!!myToken && listing.creatorToken === myToken}
+              isAdmin={isAdmin}
               onMarkSold={handleMarkSold}
               onRemove={handleRemove}
             />

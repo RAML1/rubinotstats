@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { useSession } from 'next-auth/react';
 import { useTranslations } from 'next-intl';
-import { ChevronUp, Plus, Loader2, Lightbulb, CheckCircle2, Clock, XCircle } from 'lucide-react';
+import { ChevronUp, Plus, Loader2, Lightbulb, CheckCircle2, Clock, XCircle, Trash2 } from 'lucide-react';
 
 interface FeatureRequest {
   id: number;
@@ -26,6 +27,8 @@ function getVoterToken(): string {
 }
 
 export function FeatureRequestsClient() {
+  const { data: session } = useSession();
+  const isAdmin = !!session?.user?.isAdmin;
   const t = useTranslations('featureRequests');
 
   const STATUS_CONFIG: Record<string, { label: string; icon: typeof Lightbulb; color: string }> = {
@@ -133,6 +136,18 @@ export function FeatureRequestsClient() {
       // silently fail
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleAdminDelete(id: number) {
+    // Optimistic removal
+    setRequests((prev) => prev.filter((r) => r.id !== id));
+    try {
+      const res = await fetch(`/api/feature-requests/${id}`, { method: 'DELETE' });
+      const json = await res.json();
+      if (!json.success) fetchRequests(); // revert on failure
+    } catch {
+      fetchRequests(); // revert on error
     }
   }
 
@@ -315,6 +330,17 @@ export function FeatureRequestsClient() {
                     <span>{timeAgo(req.createdAt)}</span>
                   </div>
                 </div>
+
+                {/* Admin delete */}
+                {isAdmin && (
+                  <button
+                    onClick={() => handleAdminDelete(req.id)}
+                    className="shrink-0 self-start rounded-lg p-1.5 text-red-400/60 hover:text-red-400 hover:bg-red-400/10 transition-colors"
+                    title="Admin: Delete request"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
               </div>
             );
           })}

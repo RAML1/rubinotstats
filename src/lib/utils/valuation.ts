@@ -4,11 +4,62 @@ import prisma from '@/lib/db/prisma';
 // To gate behind premium, wrap the call to computeValuations() in a premium check.
 
 export type ValuationData = {
-  estimatedValue: number; // median sold price
+  estimatedValue: number; // median sold price + item bonus
   minPrice: number;
   maxPrice: number;
   sampleSize: number;
+  itemBonus: number; // TC added for valuable equipped items
 };
+
+// ── Item bonus scoring ──────────────────────────────────────────────────
+
+const TIER_VALUES: Record<number, number> = {
+  1: 2, 2: 5, 3: 12, 4: 25, 5: 50,
+};
+
+const HIGH_VALUE_KEYWORDS = [
+  'sanguine', 'falcon', 'cobra', 'soul', 'lion',
+  'eldritch', 'spiritthorn', 'alicorn',
+];
+
+const POINTS_TO_TC = 2;
+const MAX_ITEM_BONUS_RATIO = 0.30; // cap at 30% of base estimate
+
+interface DisplayItem {
+  name?: string;
+  tier?: number;
+}
+
+function computeItemBonus(displayItems: string | null, baseEstimate: number): number {
+  if (!displayItems) return 0;
+  try {
+    const parsed = JSON.parse(displayItems);
+    if (!Array.isArray(parsed)) return 0;
+
+    let points = 0;
+    for (const item of parsed) {
+      if (typeof item === 'string') continue; // old format (URL only), skip
+      const { name, tier } = item as DisplayItem;
+      // Tier bonus
+      if (tier && tier > 0) {
+        points += TIER_VALUES[tier] ?? tier * 10;
+      }
+      // High-value item bonus
+      if (name) {
+        const lower = name.toLowerCase();
+        if (HIGH_VALUE_KEYWORDS.some((kw) => lower.includes(kw))) {
+          points += 10;
+        }
+      }
+    }
+
+    if (points === 0) return 0;
+    const bonus = points * POINTS_TO_TC;
+    return Math.min(bonus, Math.round(baseEstimate * MAX_ITEM_BONUS_RATIO));
+  } catch {
+    return 0;
+  }
+}
 
 /** Map base vocations to their promoted counterpart for pooling data */
 const VOCATION_FAMILY: Record<string, string> = {
@@ -54,7 +105,7 @@ interface ValuationBucket {
  * Uses sold auction history grouped by vocation family + level band (100-level buckets).
  */
 export async function computeValuations(
-  auctions: Array<{ id: number; vocation: string | null; level: number | null }>
+  auctions: Array<{ id: number; vocation: string | null; level: number | null; displayItems?: string | null }>
 ): Promise<Record<number, ValuationData>> {
   // Fetch aggregated stats from sold auctions in a single query
   const rows = await prisma.$queryRaw<BucketRow[]>`
@@ -168,11 +219,16 @@ export async function computeValuations(
     }
 
     if (bucket && bucket.sampleSize >= 3) {
+      const itemBonus = computeItemBonus(
+        (auction as { displayItems?: string | null }).displayItems ?? null,
+        bucket.medianPrice,
+      );
       result[auction.id] = {
-        estimatedValue: bucket.medianPrice,
+        estimatedValue: bucket.medianPrice + itemBonus,
         minPrice: bucket.minPrice,
-        maxPrice: bucket.maxPrice,
+        maxPrice: bucket.maxPrice + itemBonus,
         sampleSize: bucket.sampleSize,
+        itemBonus,
       };
     }
   }
