@@ -704,5 +704,22 @@
     "submitButton": "Enviar Feedback",
     "thankYou": "Obrigado pelo seu feedback!",
     "weAppreciate": "Agradecemos sua contribuição."
+  },
+  "contact": {
+    "buttonLabel": "Fale Conosco",
+    "buttonAriaLabel": "Enviar mensagem",
+    "dialogTitle": "Fale Conosco",
+    "dialogDescription": "Deixe uma mensagem e entraremos em contato pelo Discord ou Telegram.",
+    "nameLabel": "Nome (opcional)",
+    "namePlaceholder": "Seu nome ou personagem",
+    "contactTypeLabel": "Como podemos te contatar?",
+    "contactHandleLabel": "Seu contato",
+    "discordPlaceholder": "SuaTag#1234 ou username",
+    "telegramPlaceholder": "@seunome",
+    "messagePlaceholder": "Sobre o que gostaria de falar?",
+    "sendingButton": "Enviando...",
+    "submitButton": "Enviar Mensagem",
+    "thankYou": "Mensagem enviada!",
+    "weWillReach": "Entraremos em contato em breve."
   }
 }

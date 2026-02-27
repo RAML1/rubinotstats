@@ -5,6 +5,7 @@ import { routing } from "@/i18n/routing";
 import { Header } from "@/components/layout/Header";
 import { AnalyticsTracker } from "@/components/analytics/AnalyticsTracker";
 import { FeedbackWidget } from "@/components/feedback/FeedbackWidget";
+import { ContactWidget } from "@/components/contact/ContactWidget";
 
 export default async function LocaleLayout({
   children,
@@ -29,6 +30,7 @@ export default async function LocaleLayout({
       </div>
       <AnalyticsTracker />
       <FeedbackWidget />
+      <ContactWidget />
     </NextIntlClientProvider>
   );
 }

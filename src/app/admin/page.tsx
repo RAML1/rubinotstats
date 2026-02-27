@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { redirect } from "next/navigation";
-import { Users, Clock, Crown, Shield, BarChart3, Eye } from "lucide-react";
+import { Users, Clock, Crown, Shield, BarChart3, Eye, ChevronRight, MessageCircle } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "Admin - RubinOT Stats",
@@ -24,6 +24,7 @@ export default async function AdminPage() {
     totalUsers,
     premiumUsers,
     pendingRequests,
+    unreadMessages,
     visitorsToday,
     pageViewsToday,
     visitorsWeek,
@@ -32,6 +33,7 @@ export default async function AdminPage() {
     prisma.user.count(),
     prisma.user.count({ where: { premiumTier: { not: "free" } } }),
     prisma.premiumRequest.count({ where: { status: "pending" } }),
+    prisma.contactMessage.count({ where: { isRead: false } }),
     prisma.analyticsEvent.findMany({
       where: { eventType: "page_view", createdAt: { gte: today } },
       distinct: ["visitorId"],
@@ -101,6 +103,49 @@ export default async function AdminPage() {
     },
   ];
 
+  const navCards = [
+    {
+      label: "Premium Requests",
+      description: "Review and approve/reject premium upgrade requests.",
+      href: "/admin/premium-requests",
+      icon: Crown,
+      accentColor: "border-l-amber-400",
+      iconColor: "text-amber-400",
+      badge: pendingRequests > 0 ? pendingRequests : null,
+      badgeColor: "bg-red-500 text-white",
+    },
+    {
+      label: "Manage Users",
+      description: "View all users and manage their premium status directly.",
+      href: "/admin/users",
+      icon: Users,
+      accentColor: "border-l-blue-400",
+      iconColor: "text-blue-400",
+      badge: null,
+      badgeColor: "",
+    },
+    {
+      label: "Analytics",
+      description: "View traffic, top pages, countries, and search queries.",
+      href: "/admin/analytics",
+      icon: BarChart3,
+      accentColor: "border-l-emerald-400",
+      iconColor: "text-emerald-400",
+      badge: null,
+      badgeColor: "",
+    },
+    {
+      label: "Messages",
+      description: "View contact messages from visitors.",
+      href: "/admin/messages",
+      icon: MessageCircle,
+      accentColor: "border-l-violet-400",
+      iconColor: "text-violet-400",
+      badge: unreadMessages > 0 ? unreadMessages : null,
+      badgeColor: "bg-violet-500 text-white",
+    },
+  ];
+
   return (
     <div className="container mx-auto space-y-8 px-4 py-8">
       <div className="flex items-center gap-2">
@@ -156,34 +201,32 @@ export default async function AdminPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Link
-          href="/admin/premium-requests"
-          className="rounded-xl border border-border bg-card p-6 hover:bg-accent transition-colors space-y-2"
-        >
-          <h2 className="text-lg font-semibold">Premium Requests</h2>
-          <p className="text-sm text-muted-foreground">
-            Review and approve/reject premium upgrade requests.
-          </p>
-        </Link>
-        <Link
-          href="/admin/users"
-          className="rounded-xl border border-border bg-card p-6 hover:bg-accent transition-colors space-y-2"
-        >
-          <h2 className="text-lg font-semibold">Manage Users</h2>
-          <p className="text-sm text-muted-foreground">
-            View all users and manage their premium status directly.
-          </p>
-        </Link>
-        <Link
-          href="/admin/analytics"
-          className="rounded-xl border border-border bg-card p-6 hover:bg-accent transition-colors space-y-2"
-        >
-          <h2 className="text-lg font-semibold">Analytics</h2>
-          <p className="text-sm text-muted-foreground">
-            View traffic, top pages, countries, and search queries.
-          </p>
-        </Link>
+      {/* Quick Navigation */}
+      <div>
+        <h2 className="text-lg font-semibold mb-4">Quick Navigation</h2>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {navCards.map((card) => (
+            <Link
+              key={card.label}
+              href={card.href}
+              className={`group rounded-xl border border-border border-l-4 ${card.accentColor} bg-card p-5 hover:bg-accent transition-all flex items-start gap-4`}
+            >
+              <card.icon className={`h-6 w-6 mt-0.5 ${card.iconColor} shrink-0`} />
+              <div className="flex-1 min-w-0 space-y-1">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-semibold">{card.label}</h3>
+                  {card.badge && (
+                    <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${card.badgeColor}`}>
+                      {card.badge}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">{card.description}</p>
+              </div>
+              <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-foreground group-hover:translate-x-0.5 transition-all shrink-0 mt-0.5" />
+            </Link>
+          ))}
+        </div>
       </div>
     </div>
   );

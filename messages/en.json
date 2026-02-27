@@ -704,5 +704,22 @@
     "submitButton": "Submit Feedback",
     "thankYou": "Thanks for your feedback!",
     "weAppreciate": "We appreciate your input."
+  },
+  "contact": {
+    "buttonLabel": "Let's Talk",
+    "buttonAriaLabel": "Send us a message",
+    "dialogTitle": "Let's Talk",
+    "dialogDescription": "Leave a message and we'll get back to you on Discord or Telegram.",
+    "nameLabel": "Name (optional)",
+    "namePlaceholder": "Your name or character name",
+    "contactTypeLabel": "How should we reach you?",
+    "contactHandleLabel": "Your handle",
+    "discordPlaceholder": "YourTag#1234 or username",
+    "telegramPlaceholder": "@yourusername",
+    "messagePlaceholder": "What would you like to talk about?",
+    "sendingButton": "Sending...",
+    "submitButton": "Send Message",
+    "thankYou": "Message sent!",
+    "weWillReach": "We'll reach out to you soon."
   }
 }

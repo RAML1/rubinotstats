@@ -519,6 +519,21 @@ model Feedback {
   @@map("feedback")
 }
 
+// Contact messages from anonymous visitors
+model ContactMessage {
+  id           Int      @id @default(autoincrement())
+  name         String?  @db.VarChar(100)
+  contactType  String   @map("contact_type") @db.VarChar(20) // "discord" or "telegram"
+  contactValue String   @map("contact_value") @db.VarChar(255)
+  message      String   @db.Text
+  isRead       Boolean  @default(false) @map("is_read")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([isRead])
+  @@index([createdAt])
+  @@map("contact_messages")
+}
+
 // Player-to-player item marketplace listings
 model ItemListing {
   id            Int       @id @default(autoincrement())
