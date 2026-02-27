@@ -702,7 +702,7 @@ function AuctionDetailModal({
             <span className="text-lg font-bold" style={{ color: vocColor }}>
               {auction.characterName}
             </span>
-            {auction.url && (
+            {auction.url && !ended && (
               <a href={auction.url} target="_blank" rel="noopener noreferrer" className="text-muted-foreground/50 hover:text-muted-foreground">
                 <ExternalLink className="h-3.5 w-3.5" />
               </a>
@@ -767,7 +767,7 @@ function AuctionDetailModal({
                   <p className="text-sm" style={{ color: '#7a7690' }}>No bid information</p>
                 )}
               </div>
-              {auction.url && (
+              {auction.url && !ended && (
                 <a
                   href={auction.url}
                   target="_blank"
@@ -777,6 +777,11 @@ function AuctionDetailModal({
                   Bid Now
                   <ExternalLink className="h-3 w-3" />
                 </a>
+              )}
+              {ended && (
+                <span className="rounded-full px-2.5 py-1 text-[10px] font-bold uppercase" style={{ backgroundColor: '#f8717120', color: '#f87171' }}>
+                  Ended
+                </span>
               )}
             </div>
           </div>
@@ -1333,7 +1338,7 @@ function CurrentAuctionCard({
                     <span className="text-sm font-bold truncate" style={{ color: '#4ade80' }}>
                       {auction.characterName}
                     </span>
-                    {auction.url && (
+                    {auction.url && !ended && (
                       <a href={auction.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="shrink-0 text-muted-foreground/50 hover:text-muted-foreground transition-colors">
                         <ExternalLink className="h-3 w-3" />
                       </a>
