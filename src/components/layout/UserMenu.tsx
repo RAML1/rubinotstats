@@ -3,22 +3,42 @@
 import { useSession, signIn, signOut } from "next-auth/react";
 import { LogOut, Crown, Shield } from "lucide-react";
 import Link from "next/link";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 
 export function UserMenu() {
   const { data: session, status } = useSession();
   const [open, setOpen] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
+
+  const updatePosition = useCallback(() => {
+    if (buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setMenuPos({
+        top: rect.bottom + 8,
+        right: window.innerWidth - rect.right,
+      });
+    }
+  }, []);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+      if (
+        buttonRef.current && !buttonRef.current.contains(e.target as Node) &&
+        menuRef.current && !menuRef.current.contains(e.target as Node)
+      ) {
         setOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (open) updatePosition();
+  }, [open, updatePosition]);
 
   if (status === "loading") {
     return (
@@ -50,8 +70,9 @@ export function UserMenu() {
       new Date(session.user.premiumUntil) > new Date());
 
   return (
-    <div className="relative z-50" ref={menuRef}>
+    <>
       <button
+        ref={buttonRef}
         onClick={() => setOpen(!open)}
         className="flex items-center gap-2 rounded-lg bg-white/10 px-2 py-1 hover:bg-white/20 transition-colors"
       >
@@ -69,8 +90,12 @@ export function UserMenu() {
         {isPremium && <Crown className="h-3.5 w-3.5 text-amber-400" />}
       </button>
 
-      {open && (
-        <div className="absolute right-0 top-full mt-2 w-56 rounded-lg border border-border bg-card shadow-xl z-50">
+      {open && createPortal(
+        <div
+          ref={menuRef}
+          className="fixed w-56 rounded-lg border border-border bg-card shadow-xl"
+          style={{ top: menuPos.top, right: menuPos.right, zIndex: 9999 }}
+        >
           <div className="border-b border-border px-4 py-3">
             <p className="text-sm font-medium text-foreground truncate">
               {session.user.name}
@@ -124,8 +149,9 @@ export function UserMenu() {
               Sign out
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
-    </div>
+    </>
   );
 }
