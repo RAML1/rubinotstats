@@ -50,7 +50,7 @@ export function UserMenu() {
       new Date(session.user.premiumUntil) > new Date());
 
   return (
-    <div className="relative" ref={menuRef}>
+    <div className="relative z-50" ref={menuRef}>
       <button
         onClick={() => setOpen(!open)}
         className="flex items-center gap-2 rounded-lg bg-white/10 px-2 py-1 hover:bg-white/20 transition-colors"

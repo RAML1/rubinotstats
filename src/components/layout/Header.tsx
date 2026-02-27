@@ -41,7 +41,7 @@ export function Header() {
     <header className="sticky top-0 z-30">
       {/* Top bar — amber gradient */}
       <div
-        className="relative overflow-hidden"
+        className="relative"
         style={{
           background: 'linear-gradient(135deg, rgba(180,83,9,0.95) 0%, rgba(217,119,6,0.9) 40%, rgba(245,158,11,0.85) 100%)',
         }}
