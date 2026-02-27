@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 
 function sendEvent(payload: Record<string, unknown>) {
   const body = JSON.stringify(payload);
@@ -23,9 +24,13 @@ function sendEvent(payload: Record<string, unknown>) {
 
 export function AnalyticsTracker() {
   const pathname = usePathname();
+  const { data: session } = useSession();
   const lastPath = useRef('');
 
   useEffect(() => {
+    // Skip tracking for admin users
+    if (session?.user?.isAdmin) return;
+
     if (pathname === lastPath.current) return;
     lastPath.current = pathname;
 
@@ -37,7 +42,7 @@ export function AnalyticsTracker() {
       viewportHeight: window.innerHeight,
       language: navigator.language || undefined,
     });
-  }, [pathname]);
+  }, [pathname, session]);
 
   return null;
 }

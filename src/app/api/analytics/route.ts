@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import prisma from '@/lib/db/prisma';
 
 interface AnalyticsPayload {
@@ -13,6 +15,12 @@ interface AnalyticsPayload {
 
 export async function POST(request: NextRequest) {
   try {
+    // Skip tracking for admin users
+    const session = await getServerSession(authOptions);
+    if (session?.user?.isAdmin) {
+      return NextResponse.json({ success: true });
+    }
+
     const visitorId = request.cookies.get('_rs_vid')?.value;
     const sessionId = request.cookies.get('_rs_sid')?.value;
 
