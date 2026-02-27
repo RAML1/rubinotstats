@@ -4,9 +4,6 @@ import { routing } from '@/i18n/routing';
 
 const intlMiddleware = createIntlMiddleware(routing);
 
-const AUTH_USER = process.env.AUTH_USER;
-const AUTH_PASS = process.env.AUTH_PASS;
-
 const VISITOR_COOKIE = '_rs_vid';
 const SESSION_COOKIE = '_rs_sid';
 const VISITOR_MAX_AGE = 365 * 24 * 60 * 60; // 1 year
@@ -112,59 +109,17 @@ function isAllowedOrigin(request: NextRequest): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Basic Auth check (extracted for reuse)
-// ---------------------------------------------------------------------------
-function checkBasicAuth(request: NextRequest): NextResponse | null {
-  if (!AUTH_USER || !AUTH_PASS) {
-    return new NextResponse('Server misconfigured', { status: 503 });
-  }
-
-  const authHeader = request.headers.get('authorization');
-  let authenticated = false;
-
-  if (authHeader) {
-    const [scheme, encoded] = authHeader.split(' ');
-    if (scheme === 'Basic' && encoded) {
-      const decoded = atob(encoded);
-      const [user, pass] = decoded.split(':');
-      if (user === AUTH_USER && pass === AUTH_PASS) {
-        authenticated = true;
-      }
-    }
-  }
-
-  if (!authenticated && request.cookies.get(SESSION_COOKIE)) {
-    authenticated = true;
-  }
-
-  if (!authenticated) {
-    return new NextResponse('Authentication required', {
-      status: 401,
-      headers: {
-        'WWW-Authenticate': 'Basic realm="RubinOT Stats"',
-      },
-    });
-  }
-
-  return null; // authenticated
-}
-
-// ---------------------------------------------------------------------------
 // Middleware
 // ---------------------------------------------------------------------------
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Allow NextAuth routes through without Basic Auth
+  // Allow NextAuth routes through directly
   if (pathname.startsWith('/api/auth') || pathname.startsWith('/auth')) {
     const response = NextResponse.next();
     setAnalyticsCookies(request, response);
     return response;
   }
-
-  // Basic Auth check for all other routes
-  const authResult = checkBasicAuth(request);
-  if (authResult) return authResult;
 
   // --- API-specific protections ---
   if (pathname.startsWith('/api/')) {
