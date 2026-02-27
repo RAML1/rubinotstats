@@ -1,4 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import createIntlMiddleware from 'next-intl/middleware';
+import { routing } from '@/i18n/routing';
+
+const intlMiddleware = createIntlMiddleware(routing);
 
 const AUTH_USER = process.env.AUTH_USER;
 const AUTH_PASS = process.env.AUTH_PASS;
@@ -108,22 +112,13 @@ function isAllowedOrigin(request: NextRequest): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Middleware
+// Basic Auth check (extracted for reuse)
 // ---------------------------------------------------------------------------
-export function middleware(request: NextRequest) {
-  // Allow NextAuth routes through without Basic Auth
-  const { pathname } = request.nextUrl;
-  if (pathname.startsWith('/api/auth') || pathname.startsWith('/auth')) {
-    const response = NextResponse.next();
-    setAnalyticsCookies(request, response);
-    return response;
-  }
-
+function checkBasicAuth(request: NextRequest): NextResponse | null {
   if (!AUTH_USER || !AUTH_PASS) {
     return new NextResponse('Server misconfigured', { status: 503 });
   }
 
-  // Check Authorization header first (initial page load / API tools)
   const authHeader = request.headers.get('authorization');
   let authenticated = false;
 
@@ -138,8 +133,6 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  // Allow through if the user already authenticated (has session cookie).
-  // Browser fetch/XHR calls don't re-send Basic Auth, but they do send cookies.
   if (!authenticated && request.cookies.get(SESSION_COOKIE)) {
     authenticated = true;
   }
@@ -153,16 +146,33 @@ export function middleware(request: NextRequest) {
     });
   }
 
+  return null; // authenticated
+}
+
+// ---------------------------------------------------------------------------
+// Middleware
+// ---------------------------------------------------------------------------
+export function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // Allow NextAuth routes through without Basic Auth
+  if (pathname.startsWith('/api/auth') || pathname.startsWith('/auth')) {
+    const response = NextResponse.next();
+    setAnalyticsCookies(request, response);
+    return response;
+  }
+
+  // Basic Auth check for all other routes
+  const authResult = checkBasicAuth(request);
+  if (authResult) return authResult;
+
   // --- API-specific protections ---
   if (pathname.startsWith('/api/')) {
-    // Allow cron endpoint with valid secret (server-to-server)
     if (pathname.startsWith('/api/cron') && request.headers.get('x-cron-secret')) {
-      // Auth is checked in the route handler itself
       const response = NextResponse.next();
       return response;
     }
 
-    // Block external API access — only allow requests from our own site
     if (!isAllowedOrigin(request)) {
       return new NextResponse(
         JSON.stringify({ error: 'Forbidden' }),
@@ -173,7 +183,6 @@ export function middleware(request: NextRequest) {
       );
     }
 
-    // Rate-limit API routes
     const ip =
       request.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
       request.headers.get('cf-connecting-ip') ||
@@ -192,9 +201,21 @@ export function middleware(request: NextRequest) {
         },
       );
     }
+
+    const response = NextResponse.next();
+    setAnalyticsCookies(request, response);
+    return response;
   }
 
-  const response = NextResponse.next();
+  // Admin routes — pass through without locale handling
+  if (pathname.startsWith('/admin')) {
+    const response = NextResponse.next();
+    setAnalyticsCookies(request, response);
+    return response;
+  }
+
+  // User-facing routes — handle locale detection/redirect
+  const response = intlMiddleware(request);
   setAnalyticsCookies(request, response);
   return response;
 }

@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
+import { Link, usePathname } from "@/i18n/routing";
 import {
   Menu,
   Home,
@@ -20,22 +20,25 @@ import {
 import { Logo } from "@/components/brand/Logo";
 import { MobileNav } from "./MobileNav";
 import { UserMenu } from "./UserMenu";
+import { LocaleSwitcher } from "./LocaleSwitcher";
 
 const navItems = [
-  { href: "/", label: "Home", icon: Home },
-  { href: "/current-auctions", label: "Current Auctions", icon: Zap },
-  { href: "/market", label: "Item Market", icon: Store },
-  { href: "/progression", label: "Progression", icon: TrendingUp },
-  { href: "/calculator", label: "Skill Calculator", icon: Calculator },
-  { href: "/bans", label: "Bans", icon: Ban },
-  { href: "/transfers", label: "Transfers", icon: ArrowRightLeft },
-  { href: "/insights", label: "Premium", icon: Crown },
-  { href: "/feature-requests", label: "Feature Requests", icon: Lightbulb },
-];
+  { href: "/", labelKey: "home", icon: Home },
+  { href: "/current-auctions", labelKey: "currentAuctions", icon: Zap },
+  { href: "/market", labelKey: "itemMarket", icon: Store },
+  { href: "/progression", labelKey: "progression", icon: TrendingUp },
+  { href: "/calculator", labelKey: "skillCalculator", icon: Calculator },
+  { href: "/bans", labelKey: "bans", icon: Ban },
+  { href: "/transfers", labelKey: "transfers", icon: ArrowRightLeft },
+  { href: "/insights", labelKey: "premium", icon: Crown },
+  { href: "/feature-requests", labelKey: "featureRequests", icon: Lightbulb },
+] as const;
 
 export function Header() {
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const pathname = usePathname();
+  const t = useTranslations("nav");
+  const th = useTranslations("header");
 
   return (
     <header className="sticky top-0 z-30">
@@ -60,20 +63,24 @@ export function Header() {
             <div className="flex items-center gap-2.5 rounded-lg border border-white/20 bg-white/10 px-5 py-1.5 animate-pulse backdrop-blur-sm">
               <Megaphone className="h-4 w-4 text-white/90" />
               <span className="text-sm font-medium text-white/90">
-                Your awesome service page here, travecos also welcome to advertise
+                {th("adBanner")}
               </span>
             </div>
           </div>
 
-          {/* Right side — tip + auth + mobile menu */}
+          {/* Right side — locale + tip + auth + mobile menu */}
           <div className="ml-auto flex items-center gap-3">
             {/* Tip message */}
             <div className="hidden lg:flex items-center gap-1.5 rounded-full bg-white/10 border border-white/20 px-3 py-1 backdrop-blur-sm">
               <Heart className="h-3 w-3 text-white fill-white" />
-              <span className="text-[11px] text-white/90">
-                Want to show love? Tip <strong>Super Bonk Lee</strong> so he can stop using plate set
-              </span>
+              <span
+                className="text-[11px] text-white/90"
+                dangerouslySetInnerHTML={{ __html: th("tipMessage") }}
+              />
             </div>
+
+            {/* Language switcher */}
+            <LocaleSwitcher />
 
             {/* User auth menu */}
             <UserMenu />
@@ -102,7 +109,7 @@ export function Header() {
       >
         <div className="container mx-auto px-4">
           <nav className="hidden items-center gap-0.5 md:flex h-10">
-            {navItems.map(({ href, label, icon: Icon }) => {
+            {navItems.map(({ href, labelKey, icon: Icon }) => {
               const isActive =
                 href === "/"
                   ? pathname === "/"
@@ -118,7 +125,7 @@ export function Header() {
                   }`}
                 >
                   <Icon className="h-4 w-4" />
-                  {label}
+                  {t(labelKey)}
                   {isActive && (
                     <span
                       className="absolute bottom-0 left-2 right-2 h-0.5 rounded-full"

@@ -1,16 +1,19 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { MessageSquarePlus, Bug, Lightbulb, MessageCircle, Loader2, CheckCircle2, X } from 'lucide-react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 
-const FEEDBACK_TYPES = [
-  { value: 'bug', label: 'Bug Report', icon: Bug, color: 'text-red-400 border-red-400/50 bg-red-400/10' },
-  { value: 'feature', label: 'Feature Request', icon: Lightbulb, color: 'text-amber-400 border-amber-400/50 bg-amber-400/10' },
-  { value: 'general', label: 'General', icon: MessageCircle, color: 'text-sky-400 border-sky-400/50 bg-sky-400/10' },
-] as const;
-
 export function FeedbackWidget() {
+  const t = useTranslations('feedback');
+
+  const FEEDBACK_TYPES = [
+    { value: 'bug', label: t('types.bugReport'), icon: Bug, color: 'text-red-400 border-red-400/50 bg-red-400/10' },
+    { value: 'feature', label: t('types.featureRequest'), icon: Lightbulb, color: 'text-amber-400 border-amber-400/50 bg-amber-400/10' },
+    { value: 'general', label: t('types.general'), icon: MessageCircle, color: 'text-sky-400 border-sky-400/50 bg-sky-400/10' },
+  ] as const;
+
   const [open, setOpen] = useState(false);
   const [type, setType] = useState<string>('general');
   const [message, setMessage] = useState('');
@@ -62,10 +65,10 @@ export function FeedbackWidget() {
       <button
         onClick={() => { setOpen(true); setSuccess(false); }}
         className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-full bg-primary px-4 py-3 text-sm font-medium text-white shadow-xl shadow-primary/25 ring-2 ring-white/30 ring-offset-2 ring-offset-background transition-all hover:scale-105 hover:shadow-2xl hover:shadow-primary/30 hover:ring-white/50 active:scale-95"
-        aria-label="Send feedback"
+        aria-label={t('buttonAriaLabel')}
       >
         <MessageSquarePlus className="h-5 w-5" />
-        <span className="hidden sm:inline">Feedback</span>
+        <span className="hidden sm:inline">{t('buttonLabel')}</span>
       </button>
 
       {/* Dialog — fully opaque */}
@@ -86,18 +89,18 @@ export function FeedbackWidget() {
             {/* Header */}
             <div className="flex flex-col space-y-1.5 sm:text-left">
               <DialogPrimitive.Title className="text-lg font-semibold leading-none tracking-tight">
-                Send Feedback
+                {t('dialogTitle')}
               </DialogPrimitive.Title>
               <DialogPrimitive.Description className="text-sm text-muted-foreground">
-                Help us improve RubinOT Stats. Your feedback is anonymous unless you provide an email.
+                {t('dialogDescription')}
               </DialogPrimitive.Description>
             </div>
 
             {success ? (
               <div className="flex flex-col items-center gap-3 py-8">
                 <CheckCircle2 className="h-12 w-12 text-emerald-400" />
-                <p className="text-lg font-semibold">Thanks for your feedback!</p>
-                <p className="text-sm text-muted-foreground">We appreciate your input.</p>
+                <p className="text-lg font-semibold">{t('thankYou')}</p>
+                <p className="text-sm text-muted-foreground">{t('weAppreciate')}</p>
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -125,7 +128,7 @@ export function FeedbackWidget() {
                   <textarea
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
-                    placeholder="Tell us what's on your mind..."
+                    placeholder={t('messagePlaceholder')}
                     className="w-full rounded-xl border border-border/50 bg-secondary px-4 py-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 min-h-[120px] resize-none"
                     required
                     minLength={5}
@@ -138,7 +141,7 @@ export function FeedbackWidget() {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Email (optional — for follow-up)"
+                    placeholder={t('emailPlaceholder')}
                     className="w-full rounded-xl border border-border/50 bg-secondary px-4 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                   />
                 </div>
@@ -152,10 +155,10 @@ export function FeedbackWidget() {
                   {loading ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Sending...
+                      {t('sendingButton')}
                     </>
                   ) : (
-                    'Submit Feedback'
+                    t('submitButton')
                   )}
                 </button>
               </form>

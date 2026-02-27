@@ -1,11 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import { Header } from "@/components/layout/Header";
-
-
 import { SessionProvider } from "@/components/providers/SessionProvider";
-import { AnalyticsTracker } from "@/components/analytics/AnalyticsTracker";
-import { FeedbackWidget } from "@/components/feedback/FeedbackWidget";
 import "./globals.css";
 
 const inter = Inter({
@@ -40,15 +35,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={inter.variable}>
+    <html lang="pt-BR" className={inter.variable}>
       <body className="min-h-screen bg-background font-sans antialiased">
         <SessionProvider>
-          <div className="relative flex min-h-screen flex-col">
-            <Header />
-            <main className="flex-1">{children}</main>
-          </div>
-          <AnalyticsTracker />
-          <FeedbackWidget />
+          {children}
         </SessionProvider>
       </body>
     </html>
