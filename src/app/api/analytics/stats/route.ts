@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import prisma from '@/lib/db/prisma';
 import { requireAdmin } from '@/lib/auth-helpers';
 
@@ -16,22 +17,36 @@ export async function GET() {
     const monthAgo = new Date(today.getTime() - 30 * 86400000);
     const twoWeeksAgo = new Date(today.getTime() - 14 * 86400000);
 
+    // First, get admin visitor IDs (visitors who have ever visited /admin pages)
+    const adminVisitorRows = await prisma.$queryRaw<{ visitor_id: string }[]>`
+      SELECT DISTINCT visitor_id FROM analytics_events WHERE page_path LIKE '/admin%'`;
+    const adminVisitorIds = adminVisitorRows.map(r => r.visitor_id);
+
+    // Build the exclusion clause
+    const excludeAdmin = adminVisitorIds.length > 0
+      ? Prisma.sql`AND visitor_id NOT IN (${Prisma.join(adminVisitorIds)})`
+      : Prisma.empty;
+    const excludeAdminSession = adminVisitorIds.length > 0
+      ? Prisma.sql`AND visitor_id NOT IN (${Prisma.join(adminVisitorIds)})`
+      : Prisma.empty;
+
     const [
-      // Traffic
-      totalVisitors,
-      totalSessions,
-      visitorsToday,
-      visitorsWeek,
-      visitorsMonth,
-      pageViewsToday,
-      pageViewsWeek,
-      pageViewsMonth,
+      // Traffic (all exclude admin visitors)
+      totalVisitorsRaw,
+      totalSessionsRaw,
+      visitorsTodayRaw,
+      visitorsWeekRaw,
+      visitorsMonthRaw,
+      pageViewsTodayRaw,
+      pageViewsWeekRaw,
+      pageViewsMonthRaw,
       topPagesRaw,
       countriesRaw,
       languagesRaw,
       referrersRaw,
       dailyTrafficRaw,
       recentSearchesRaw,
+      topSearchesRaw,
 
       // Auctions
       totalAuctions,
@@ -60,46 +75,57 @@ export async function GET() {
       totalFeedback,
       totalListings,
     ] = await Promise.all([
-      // -- Traffic --
-      prisma.analyticsSession.findMany({ distinct: ['visitorId'], select: { visitorId: true } }).then(r => r.length),
-      prisma.analyticsSession.count(),
-      prisma.analyticsEvent.findMany({
-        where: { eventType: 'page_view', createdAt: { gte: today } },
-        distinct: ['visitorId'],
-        select: { visitorId: true },
-      }).then(r => r.length),
-      prisma.analyticsEvent.findMany({
-        where: { eventType: 'page_view', createdAt: { gte: weekAgo } },
-        distinct: ['visitorId'],
-        select: { visitorId: true },
-      }).then(r => r.length),
-      prisma.analyticsEvent.findMany({
-        where: { eventType: 'page_view', createdAt: { gte: monthAgo } },
-        distinct: ['visitorId'],
-        select: { visitorId: true },
-      }).then(r => r.length),
-      prisma.analyticsEvent.count({ where: { eventType: 'page_view', createdAt: { gte: today } } }),
-      prisma.analyticsEvent.count({ where: { eventType: 'page_view', createdAt: { gte: weekAgo } } }),
-      prisma.analyticsEvent.count({ where: { eventType: 'page_view', createdAt: { gte: monthAgo } } }),
+      // -- Traffic (excluding admin visitors) --
+      prisma.$queryRaw<{ count: bigint }[]>`
+        SELECT COUNT(DISTINCT visitor_id) as count
+        FROM analytics_sessions WHERE 1=1 ${excludeAdminSession}`,
+      prisma.$queryRaw<{ count: bigint }[]>`
+        SELECT COUNT(*) as count
+        FROM analytics_sessions WHERE 1=1 ${excludeAdminSession}`,
+      prisma.$queryRaw<{ count: bigint }[]>`
+        SELECT COUNT(DISTINCT visitor_id) as count
+        FROM analytics_events
+        WHERE event_type = 'page_view' AND created_at >= ${today} ${excludeAdmin}`,
+      prisma.$queryRaw<{ count: bigint }[]>`
+        SELECT COUNT(DISTINCT visitor_id) as count
+        FROM analytics_events
+        WHERE event_type = 'page_view' AND created_at >= ${weekAgo} ${excludeAdmin}`,
+      prisma.$queryRaw<{ count: bigint }[]>`
+        SELECT COUNT(DISTINCT visitor_id) as count
+        FROM analytics_events
+        WHERE event_type = 'page_view' AND created_at >= ${monthAgo} ${excludeAdmin}`,
+      prisma.$queryRaw<{ count: bigint }[]>`
+        SELECT COUNT(*) as count
+        FROM analytics_events
+        WHERE event_type = 'page_view' AND created_at >= ${today} ${excludeAdmin}`,
+      prisma.$queryRaw<{ count: bigint }[]>`
+        SELECT COUNT(*) as count
+        FROM analytics_events
+        WHERE event_type = 'page_view' AND created_at >= ${weekAgo} ${excludeAdmin}`,
+      prisma.$queryRaw<{ count: bigint }[]>`
+        SELECT COUNT(*) as count
+        FROM analytics_events
+        WHERE event_type = 'page_view' AND created_at >= ${monthAgo} ${excludeAdmin}`,
       prisma.$queryRaw<{ page_path: string; views: bigint }[]>`
         SELECT page_path, COUNT(*) as views
         FROM analytics_events
         WHERE event_type = 'page_view' AND created_at >= ${monthAgo}
+          AND page_path NOT LIKE '/admin%' ${excludeAdmin}
         GROUP BY page_path ORDER BY views DESC LIMIT 10`,
       prisma.$queryRaw<{ country: string; count: bigint }[]>`
         SELECT country, COUNT(DISTINCT visitor_id) as count
         FROM analytics_sessions
-        WHERE country IS NOT NULL AND started_at >= ${monthAgo}
+        WHERE country IS NOT NULL AND started_at >= ${monthAgo} ${excludeAdminSession}
         GROUP BY country ORDER BY count DESC LIMIT 20`,
       prisma.$queryRaw<{ language: string; count: bigint }[]>`
         SELECT language, COUNT(DISTINCT visitor_id) as count
         FROM analytics_sessions
-        WHERE language IS NOT NULL AND started_at >= ${monthAgo}
+        WHERE language IS NOT NULL AND started_at >= ${monthAgo} ${excludeAdminSession}
         GROUP BY language ORDER BY count DESC LIMIT 20`,
       prisma.$queryRaw<{ referrer: string; count: bigint }[]>`
         SELECT referrer, COUNT(DISTINCT visitor_id) as count
         FROM analytics_sessions
-        WHERE referrer IS NOT NULL AND referrer != '' AND started_at >= ${monthAgo}
+        WHERE referrer IS NOT NULL AND referrer != '' AND started_at >= ${monthAgo} ${excludeAdminSession}
         GROUP BY referrer ORDER BY count DESC LIMIT 20`,
       prisma.$queryRaw<{ day: Date; views: bigint; visitors: bigint }[]>`
         SELECT
@@ -107,15 +133,20 @@ export async function GET() {
           COUNT(*) as views,
           COUNT(DISTINCT visitor_id) as visitors
         FROM analytics_events
-        WHERE event_type = 'page_view' AND created_at >= ${twoWeeksAgo}
+        WHERE event_type = 'page_view' AND created_at >= ${twoWeeksAgo} ${excludeAdmin}
         GROUP BY DATE(created_at)
         ORDER BY day ASC`,
-      prisma.analyticsEvent.findMany({
-        where: { eventType: 'search', searchQuery: { not: null } },
-        orderBy: { createdAt: 'desc' },
-        take: 20,
-        select: { searchQuery: true, pagePath: true, createdAt: true },
-      }),
+      prisma.$queryRaw<{ search_query: string; page_path: string; created_at: Date }[]>`
+        SELECT search_query, page_path, created_at
+        FROM analytics_events
+        WHERE event_type = 'search' AND search_query IS NOT NULL ${excludeAdmin}
+        ORDER BY created_at DESC LIMIT 10`,
+      prisma.$queryRaw<{ query: string; search_count: bigint }[]>`
+        SELECT LOWER(search_query) as query, COUNT(*) as search_count
+        FROM analytics_events
+        WHERE event_type = 'search' AND search_query IS NOT NULL ${excludeAdmin}
+        GROUP BY LOWER(search_query)
+        ORDER BY search_count DESC LIMIT 15`,
 
       // -- Auctions --
       prisma.auction.count(),
@@ -195,14 +226,14 @@ export async function GET() {
       data: {
         traffic: {
           overview: {
-            totalVisitors,
-            totalSessions,
-            visitorsToday,
-            visitorsWeek,
-            visitorsMonth,
-            pageViewsToday,
-            pageViewsWeek,
-            pageViewsMonth,
+            totalVisitors: Number(totalVisitorsRaw[0]?.count || 0),
+            totalSessions: Number(totalSessionsRaw[0]?.count || 0),
+            visitorsToday: Number(visitorsTodayRaw[0]?.count || 0),
+            visitorsWeek: Number(visitorsWeekRaw[0]?.count || 0),
+            visitorsMonth: Number(visitorsMonthRaw[0]?.count || 0),
+            pageViewsToday: Number(pageViewsTodayRaw[0]?.count || 0),
+            pageViewsWeek: Number(pageViewsWeekRaw[0]?.count || 0),
+            pageViewsMonth: Number(pageViewsMonthRaw[0]?.count || 0),
           },
           topPages: topPagesRaw.map(r => ({ path: r.page_path, views: Number(r.views) })),
           countries: countriesRaw.map(r => ({ country: r.country, visitors: Number(r.count) })),
@@ -214,9 +245,13 @@ export async function GET() {
             visitors: Number(r.visitors),
           })),
           recentSearches: recentSearchesRaw.map(r => ({
-            query: r.searchQuery,
-            pagePath: r.pagePath,
-            createdAt: r.createdAt.toISOString(),
+            query: r.search_query,
+            pagePath: r.page_path,
+            createdAt: r.created_at.toISOString(),
+          })),
+          topSearches: topSearchesRaw.map(r => ({
+            query: r.query,
+            count: Number(r.search_count),
           })),
         },
         auctions: {

@@ -32,6 +32,8 @@ import {
   TrendingUp,
   ArrowRightLeft,
   Crown,
+  Activity,
+  Flame,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -55,6 +57,7 @@ interface DashboardData {
     referrers: { referrer: string; visitors: number }[];
     daily: { day: string; views: number; visitors: number }[];
     recentSearches: { query: string; pagePath: string; createdAt: string }[];
+    topSearches: { query: string; count: number }[];
   };
   auctions: {
     total: number;
@@ -121,6 +124,21 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled: '#ef4444',
 };
 
+const PAGE_NAMES: Record<string, string> = {
+  '/': 'Home',
+  '/current-auctions': 'Current Auctions',
+  '/market': 'Item Market',
+  '/progression': 'Progression',
+  '/calculator': 'Skill Calculator',
+  '/bans': 'Bans',
+  '/transfers': 'Transfers',
+  '/insights': 'Premium Insights',
+  '/feature-requests': 'Feature Requests',
+  '/premium': 'Premium',
+  '/pvp': 'PvP',
+  '/auth/signin': 'Sign In',
+};
+
 // ── Helpers ──────────────────────────────────────────────────────────
 
 function formatNum(n: number): string {
@@ -132,6 +150,7 @@ function formatNum(n: number): string {
 function timeAgo(dateStr: string) {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
   if (mins < 60) return `${mins}m ago`;
   const hours = Math.floor(mins / 60);
   if (hours < 24) return `${hours}h ago`;
@@ -148,28 +167,43 @@ function countryName(code: string): string {
   try { return countryNames.of(code) || code; } catch { return code; }
 }
 
+function pageName(path: string): string {
+  if (PAGE_NAMES[path]) return PAGE_NAMES[path];
+  // Strip locale prefix like /pt-BR/calculator -> /calculator
+  const stripped = path.replace(/^\/[a-z]{2}(-[A-Z]{2})?/, '');
+  if (PAGE_NAMES[stripped]) return PAGE_NAMES[stripped];
+  // Fallback: capitalize the last segment
+  const segments = path.split('/').filter(Boolean);
+  const last = segments[segments.length - 1] || 'Home';
+  return last.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
 // ── Reusable Components ─────────────────────────────────────────────
 
 function StatCard({
   label,
   value,
   icon: Icon,
-  color,
+  accent,
   sub,
 }: {
   label: string;
   value: number | string;
   icon: typeof Eye;
-  color: string;
+  accent: string;
   sub?: string;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
+    <div className="group relative overflow-hidden rounded-2xl border border-border/50 bg-card p-4 transition-all hover:border-border">
+      <div className={`absolute -right-3 -top-3 h-16 w-16 rounded-full ${accent} opacity-[0.07] transition-opacity group-hover:opacity-[0.12]`} />
       <div className="flex items-center gap-3">
-        <Icon className={`h-5 w-5 ${color} shrink-0`} />
+        <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${accent} bg-opacity-10`}
+          style={{ backgroundColor: `color-mix(in srgb, currentColor 10%, transparent)` }}>
+          <Icon className={`h-4 w-4 ${accent}`} />
+        </div>
         <div className="min-w-0">
-          <p className="text-xl font-bold truncate">{typeof value === 'number' ? formatNum(value) : value}</p>
-          <p className="text-[10px] text-muted-foreground truncate">{label}</p>
+          <p className="text-2xl font-bold tracking-tight truncate">{typeof value === 'number' ? formatNum(value) : value}</p>
+          <p className="text-[11px] text-muted-foreground truncate">{label}</p>
           {sub && <p className="text-[9px] text-muted-foreground/60">{sub}</p>}
         </div>
       </div>
@@ -177,34 +211,38 @@ function StatCard({
   );
 }
 
-function SectionHeader({ icon: Icon, color, title }: { icon: typeof Eye; color: string; title: string }) {
+function SectionHeader({ icon: Icon, accent, title }: { icon: typeof Eye; accent: string; title: string }) {
   return (
-    <div className="flex items-center gap-2 pt-2">
-      <Icon className={`h-4 w-4 ${color}`} />
-      <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">{title}</h2>
+    <div className="flex items-center gap-2.5 pt-4 pb-1">
+      <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${accent}`}
+        style={{ backgroundColor: `color-mix(in srgb, currentColor 12%, transparent)` }}>
+        <Icon className={`h-3.5 w-3.5 ${accent}`} />
+      </div>
+      <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground/80">{title}</h2>
     </div>
   );
 }
 
 function ChartCard({ title, children, className }: { title: string; children: React.ReactNode; className?: string }) {
   return (
-    <div className={`rounded-xl border border-border bg-card p-4 ${className || ''}`}>
-      <h3 className="text-xs font-semibold text-muted-foreground mb-3">{title}</h3>
+    <div className={`rounded-2xl border border-border/50 bg-card p-5 ${className || ''}`}>
+      <h3 className="text-xs font-semibold text-muted-foreground/70 uppercase tracking-wider mb-4">{title}</h3>
       {children}
     </div>
   );
 }
 
-function DataRow({ label, value, maxVal }: { label: string; value: number; maxVal: number }) {
+function DataRow({ label, value, maxVal, accent }: { label: string; value: number; maxVal: number; accent?: string }) {
+  const pct = Math.max((value / Math.max(maxVal, 1)) * 100, 2);
   return (
-    <div className="relative rounded-md px-2 py-1.5">
+    <div className="group relative rounded-lg px-3 py-2 transition-colors hover:bg-accent/30">
       <div
-        className="absolute inset-0 rounded-md bg-primary/5"
-        style={{ width: `${(value / Math.max(maxVal, 1)) * 100}%` }}
+        className={`absolute inset-y-0 left-0 rounded-lg ${accent || 'bg-primary/8'} transition-all`}
+        style={{ width: `${pct}%` }}
       />
       <div className="relative flex items-center justify-between">
-        <span className="text-xs truncate mr-2">{label}</span>
-        <span className="text-xs font-semibold shrink-0">{formatNum(value)}</span>
+        <span className="text-xs font-medium truncate mr-2">{label}</span>
+        <span className="text-xs font-bold tabular-nums shrink-0">{formatNum(value)}</span>
       </div>
     </div>
   );
@@ -214,10 +252,10 @@ function DataRow({ label, value, maxVal }: { label: string; value: number; maxVa
 function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-lg border border-border/50 bg-card/95 backdrop-blur-sm px-3 py-2 shadow-xl">
-      <p className="text-[10px] text-muted-foreground mb-1">{label}</p>
+    <div className="rounded-xl border border-border/50 bg-card/95 backdrop-blur-md px-3.5 py-2.5 shadow-2xl">
+      <p className="text-[10px] text-muted-foreground mb-1.5 font-medium">{label}</p>
       {payload.map((entry: { name: string; value: number; color: string }, i: number) => (
-        <p key={i} className="text-xs font-semibold" style={{ color: entry.color }}>
+        <p key={i} className="text-xs font-bold" style={{ color: entry.color }}>
           {entry.name}: {formatNum(entry.value)}
         </p>
       ))}
@@ -306,16 +344,20 @@ export function AdminAnalyticsClient() {
           <Link href="/admin" className="text-muted-foreground hover:text-foreground transition-colors">
             <ArrowLeft className="h-5 w-5" />
           </Link>
-          <BarChart3 className="h-6 w-6 text-emerald-400" />
-          <h1 className="text-2xl font-bold">Dashboard</h1>
-          <span className="text-[10px] text-muted-foreground bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full font-medium">
-            LIVE
-          </span>
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10">
+              <Activity className="h-4.5 w-4.5 text-emerald-400" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold leading-tight">Analytics</h1>
+              <p className="text-[10px] text-muted-foreground">Real-time dashboard &middot; Admin views excluded</p>
+            </div>
+          </div>
         </div>
         <button
           onClick={() => fetchData(true)}
           disabled={refreshing}
-          className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-50"
+          className="flex items-center gap-1.5 rounded-xl border border-border/50 bg-card px-3.5 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-all disabled:opacity-50"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
           Refresh
@@ -325,25 +367,25 @@ export function AdminAnalyticsClient() {
       {/* ═══════════════════════════════════════════════════════════════ */}
       {/* TRAFFIC SECTION */}
       {/* ═══════════════════════════════════════════════════════════════ */}
-      <SectionHeader icon={Eye} color="text-sky-400" title="Traffic" />
+      <SectionHeader icon={Eye} accent="text-sky-400" title="Traffic" />
 
       <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
-        <StatCard label="Visitors Today" value={traffic.overview.visitorsToday} icon={Users} color="text-emerald-400" />
-        <StatCard label="Page Views Today" value={traffic.overview.pageViewsToday} icon={Eye} color="text-sky-400" />
-        <StatCard label="Visitors This Week" value={traffic.overview.visitorsWeek} icon={Users} color="text-violet-400" />
-        <StatCard label="Page Views This Week" value={traffic.overview.pageViewsWeek} icon={Eye} color="text-orange-400" />
+        <StatCard label="Visitors Today" value={traffic.overview.visitorsToday} icon={Users} accent="text-emerald-400" />
+        <StatCard label="Page Views Today" value={traffic.overview.pageViewsToday} icon={Eye} accent="text-sky-400" />
+        <StatCard label="Visitors This Week" value={traffic.overview.visitorsWeek} icon={Users} accent="text-violet-400" />
+        <StatCard label="Page Views This Week" value={traffic.overview.pageViewsWeek} icon={Eye} accent="text-orange-400" />
       </div>
 
       <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
-        <StatCard label="Visitors This Month" value={traffic.overview.visitorsMonth} icon={Users} color="text-pink-400" />
-        <StatCard label="Page Views This Month" value={traffic.overview.pageViewsMonth} icon={Eye} color="text-amber-400" />
-        <StatCard label="Total Unique Visitors" value={traffic.overview.totalVisitors} icon={Users} color="text-blue-400" />
-        <StatCard label="Total Sessions" value={traffic.overview.totalSessions} icon={BarChart3} color="text-teal-400" />
+        <StatCard label="Visitors This Month" value={traffic.overview.visitorsMonth} icon={Users} accent="text-pink-400" />
+        <StatCard label="Page Views This Month" value={traffic.overview.pageViewsMonth} icon={Eye} accent="text-amber-400" />
+        <StatCard label="Total Unique Visitors" value={traffic.overview.totalVisitors} icon={Users} accent="text-blue-400" />
+        <StatCard label="Total Sessions" value={traffic.overview.totalSessions} icon={BarChart3} accent="text-teal-400" />
       </div>
 
       {/* Daily traffic chart */}
       {dailyTraffic.length > 0 && (
-        <ChartCard title="Daily Traffic (14 Days)">
+        <ChartCard title="Daily Traffic — 14 Days">
           <div className="h-56">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={dailyTraffic}>
@@ -357,9 +399,9 @@ export function AdminAnalyticsClient() {
                     <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#888' }} />
-                <YAxis tick={{ fontSize: 10, fill: '#888' }} />
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#666' }} />
+                <YAxis tick={{ fontSize: 10, fill: '#666' }} />
                 <Tooltip content={<CustomTooltip />} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
                 <Area type="monotone" dataKey="views" name="Page Views" stroke="#3b82f6" fill="url(#viewsGrad)" strokeWidth={2} />
@@ -372,17 +414,17 @@ export function AdminAnalyticsClient() {
 
       {/* Top pages + Countries */}
       <div className="grid gap-3 lg:grid-cols-2">
-        <ChartCard title="Top Pages (30 Days)">
+        <ChartCard title="Top Pages — 30 Days">
           <div className="space-y-1">
             {traffic.topPages.map((p) => (
-              <DataRow key={p.path} label={p.path} value={p.views} maxVal={traffic.topPages[0]?.views || 1} />
+              <DataRow key={p.path} label={pageName(p.path)} value={p.views} maxVal={traffic.topPages[0]?.views || 1} accent="bg-sky-500/8" />
             ))}
           </div>
         </ChartCard>
         <ChartCard title="Countries">
           <div className="space-y-1">
             {traffic.countries.map((c) => (
-              <DataRow key={c.country} label={countryName(c.country)} value={c.visitors} maxVal={traffic.countries[0]?.visitors || 1} />
+              <DataRow key={c.country} label={countryName(c.country)} value={c.visitors} maxVal={traffic.countries[0]?.visitors || 1} accent="bg-emerald-500/8" />
             ))}
             {traffic.countries.length === 0 && (
               <p className="text-xs text-muted-foreground py-4 text-center">No country data yet</p>
@@ -391,28 +433,28 @@ export function AdminAnalyticsClient() {
         </ChartCard>
       </div>
 
-      {/* Referrers + Searches */}
+      {/* Top Searches + Recent Searches */}
       <div className="grid gap-3 lg:grid-cols-2">
-        {traffic.referrers.length > 0 && (
-          <ChartCard title="Referrers">
+        {traffic.topSearches.length > 0 && (
+          <ChartCard title="Top Searches — All Time">
             <div className="space-y-1">
-              {traffic.referrers.map((r) => (
-                <DataRow key={r.referrer} label={r.referrer} value={r.visitors} maxVal={traffic.referrers[0]?.visitors || 1} />
+              {traffic.topSearches.map((s) => (
+                <DataRow key={s.query} label={s.query} value={s.count} maxVal={traffic.topSearches[0]?.count || 1} accent="bg-amber-500/8" />
               ))}
             </div>
           </ChartCard>
         )}
         {traffic.recentSearches.length > 0 && (
           <ChartCard title="Recent Searches">
-            <div className="space-y-1">
+            <div className="space-y-0.5">
               {traffic.recentSearches.map((s, i) => (
-                <div key={i} className="flex items-center justify-between rounded-md px-2 py-1.5 hover:bg-accent/50">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Search className="h-3 w-3 text-muted-foreground shrink-0" />
+                <div key={i} className="flex items-center justify-between rounded-lg px-3 py-2 transition-colors hover:bg-accent/30">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <Search className="h-3.5 w-3.5 text-amber-400/60 shrink-0" />
                     <span className="text-xs font-medium truncate">{s.query}</span>
-                    <span className="text-[9px] text-muted-foreground shrink-0">{s.pagePath}</span>
+                    <span className="text-[9px] text-muted-foreground/60 shrink-0 hidden sm:inline">{pageName(s.pagePath)}</span>
                   </div>
-                  <span className="text-[9px] text-muted-foreground shrink-0 ml-2">{timeAgo(s.createdAt)}</span>
+                  <span className="text-[10px] text-muted-foreground/50 shrink-0 ml-2 tabular-nums">{timeAgo(s.createdAt)}</span>
                 </div>
               ))}
             </div>
@@ -420,25 +462,36 @@ export function AdminAnalyticsClient() {
         )}
       </div>
 
+      {/* Referrers */}
+      {traffic.referrers.length > 0 && (
+        <ChartCard title="Referrers">
+          <div className="space-y-1">
+            {traffic.referrers.map((r) => (
+              <DataRow key={r.referrer} label={r.referrer} value={r.visitors} maxVal={traffic.referrers[0]?.visitors || 1} accent="bg-violet-500/8" />
+            ))}
+          </div>
+        </ChartCard>
+      )}
+
       {/* ═══════════════════════════════════════════════════════════════ */}
       {/* AUCTION MARKET SECTION */}
       {/* ═══════════════════════════════════════════════════════════════ */}
-      <SectionHeader icon={Gavel} color="text-amber-400" title="Auction Market" />
+      <SectionHeader icon={Gavel} accent="text-amber-400" title="Auction Market" />
 
       <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
-        <StatCard label="Total Auctions (History)" value={auctions.total} icon={Gavel} color="text-amber-400" />
-        <StatCard label="Active Auctions Now" value={auctions.active} icon={TrendingUp} color="text-emerald-400" />
+        <StatCard label="Total Auctions (History)" value={auctions.total} icon={Gavel} accent="text-amber-400" />
+        <StatCard label="Active Auctions Now" value={auctions.active} icon={Flame} accent="text-emerald-400" />
         <StatCard
           label="Avg Sold Price"
           value={`${formatNum(auctions.avgSoldPrice)} TC`}
           icon={ShoppingCart}
-          color="text-sky-400"
+          accent="text-sky-400"
         />
         <StatCard
           label="Sell Rate"
           value={`${Math.round(((auctions.statusBreakdown.find(s => s.status === 'sold')?.count || 0) / Math.max(auctions.total, 1)) * 100)}%`}
           icon={TrendingUp}
-          color="text-violet-400"
+          accent="text-violet-400"
           sub={`${formatNum(auctions.statusBreakdown.find(s => s.status === 'sold')?.count || 0)} sold`}
         />
       </div>
@@ -467,7 +520,7 @@ export function AdminAnalyticsClient() {
                 </Pie>
                 <Tooltip
                   formatter={(value: number) => formatNum(value)}
-                  contentStyle={{ backgroundColor: '#1a1a2e', border: '1px solid #333', borderRadius: 8, fontSize: 12 }}
+                  contentStyle={{ backgroundColor: 'rgba(15,20,32,0.95)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, fontSize: 12 }}
                 />
               </PieChart>
             </ResponsiveContainer>
@@ -475,15 +528,15 @@ export function AdminAnalyticsClient() {
         </ChartCard>
 
         {dailyAuctions.length > 0 && (
-          <ChartCard title="New Auctions Per Day (14 Days)">
+          <ChartCard title="New Auctions Per Day — 14 Days">
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={dailyAuctions}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                  <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#888' }} />
-                  <YAxis tick={{ fontSize: 10, fill: '#888' }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                  <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#666' }} />
+                  <YAxis tick={{ fontSize: 10, fill: '#666' }} />
                   <Tooltip content={<CustomTooltip />} />
-                  <Bar dataKey="count" name="New Auctions" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="count" name="New Auctions" fill="#f59e0b" radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -498,9 +551,9 @@ export function AdminAnalyticsClient() {
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={vocationData} layout="vertical" margin={{ left: 10 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                  <XAxis type="number" tick={{ fontSize: 10, fill: '#888' }} />
-                  <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: '#888' }} width={50} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                  <XAxis type="number" tick={{ fontSize: 10, fill: '#666' }} />
+                  <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: '#666' }} width={50} />
                   <Tooltip
                     content={<CustomTooltip />}
                     labelFormatter={(_, payload) => payload?.[0]?.payload?.fullName || ''}
@@ -517,7 +570,7 @@ export function AdminAnalyticsClient() {
         <ChartCard title="Active Auctions by World">
           <div className="space-y-1">
             {auctions.worldDistribution.map((w) => (
-              <DataRow key={w.world} label={w.world} value={w.count} maxVal={auctions.worldDistribution[0]?.count || 1} />
+              <DataRow key={w.world} label={w.world} value={w.count} maxVal={auctions.worldDistribution[0]?.count || 1} accent="bg-amber-500/8" />
             ))}
           </div>
         </ChartCard>
@@ -529,11 +582,11 @@ export function AdminAnalyticsClient() {
           <div className="h-48">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={vocationData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#888' }} />
-                <YAxis tick={{ fontSize: 10, fill: '#888' }} />
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#666' }} />
+                <YAxis tick={{ fontSize: 10, fill: '#666' }} />
                 <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="avgPrice" name="Avg Price (TC)" radius={[4, 4, 0, 0]}>
+                <Bar dataKey="avgPrice" name="Avg Price (TC)" radius={[6, 6, 0, 0]}>
                   {vocationData.map((_, i) => (
                     <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
                   ))}
@@ -547,35 +600,35 @@ export function AdminAnalyticsClient() {
       {/* ═══════════════════════════════════════════════════════════════ */}
       {/* USERS & COMMUNITY SECTION */}
       {/* ═══════════════════════════════════════════════════════════════ */}
-      <SectionHeader icon={Users} color="text-blue-400" title="Users & Community" />
+      <SectionHeader icon={Users} accent="text-blue-400" title="Users & Community" />
 
-      <div className="grid gap-3 grid-cols-2 sm:grid-cols-4 lg:grid-cols-6">
-        <StatCard label="Total Users" value={users.total} icon={Users} color="text-blue-400" />
-        <StatCard label="Premium Users" value={users.premium} icon={Users} color="text-amber-400" />
-        <StatCard label="Pending Requests" value={users.pendingRequests} icon={Users} color={users.pendingRequests > 0 ? 'text-red-400' : 'text-green-400'} />
-        <StatCard label="Feature Requests" value={community.featureRequests} icon={MessageCircle} color="text-violet-400" />
-        <StatCard label="Feedback" value={community.feedback} icon={MessageCircle} color="text-pink-400" />
-        <StatCard label="Active Listings" value={community.activeListings} icon={ShoppingCart} color="text-teal-400" />
+      <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
+        <StatCard label="Total Users" value={users.total} icon={Users} accent="text-blue-400" />
+        <StatCard label="Premium Users" value={users.premium} icon={Crown} accent="text-amber-400" />
+        <StatCard label="Pending Requests" value={users.pendingRequests} icon={Users} accent={users.pendingRequests > 0 ? 'text-red-400' : 'text-green-400'} />
+        <StatCard label="Feature Requests" value={community.featureRequests} icon={MessageCircle} accent="text-violet-400" />
+        <StatCard label="Feedback" value={community.feedback} icon={MessageCircle} accent="text-pink-400" />
+        <StatCard label="Active Listings" value={community.activeListings} icon={ShoppingCart} accent="text-teal-400" />
       </div>
 
       {/* Users Table */}
       {users.userList?.length > 0 && (
-        <ChartCard title={`Users (Last ${users.userList.length})`}>
-          <div className="overflow-x-auto">
+        <ChartCard title={`Users — Last ${users.userList.length}`}>
+          <div className="overflow-x-auto -mx-2">
             <table className="w-full text-xs">
               <thead>
-                <tr className="border-b border-border text-left text-muted-foreground">
-                  <th className="pb-2 pr-3">User</th>
-                  <th className="pb-2 pr-3">Email</th>
-                  <th className="pb-2 pr-3">Tier</th>
-                  <th className="pb-2 pr-3">Joined</th>
-                  <th className="pb-2">Premium Until</th>
+                <tr className="border-b border-border/30 text-left text-muted-foreground/60">
+                  <th className="pb-3 pr-3 pl-2 font-medium">User</th>
+                  <th className="pb-3 pr-3 font-medium">Email</th>
+                  <th className="pb-3 pr-3 font-medium">Tier</th>
+                  <th className="pb-3 pr-3 font-medium">Joined</th>
+                  <th className="pb-3 font-medium">Premium Until</th>
                 </tr>
               </thead>
               <tbody>
                 {users.userList.map((u) => (
-                  <tr key={u.id} className="border-b border-border/50 hover:bg-accent/30">
-                    <td className="py-2 pr-3">
+                  <tr key={u.id} className="border-b border-border/20 hover:bg-accent/20 transition-colors">
+                    <td className="py-2.5 pr-3 pl-2">
                       <div className="flex items-center gap-2">
                         {u.image ? (
                           <img src={u.image} alt="" className="h-6 w-6 rounded-full" />
@@ -588,8 +641,8 @@ export function AdminAnalyticsClient() {
                         {u.isAdmin && <Shield className="h-3 w-3 text-primary shrink-0" />}
                       </div>
                     </td>
-                    <td className="py-2 pr-3 text-muted-foreground truncate max-w-[150px]">{u.email}</td>
-                    <td className="py-2 pr-3">
+                    <td className="py-2.5 pr-3 text-muted-foreground truncate max-w-[150px]">{u.email}</td>
+                    <td className="py-2.5 pr-3">
                       <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium ${
                         u.premiumTier === 'legacy' ? 'bg-amber-400/15 text-amber-400'
                         : u.premiumTier === 'subscriber' ? 'bg-primary/15 text-primary'
@@ -599,10 +652,10 @@ export function AdminAnalyticsClient() {
                         {u.premiumTier}
                       </span>
                     </td>
-                    <td className="py-2 pr-3 text-muted-foreground">
+                    <td className="py-2.5 pr-3 text-muted-foreground tabular-nums">
                       {new Date(u.createdAt).toLocaleDateString()}
                     </td>
-                    <td className="py-2 text-muted-foreground">
+                    <td className="py-2.5 text-muted-foreground tabular-nums">
                       {u.premiumUntil ? new Date(u.premiumUntil).toLocaleDateString() : u.premiumTier === 'legacy' ? 'Lifetime' : '---'}
                     </td>
                   </tr>
@@ -615,28 +668,28 @@ export function AdminAnalyticsClient() {
 
       {/* Premium Payment Log */}
       {users.premiumRequests?.length > 0 && (
-        <ChartCard title={`Premium Payment Log (${users.premiumRequests.length})`}>
-          <div className="overflow-x-auto">
+        <ChartCard title={`Premium Payment Log — ${users.premiumRequests.length}`}>
+          <div className="overflow-x-auto -mx-2">
             <table className="w-full text-xs">
               <thead>
-                <tr className="border-b border-border text-left text-muted-foreground">
-                  <th className="pb-2 pr-3">User</th>
-                  <th className="pb-2 pr-3">Character</th>
-                  <th className="pb-2 pr-3">Tier</th>
-                  <th className="pb-2 pr-3">RC</th>
-                  <th className="pb-2 pr-3">Payment Date</th>
-                  <th className="pb-2 pr-3">Status</th>
-                  <th className="pb-2">Reviewed</th>
+                <tr className="border-b border-border/30 text-left text-muted-foreground/60">
+                  <th className="pb-3 pr-3 pl-2 font-medium">User</th>
+                  <th className="pb-3 pr-3 font-medium">Character</th>
+                  <th className="pb-3 pr-3 font-medium">Tier</th>
+                  <th className="pb-3 pr-3 font-medium">RC</th>
+                  <th className="pb-3 pr-3 font-medium">Payment Date</th>
+                  <th className="pb-3 pr-3 font-medium">Status</th>
+                  <th className="pb-3 font-medium">Reviewed</th>
                 </tr>
               </thead>
               <tbody>
                 {users.premiumRequests.map((r) => (
-                  <tr key={r.id} className={`border-b border-border/50 hover:bg-accent/30 ${r.status === 'pending' ? 'bg-amber-400/5' : ''}`}>
-                    <td className="py-2 pr-3 font-medium truncate max-w-[100px]">
+                  <tr key={r.id} className={`border-b border-border/20 hover:bg-accent/20 transition-colors ${r.status === 'pending' ? 'bg-amber-400/[0.03]' : ''}`}>
+                    <td className="py-2.5 pr-3 pl-2 font-medium truncate max-w-[100px]">
                       {r.user.name || r.user.email || '---'}
                     </td>
-                    <td className="py-2 pr-3">{r.characterName}</td>
-                    <td className="py-2 pr-3">
+                    <td className="py-2.5 pr-3">{r.characterName}</td>
+                    <td className="py-2.5 pr-3">
                       <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium ${
                         r.requestedTier === 'legacy' ? 'bg-amber-400/15 text-amber-400' : 'bg-primary/15 text-primary'
                       }`}>
@@ -644,11 +697,11 @@ export function AdminAnalyticsClient() {
                         {r.requestedTier}
                       </span>
                     </td>
-                    <td className="py-2 pr-3 text-muted-foreground">{r.rcAmount || '---'}</td>
-                    <td className="py-2 pr-3 text-muted-foreground">
+                    <td className="py-2.5 pr-3 text-muted-foreground tabular-nums">{r.rcAmount || '---'}</td>
+                    <td className="py-2.5 pr-3 text-muted-foreground tabular-nums">
                       {r.transactionDate ? new Date(r.transactionDate).toLocaleDateString() : '---'}
                     </td>
-                    <td className="py-2 pr-3">
+                    <td className="py-2.5 pr-3">
                       <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${
                         r.status === 'approved' ? 'bg-green-500/15 text-green-500'
                         : r.status === 'rejected' ? 'bg-destructive/15 text-destructive'
@@ -657,7 +710,7 @@ export function AdminAnalyticsClient() {
                         {r.status}
                       </span>
                     </td>
-                    <td className="py-2 text-muted-foreground">
+                    <td className="py-2.5 text-muted-foreground tabular-nums">
                       {r.reviewedAt ? new Date(r.reviewedAt).toLocaleDateString() : '---'}
                     </td>
                   </tr>
@@ -671,17 +724,17 @@ export function AdminAnalyticsClient() {
       {/* ═══════════════════════════════════════════════════════════════ */}
       {/* GAME DATA SECTION */}
       {/* ═══════════════════════════════════════════════════════════════ */}
-      <SectionHeader icon={Shield} color="text-red-400" title="Game Data" />
+      <SectionHeader icon={Shield} accent="text-red-400" title="Game Data" />
 
       <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
-        <StatCard label="Total Bans" value={gameData.totalBans} icon={Shield} color="text-red-400" />
-        <StatCard label="Active Bans" value={gameData.activeBans} icon={Shield} color="text-orange-400" />
-        <StatCard label="Total Transfers" value={gameData.totalTransfers} icon={ArrowRightLeft} color="text-sky-400" />
+        <StatCard label="Total Bans" value={gameData.totalBans} icon={Shield} accent="text-red-400" />
+        <StatCard label="Active Bans" value={gameData.activeBans} icon={Shield} accent="text-orange-400" />
+        <StatCard label="Total Transfers" value={gameData.totalTransfers} icon={ArrowRightLeft} accent="text-sky-400" />
         <StatCard
           label="Transfer Routes"
           value={gameData.topTransferRoutes.length}
           icon={Globe}
-          color="text-violet-400"
+          accent="text-violet-400"
         />
       </div>
 
@@ -694,6 +747,7 @@ export function AdminAnalyticsClient() {
                 label={`${r.from} → ${r.to}`}
                 value={r.count}
                 maxVal={gameData.topTransferRoutes[0]?.count || 1}
+                accent="bg-red-500/8"
               />
             ))}
           </div>
@@ -701,9 +755,9 @@ export function AdminAnalyticsClient() {
       )}
 
       {/* Footer */}
-      <div className="text-center py-4">
-        <p className="text-[10px] text-muted-foreground">
-          Auto-refreshes every 60 seconds &middot; Data is live from the database
+      <div className="text-center py-6">
+        <p className="text-[10px] text-muted-foreground/40">
+          Auto-refreshes every 60s &middot; Admin views excluded &middot; Live data
         </p>
       </div>
     </div>
