@@ -29,22 +29,22 @@ interface PremiumRequest {
 
 const FEATURES = [
   {
-    icon: TrendingUp,
-    title: "Fair Price Valuations",
-    description:
-      "See estimated market value for every auction based on historical sales data.",
-  },
-  {
     icon: Star,
-    title: "Featured Auction",
+    title: "Highlight Your Auction",
     description:
-      "Pin one of your auctions to the top of the listings for maximum visibility.",
+      "Pin one auction at a time to the top of Current Auctions — every visitor sees it first. Swap it anytime.",
   },
   {
     icon: BarChart3,
-    title: "Market Insights",
+    title: "Advanced Market Analysis",
     description:
-      "Access detailed analytics: price trends, skill averages, best deals, and more.",
+      "Deep analytics: average sold prices by vocation & level, skill breakdowns, price trends over time, and underpriced deals.",
+  },
+  {
+    icon: TrendingUp,
+    title: "Fair Price Valuations",
+    description:
+      "Every auction shows an estimated market value so you know instantly if it's a good deal or overpriced.",
   },
 ];
 
