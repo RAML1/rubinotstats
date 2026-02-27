@@ -143,6 +143,11 @@ function formatDay(day: string): string {
   return new Date(day + 'T12:00:00').toLocaleDateString('en', { month: 'short', day: 'numeric' });
 }
 
+const countryNames = new Intl.DisplayNames(['en'], { type: 'region' });
+function countryName(code: string): string {
+  try { return countryNames.of(code) || code; } catch { return code; }
+}
+
 // ── Reusable Components ─────────────────────────────────────────────
 
 function StatCard({
@@ -377,7 +382,7 @@ export function AdminAnalyticsClient() {
         <ChartCard title="Countries">
           <div className="space-y-1">
             {traffic.countries.map((c) => (
-              <DataRow key={c.country} label={c.country} value={c.visitors} maxVal={traffic.countries[0]?.visitors || 1} />
+              <DataRow key={c.country} label={countryName(c.country)} value={c.visitors} maxVal={traffic.countries[0]?.visitors || 1} />
             ))}
             {traffic.countries.length === 0 && (
               <p className="text-xs text-muted-foreground py-4 text-center">No country data yet</p>
