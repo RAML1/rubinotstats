@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { redirect } from "next/navigation";
-import { Users, Clock, Crown, Shield, BarChart3, Eye, ChevronRight, MessageCircle } from "lucide-react";
+import { Users, Clock, Crown, Shield, BarChart3, Eye, ChevronRight, MessageCircle, MessageSquare, Lightbulb } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "Admin - RubinOT Stats",
@@ -25,6 +25,8 @@ export default async function AdminPage() {
     premiumUsers,
     pendingRequests,
     unreadMessages,
+    totalFeedback,
+    openFeatureRequests,
     visitorsToday,
     pageViewsToday,
     visitorsWeek,
@@ -34,6 +36,8 @@ export default async function AdminPage() {
     prisma.user.count({ where: { premiumTier: { not: "free" } } }),
     prisma.premiumRequest.count({ where: { status: "pending" } }),
     prisma.contactMessage.count({ where: { isRead: false } }),
+    prisma.feedback.count(),
+    prisma.featureRequest.count({ where: { status: "open" } }),
     prisma.analyticsEvent.findMany({
       where: { eventType: "page_view", createdAt: { gte: today } },
       distinct: ["visitorId"],
@@ -144,6 +148,26 @@ export default async function AdminPage() {
       badge: unreadMessages > 0 ? unreadMessages : null,
       badgeColor: "bg-violet-500 text-white",
     },
+    {
+      label: "Feedback",
+      description: "View feedback submissions from the widget.",
+      href: "/admin/feedback",
+      icon: MessageSquare,
+      accentColor: "border-l-sky-400",
+      iconColor: "text-sky-400",
+      badge: totalFeedback > 0 ? totalFeedback : null,
+      badgeColor: "bg-sky-500 text-white",
+    },
+    {
+      label: "Feature Requests",
+      description: "Manage and update status of feature requests.",
+      href: "/admin/feature-requests",
+      icon: Lightbulb,
+      accentColor: "border-l-yellow-400",
+      iconColor: "text-yellow-400",
+      badge: openFeatureRequests > 0 ? openFeatureRequests : null,
+      badgeColor: "bg-yellow-500 text-black",
+    },
   ];
 
   return (
@@ -204,7 +228,7 @@ export default async function AdminPage() {
       {/* Quick Navigation */}
       <div>
         <h2 className="text-lg font-semibold mb-4">Quick Navigation</h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {navCards.map((card) => (
             <Link
               key={card.label}
