@@ -180,35 +180,30 @@ function saveProgress(completed: Set<string>): void {
 
 const today = new Date(todayStr + 'T00:00:00.000Z');
 let dbSavedCount = 0;
+const BATCH_SIZE = 500;
+let pendingBatch: ScrapedHighscoreEntry[] = [];
 
-async function upsertHighscoreEntry(e: ScrapedHighscoreEntry): Promise<void> {
-  await prisma.highscoreEntry.upsert({
-    where: {
-      characterName_world_category_capturedDate: {
-        characterName: e.characterName,
-        world: e.world,
-        category: e.category,
-        capturedDate: today,
-      },
-    },
-    update: {
-      rank: e.rank,
-      score: e.score,
-      level: e.level,
-      vocation: e.vocation,
-    },
-    create: {
-      characterName: e.characterName,
-      world: e.world,
-      vocation: e.vocation,
-      level: e.level,
-      category: e.category,
-      rank: e.rank,
-      score: e.score,
-      capturedDate: today,
-    },
-  });
-  dbSavedCount++;
+async function flushBatch(): Promise<void> {
+  if (pendingBatch.length === 0) return;
+  const batch = pendingBatch;
+  pendingBatch = [];
+
+  // Build VALUES clause for batch insert
+  const values = batch.map((e) =>
+    `('${e.characterName.replace(/'/g, "''")}', '${e.world.replace(/'/g, "''")}', '${e.vocation.replace(/'/g, "''")}', ${e.level}, '${e.category.replace(/'/g, "''")}', ${e.rank}, ${e.score.toString()}, '${todayStr}'::date)`
+  ).join(',\n');
+
+  await prisma.$executeRawUnsafe(`
+    INSERT INTO highscore_entries (character_name, world, vocation, level, category, rank, score, captured_date)
+    VALUES ${values}
+    ON CONFLICT (character_name, world, category, captured_date)
+    DO UPDATE SET rank = EXCLUDED.rank, score = EXCLUDED.score, level = EXCLUDED.level, vocation = EXCLUDED.vocation
+  `);
+  dbSavedCount += batch.length;
+}
+
+function queueEntry(e: ScrapedHighscoreEntry): void {
+  pendingBatch.push(e);
 }
 
 // ── Main ───────────────────────────────────────────────────────────────
@@ -242,7 +237,8 @@ RubinOT Highscores
 
   try {
     const onEntry = skipDb ? undefined : async (e: ScrapedHighscoreEntry) => {
-      await upsertHighscoreEntry(e);
+      queueEntry(e);
+      if (pendingBatch.length >= BATCH_SIZE) await flushBatch();
     };
 
     const entries = await scrapeHighscores(context, {
@@ -254,7 +250,9 @@ RubinOT Highscores
       browser: BROWSER,
       completedCombos,
       onEntry,
-      onPageDone: (_world, _profession, p, totalPages, count) => {
+      onPageDone: async (_world, _profession, p, totalPages, count) => {
+        // Flush remaining entries after each world+category combo
+        if (!skipDb) await flushBatch();
         console.log(`  Page ${p}/${totalPages}: ${count} entries`);
       },
       onComboDone: (key) => {
@@ -262,6 +260,9 @@ RubinOT Highscores
         saveProgress(completedCombos);
       },
     });
+
+    // Final flush for any remaining entries
+    if (!skipDb) await flushBatch();
 
     // Save JSON output
     const outFile = path.join(dataDir, `highscores-${todayStr}.json`);

@@ -92,6 +92,7 @@ async function upsertCurrentAuction(list: CurrentListAuction, detail: ScrapedAuc
     gold: list.gold,
     bestiary: list.bestiary,
     isActive: true,
+    outfitImageUrl: list.outfitImageUrl,
     url: `${RUBINOT_URLS.base}/bazaar/${list.externalId}`,
   };
 

@@ -56,7 +56,7 @@ export interface ScrapeHighscoresOptions {
   headless?: boolean;
   browser?: BrowserName;
   onEntry?: (entry: ScrapedHighscoreEntry) => Promise<void>;
-  onPageDone?: (world: string, profession: string, page: number, totalPages: number, count: number) => void;
+  onPageDone?: (world: string, profession: string, page: number, totalPages: number, count: number) => void | Promise<void>;
   onComboDone?: (comboKey: string) => void;
   completedCombos?: Set<string>;
 }
@@ -268,7 +268,7 @@ export async function scrapeHighscores(
       allEntries.push(entry);
     }
 
-    opts.onPageDone?.(world, 'All', 1, 1, data.players.length);
+    await opts.onPageDone?.(world, 'All', 1, 1, data.players.length);
 
     // Mark all profession combos for this world+category as done
     for (const p of professions) {

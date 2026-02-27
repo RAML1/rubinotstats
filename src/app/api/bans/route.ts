@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db/prisma';
+import { mapBanReason } from '@/lib/utils/ban-rules';
 
 export async function GET(req: NextRequest) {
   try {
@@ -34,7 +35,7 @@ export async function GET(req: NextRequest) {
         id: b.id,
         playerName: b.playerName,
         world: b.world,
-        reason: b.reason,
+        reason: mapBanReason(b.reason),
         bannedAt: b.bannedAt?.toISOString() ?? null,
         expiresAt: b.expiresAt?.toISOString() ?? null,
         isPermanent: b.isPermanent,
