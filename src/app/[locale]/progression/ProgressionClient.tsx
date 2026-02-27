@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { TrendingUp, TrendingDown, Minus, Search, Trophy, Zap, Calendar, Star, X, GitCompareArrows } from 'lucide-react';
-import { formatExp } from '@/lib/utils/formatters';
+import { formatExp, getVocationColor } from '@/lib/utils/formatters';
 import { trackSearch } from '@/components/analytics/AnalyticsTracker';
 import { format } from 'date-fns';
 import ExpChart from './components/ExpChart';
@@ -100,6 +100,30 @@ const SKILL_LABELS: Record<string, string> = {
   fishing: 'Fish',
 };
 
+// Saved characters localStorage helpers
+interface SavedCharacter {
+  name: string;
+  world: string;
+  vocation: string;
+}
+
+const SAVED_KEY = 'rs_saved_characters';
+const MAX_SAVED = 20;
+
+function loadSaved(): SavedCharacter[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(SAVED_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistSaved(chars: SavedCharacter[]) {
+  localStorage.setItem(SAVED_KEY, JSON.stringify(chars.slice(0, MAX_SAVED)));
+}
+
 export default function ProgressionClient() {
   const searchParams = useSearchParams();
   const t = useTranslations('progression');
@@ -125,6 +149,37 @@ export default function ProgressionClient() {
   const [showCompareSearch, setShowCompareSearch] = useState(false);
   const compareTimeout = useRef<NodeJS.Timeout>(null);
   const compareDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Saved characters state
+  const [savedCharacters, setSavedCharacters] = useState<SavedCharacter[]>([]);
+
+  useEffect(() => {
+    setSavedCharacters(loadSaved());
+  }, []);
+
+  const isSaved = data
+    ? savedCharacters.some((c) => c.name.toLowerCase() === data.character.name.toLowerCase())
+    : false;
+
+  const toggleSave = useCallback(() => {
+    if (!data) return;
+    setSavedCharacters((prev) => {
+      const exists = prev.some((c) => c.name.toLowerCase() === data.character.name.toLowerCase());
+      const next = exists
+        ? prev.filter((c) => c.name.toLowerCase() !== data.character.name.toLowerCase())
+        : [...prev, { name: data.character.name, world: data.character.world.name, vocation: data.character.vocation || 'None' }];
+      persistSaved(next);
+      return next;
+    });
+  }, [data]);
+
+  const removeSaved = useCallback((name: string) => {
+    setSavedCharacters((prev) => {
+      const next = prev.filter((c) => c.name.toLowerCase() !== name.toLowerCase());
+      persistSaved(next);
+      return next;
+    });
+  }, []);
 
   const selectCharacter = useCallback(async (characterName: string) => {
     trackSearch(characterName, '/progression');
@@ -370,6 +425,41 @@ export default function ProgressionClient() {
             </Card>
           )}
         </div>
+
+        {/* Saved Characters Chips */}
+        {savedCharacters.length > 0 && (
+          <div className={`mt-3 w-full ${data ? 'max-w-md' : 'max-w-lg'}`}>
+            <p className="text-xs font-medium text-muted-foreground mb-1.5">{t('saved.heading')}</p>
+            <div className="flex flex-wrap gap-1.5">
+              {savedCharacters.map((char) => (
+                <button
+                  key={char.name}
+                  onClick={() => selectCharacter(char.name)}
+                  className="group flex items-center gap-1.5 rounded-full border border-border/50 bg-card/50 px-2.5 py-1 text-xs font-medium transition-colors hover:bg-accent/50"
+                >
+                  <span
+                    className="h-2 w-2 rounded-full shrink-0"
+                    style={{ backgroundColor: getVocationColor(char.vocation) }}
+                  />
+                  <span className="truncate max-w-[120px]">{char.name}</span>
+                  <span
+                    role="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeSaved(char.name);
+                    }}
+                    className="ml-0.5 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+                  >
+                    <X size={12} />
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {!data && !loading && savedCharacters.length === 0 && (
+          <p className="mt-2 text-xs text-muted-foreground/50">{t('saved.empty')}</p>
+        )}
       </div>
 
       {/* Loading State */}
@@ -390,6 +480,16 @@ export default function ProgressionClient() {
                 {data.character.vocation}
               </Badge>
             )}
+            <button
+              onClick={toggleSave}
+              title={isSaved ? t('saved.unsave') : t('saved.save')}
+              className="transition-colors hover:scale-110 active:scale-95"
+            >
+              <Star
+                size={20}
+                className={isSaved ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground hover:text-amber-400'}
+              />
+            </button>
             <div className="ml-auto flex items-center gap-2">
               {!showCompareSearch && !compareData && (
                 <button

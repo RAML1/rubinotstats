@@ -379,6 +379,12 @@
       "mediumConfidence": "Média Confiança",
       "lowConfidence": "Baixa Confiança"
     },
+    "saved": {
+      "heading": "Personagens Salvos",
+      "save": "Salvar personagem",
+      "unsave": "Remover dos salvos",
+      "empty": "Busque e salve personagens para acesso rápido"
+    },
     "compare": {
       "vs": "vs",
       "currentLevel": "Nível Atual",

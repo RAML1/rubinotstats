@@ -379,6 +379,12 @@
       "mediumConfidence": "Media Confianza",
       "lowConfidence": "Baja Confianza"
     },
+    "saved": {
+      "heading": "Personajes Guardados",
+      "save": "Guardar personaje",
+      "unsave": "Quitar de guardados",
+      "empty": "Busca y guarda personajes para acceso rápido"
+    },
     "compare": {
       "vs": "vs",
       "currentLevel": "Nivel Actual",

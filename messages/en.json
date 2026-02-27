@@ -379,6 +379,12 @@
       "mediumConfidence": "Medium Confidence",
       "lowConfidence": "Low Confidence"
     },
+    "saved": {
+      "heading": "Saved Characters",
+      "save": "Save character",
+      "unsave": "Remove from saved",
+      "empty": "Search and save characters for quick access"
+    },
     "compare": {
       "vs": "vs",
       "currentLevel": "Current Level",
