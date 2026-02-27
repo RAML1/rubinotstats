@@ -31,6 +31,7 @@ import {
   MessageCircle,
   TrendingUp,
   ArrowRightLeft,
+  Crown,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -68,6 +69,29 @@ interface DashboardData {
     total: number;
     premium: number;
     pendingRequests: number;
+    userList: {
+      id: string;
+      name: string | null;
+      email: string | null;
+      image: string | null;
+      premiumTier: string;
+      premiumSince: string | null;
+      premiumUntil: string | null;
+      isAdmin: boolean;
+      createdAt: string;
+    }[];
+    premiumRequests: {
+      id: number;
+      characterName: string;
+      requestedTier: string;
+      rcAmount: number | null;
+      transactionDate: string | null;
+      status: string;
+      adminNote: string | null;
+      reviewedAt: string | null;
+      createdAt: string;
+      user: { name: string | null; email: string | null; image: string | null };
+    }[];
   };
   gameData: {
     totalBans: number;
@@ -528,6 +552,116 @@ export function AdminAnalyticsClient() {
         <StatCard label="Feedback" value={community.feedback} icon={MessageCircle} color="text-pink-400" />
         <StatCard label="Active Listings" value={community.activeListings} icon={ShoppingCart} color="text-teal-400" />
       </div>
+
+      {/* Users Table */}
+      {users.userList?.length > 0 && (
+        <ChartCard title={`Users (Last ${users.userList.length})`}>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-border text-left text-muted-foreground">
+                  <th className="pb-2 pr-3">User</th>
+                  <th className="pb-2 pr-3">Email</th>
+                  <th className="pb-2 pr-3">Tier</th>
+                  <th className="pb-2 pr-3">Joined</th>
+                  <th className="pb-2">Premium Until</th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.userList.map((u) => (
+                  <tr key={u.id} className="border-b border-border/50 hover:bg-accent/30">
+                    <td className="py-2 pr-3">
+                      <div className="flex items-center gap-2">
+                        {u.image ? (
+                          <img src={u.image} alt="" className="h-6 w-6 rounded-full" />
+                        ) : (
+                          <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center text-[9px] font-bold">
+                            {u.name?.charAt(0) || '?'}
+                          </div>
+                        )}
+                        <span className="font-medium truncate max-w-[120px]">{u.name || '---'}</span>
+                        {u.isAdmin && <Shield className="h-3 w-3 text-primary shrink-0" />}
+                      </div>
+                    </td>
+                    <td className="py-2 pr-3 text-muted-foreground truncate max-w-[150px]">{u.email}</td>
+                    <td className="py-2 pr-3">
+                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium ${
+                        u.premiumTier === 'legacy' ? 'bg-amber-400/15 text-amber-400'
+                        : u.premiumTier === 'subscriber' ? 'bg-primary/15 text-primary'
+                        : 'bg-muted text-muted-foreground'
+                      }`}>
+                        {u.premiumTier !== 'free' && <Crown className="h-2.5 w-2.5" />}
+                        {u.premiumTier}
+                      </span>
+                    </td>
+                    <td className="py-2 pr-3 text-muted-foreground">
+                      {new Date(u.createdAt).toLocaleDateString()}
+                    </td>
+                    <td className="py-2 text-muted-foreground">
+                      {u.premiumUntil ? new Date(u.premiumUntil).toLocaleDateString() : u.premiumTier === 'legacy' ? 'Lifetime' : '---'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </ChartCard>
+      )}
+
+      {/* Premium Payment Log */}
+      {users.premiumRequests?.length > 0 && (
+        <ChartCard title={`Premium Payment Log (${users.premiumRequests.length})`}>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-border text-left text-muted-foreground">
+                  <th className="pb-2 pr-3">User</th>
+                  <th className="pb-2 pr-3">Character</th>
+                  <th className="pb-2 pr-3">Tier</th>
+                  <th className="pb-2 pr-3">RC</th>
+                  <th className="pb-2 pr-3">Payment Date</th>
+                  <th className="pb-2 pr-3">Status</th>
+                  <th className="pb-2">Reviewed</th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.premiumRequests.map((r) => (
+                  <tr key={r.id} className={`border-b border-border/50 hover:bg-accent/30 ${r.status === 'pending' ? 'bg-amber-400/5' : ''}`}>
+                    <td className="py-2 pr-3 font-medium truncate max-w-[100px]">
+                      {r.user.name || r.user.email || '---'}
+                    </td>
+                    <td className="py-2 pr-3">{r.characterName}</td>
+                    <td className="py-2 pr-3">
+                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium ${
+                        r.requestedTier === 'legacy' ? 'bg-amber-400/15 text-amber-400' : 'bg-primary/15 text-primary'
+                      }`}>
+                        <Crown className="h-2.5 w-2.5" />
+                        {r.requestedTier}
+                      </span>
+                    </td>
+                    <td className="py-2 pr-3 text-muted-foreground">{r.rcAmount || '---'}</td>
+                    <td className="py-2 pr-3 text-muted-foreground">
+                      {r.transactionDate ? new Date(r.transactionDate).toLocaleDateString() : '---'}
+                    </td>
+                    <td className="py-2 pr-3">
+                      <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${
+                        r.status === 'approved' ? 'bg-green-500/15 text-green-500'
+                        : r.status === 'rejected' ? 'bg-destructive/15 text-destructive'
+                        : 'bg-amber-400/15 text-amber-400'
+                      }`}>
+                        {r.status}
+                      </span>
+                    </td>
+                    <td className="py-2 text-muted-foreground">
+                      {r.reviewedAt ? new Date(r.reviewedAt).toLocaleDateString() : '---'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </ChartCard>
+      )}
 
       {/* ═══════════════════════════════════════════════════════════════ */}
       {/* GAME DATA SECTION */}

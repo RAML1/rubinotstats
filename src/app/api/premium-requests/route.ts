@@ -26,7 +26,7 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const { characterName, requestedTier, rcAmount } = body;
+  const { characterName, requestedTier, rcAmount, transactionDate } = body;
 
   if (!characterName || !requestedTier) {
     return NextResponse.json(
@@ -60,6 +60,7 @@ export async function POST(request: Request) {
       characterName,
       requestedTier,
       rcAmount: rcAmount ? parseInt(rcAmount, 10) : null,
+      transactionDate: transactionDate ? new Date(transactionDate) : null,
     },
   });
 

@@ -17,6 +17,7 @@ interface PremiumRequestWithUser {
   characterName: string;
   requestedTier: string;
   rcAmount: number | null;
+  transactionDate: string | null;
   status: string;
   adminNote: string | null;
   reviewedAt: string | null;
@@ -121,7 +122,10 @@ export function AdminPremiumRequestsClient() {
               {r.rcAmount ? (
                 <> &middot; {r.rcAmount} RC</>
               ) : null}
-              &nbsp;&middot; {new Date(r.createdAt).toLocaleDateString()}
+              {r.transactionDate ? (
+                <> &middot; Paid: <strong className="text-foreground">{new Date(r.transactionDate).toLocaleDateString()}</strong></>
+              ) : null}
+              &nbsp;&middot; Submitted: {new Date(r.createdAt).toLocaleDateString()}
             </div>
 
             <div className="flex gap-2">
@@ -174,6 +178,7 @@ export function AdminPremiumRequestsClient() {
                 <p className="text-xs text-muted-foreground">
                   {r.requestedTier === "legacy" ? "Legacy" : "Subscriber"} &middot;{" "}
                   {new Date(r.createdAt).toLocaleDateString()}
+                  {r.transactionDate && ` · Paid: ${new Date(r.transactionDate).toLocaleDateString()}`}
                   {r.adminNote && ` — ${r.adminNote}`}
                 </p>
               </div>

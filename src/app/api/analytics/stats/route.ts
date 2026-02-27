@@ -46,6 +46,8 @@ export async function GET() {
       totalUsers,
       premiumUsers,
       pendingRequests,
+      userListRaw,
+      premiumRequestsRaw,
 
       // Game Data
       totalBans,
@@ -156,6 +158,20 @@ export async function GET() {
       prisma.user.count(),
       prisma.user.count({ where: { premiumTier: { not: 'free' } } }),
       prisma.premiumRequest.count({ where: { status: 'pending' } }),
+      prisma.user.findMany({
+        select: {
+          id: true, name: true, email: true, image: true,
+          premiumTier: true, premiumSince: true, premiumUntil: true,
+          isAdmin: true, createdAt: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+      }),
+      prisma.premiumRequest.findMany({
+        include: { user: { select: { name: true, email: true, image: true } } },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+      }),
 
       // -- Game Data --
       prisma.ban.count(),
@@ -227,6 +243,29 @@ export async function GET() {
           total: totalUsers,
           premium: premiumUsers,
           pendingRequests,
+          userList: userListRaw.map(u => ({
+            id: u.id,
+            name: u.name,
+            email: u.email,
+            image: u.image,
+            premiumTier: u.premiumTier,
+            premiumSince: u.premiumSince?.toISOString() || null,
+            premiumUntil: u.premiumUntil?.toISOString() || null,
+            isAdmin: u.isAdmin,
+            createdAt: u.createdAt.toISOString(),
+          })),
+          premiumRequests: premiumRequestsRaw.map(r => ({
+            id: r.id,
+            characterName: r.characterName,
+            requestedTier: r.requestedTier,
+            rcAmount: r.rcAmount,
+            transactionDate: r.transactionDate?.toISOString() || null,
+            status: r.status,
+            adminNote: r.adminNote,
+            reviewedAt: r.reviewedAt?.toISOString() || null,
+            createdAt: r.createdAt.toISOString(),
+            user: r.user,
+          })),
         },
         gameData: {
           totalBans,

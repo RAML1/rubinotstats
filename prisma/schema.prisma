@@ -80,6 +80,7 @@ model PremiumRequest {
   characterName   String    @map("character_name") @db.VarChar(255)
   requestedTier   String    @map("requested_tier") @db.VarChar(20) // legacy, subscriber
   rcAmount        Int?      @map("rc_amount")
+  transactionDate DateTime? @map("transaction_date")
   status          String    @default("pending") @db.VarChar(20) // pending, approved, rejected
   adminNote       String?   @map("admin_note") @db.Text
   reviewedAt      DateTime? @map("reviewed_at")

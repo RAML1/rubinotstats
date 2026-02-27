@@ -23,6 +23,7 @@ interface PremiumRequest {
   characterName: string;
   requestedTier: string;
   rcAmount: number | null;
+  transactionDate: string | null;
   status: string;
   adminNote: string | null;
   createdAt: string;
@@ -51,6 +52,7 @@ export function PremiumClient() {
     "legacy"
   );
   const [rcAmount, setRcAmount] = useState("");
+  const [transactionDate, setTransactionDate] = useState("");
 
   const FEATURES = [
     {
@@ -116,7 +118,7 @@ export function PremiumClient() {
       const res = await fetch("/api/premium-requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ characterName, requestedTier, rcAmount }),
+        body: JSON.stringify({ characterName, requestedTier, rcAmount, transactionDate: transactionDate || null }),
       });
       const data = await res.json();
 
@@ -127,6 +129,7 @@ export function PremiumClient() {
         setRequests((prev) => [data.data, ...prev]);
         setCharacterName("");
         setRcAmount("");
+        setTransactionDate("");
       }
     } catch {
       setError(t("form.networkError"));
@@ -286,6 +289,9 @@ export function PremiumClient() {
                   {pendingRequest.rcAmount
                     ? ` · ${pendingRequest.rcAmount} RC`
                     : ""}
+                  {pendingRequest.transactionDate
+                    ? ` · ${new Date(pendingRequest.transactionDate).toLocaleDateString()}`
+                    : ""}
                 </p>
               </div>
             </div>
@@ -318,6 +324,18 @@ export function PremiumClient() {
                   onChange={(e) => setRcAmount(e.target.value)}
                   placeholder={t("form.rcAmountPlaceholder")}
                   className="w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
+                  {t("form.transactionDateLabel")}
+                </label>
+                <input
+                  type="date"
+                  value={transactionDate}
+                  onChange={(e) => setTransactionDate(e.target.value)}
+                  className="w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary [color-scheme:dark]"
                 />
               </div>
 
@@ -374,6 +392,7 @@ export function PremiumClient() {
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {new Date(r.createdAt).toLocaleDateString()}
+                      {r.transactionDate && ` · Paid: ${new Date(r.transactionDate).toLocaleDateString()}`}
                       {r.adminNote && ` — ${r.adminNote}`}
                     </p>
                   </div>

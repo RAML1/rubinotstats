@@ -554,6 +554,7 @@
       "characterNamePlaceholder": "ej: Super Bonk Lee",
       "rcAmountLabel": "Cantidad de RC enviada",
       "rcAmountPlaceholder": "Cantidad de RC enviada",
+      "transactionDateLabel": "Fecha del pago",
       "submitButton": "Enviar Solicitud Premium",
       "networkError": "Error de red. Inténtalo de nuevo.",
       "somethingWentWrong": "Algo salió mal",
