@@ -21,6 +21,7 @@ import { Logo } from "@/components/brand/Logo";
 import { MobileNav } from "./MobileNav";
 import { UserMenu } from "./UserMenu";
 import { LocaleSwitcher } from "./LocaleSwitcher";
+import { BoostedBanner } from "./BoostedBanner";
 
 const navItems = [
   { href: "/", labelKey: "home", icon: Home },
@@ -68,8 +69,11 @@ export function Header() {
             </div>
           </div>
 
-          {/* Right side — locale + tip + auth + mobile menu */}
+          {/* Right side — boosted + locale + tip + auth + mobile menu */}
           <div className="ml-auto flex items-center gap-3">
+            {/* Boosted creature & boss */}
+            <BoostedBanner />
+
             {/* Tip message */}
             <div className="hidden lg:flex items-center gap-1.5 rounded-full bg-white/10 border border-white/20 px-3 py-1 backdrop-blur-sm">
               <Heart className="h-3 w-3 text-white fill-white" />
