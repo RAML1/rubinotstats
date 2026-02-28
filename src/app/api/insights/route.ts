@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth-helpers";
 import { isPremium } from "@/lib/utils/premium";
 import { prisma } from "@/lib/db/prisma";
+import { computeValuations } from "@/lib/utils/valuation";
 
 export const dynamic = "force-dynamic";
 
@@ -290,13 +291,14 @@ export async function GET() {
     `,
   ]);
 
-  // Best deals — computed in-memory from current auctions vs market stats
-  const marketStats = await prisma.marketStats.findMany();
+  // Best deals — computed using similarity-based valuations
   const currentAuctions = await prisma.currentAuction.findMany({
     where: { isActive: true, currentBid: { gt: 0 }, level: { not: null }, vocation: { not: null } },
     orderBy: { currentBid: "asc" },
     take: 500,
   });
+
+  const valuations = await computeValuations(currentAuctions);
 
   const bestDeals: {
     characterName: string; externalId: string; level: number;
@@ -305,14 +307,9 @@ export async function GET() {
 
   for (const auction of currentAuctions) {
     if (!auction.level || !auction.vocation || !auction.currentBid) continue;
-    const stat = marketStats.find(
-      (s) =>
-        s.vocation === auction.vocation &&
-        auction.level! >= s.levelMin &&
-        auction.level! <= s.levelMax
-    );
-    if (!stat || !stat.medianPrice) continue;
-    const estimated = Number(stat.medianPrice);
+    const val = valuations[auction.id];
+    if (!val) continue;
+    const estimated = val.estimatedValue;
     if (estimated <= 0) continue;
     const discount = Math.round(((estimated - auction.currentBid) / estimated) * 100);
     if (discount >= 20) {

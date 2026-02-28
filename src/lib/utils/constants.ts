@@ -84,8 +84,8 @@ export const DAILY_PROFESSIONS: (keyof typeof HIGHSCORE_PROFESSIONS)[] = [
   'Monks',
 ];
 
-/** Core categories for daily scrape (exp + all combat skills).
- *  NOTE: Charm Points is NOT supported by the /api/highscores endpoint. */
+/** Core categories for daily scrape (exp + all combat skills + charm).
+ *  NOTE: Charm Points uses HTML scraping fallback (not supported by /api/highscores). */
 export const DAILY_CATEGORIES: (keyof typeof HIGHSCORE_CATEGORIES)[] = [
   'Experience Points',
   'Magic Level',
@@ -96,6 +96,7 @@ export const DAILY_CATEGORIES: (keyof typeof HIGHSCORE_CATEGORIES)[] = [
   'Distance Fighting',
   'Shielding',
   'Fishing',
+  'Charm Points',
 ];
 
 /**
@@ -171,6 +172,7 @@ export const RUBINOT_URLS = {
     highscores: '/api/highscores',
     worlds: '/api/worlds',
     boosted: '/api/boosted',
+    deaths: '/api/deaths',
   },
 } as const;
 

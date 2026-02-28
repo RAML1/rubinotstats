@@ -135,6 +135,7 @@ type ValuationData = {
   maxPrice: number;
   sampleSize: number;
   itemBonus?: number;
+  confidence?: 'high' | 'medium' | 'low';
 };
 
 type FeaturedAuctionInfo = {

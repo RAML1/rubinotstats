@@ -41,6 +41,15 @@ export async function GET(request: NextRequest) {
 
     const snapshot = character.characterSnapshots[0];
 
+    // Look up charm points from highscore entries
+    const charmEntry = await prisma.highscoreEntry.findFirst({
+      where: {
+        characterName: { equals: characterName, mode: 'insensitive' },
+        category: 'Charm Points',
+      },
+      orderBy: { capturedDate: 'desc' },
+    });
+
     const stats: CharacterStats = {
       level: snapshot.level ?? 1,
       vocation: character.vocation || 'None',
@@ -54,8 +63,7 @@ export async function GET(request: NextRequest) {
         shielding: snapshot.shielding,
         fishing: snapshot.fishing,
       },
-      // Note: charm/quest/mount/outfit data comes from auction records, not progression snapshots.
-      // We'll leave these null and the algorithm handles it gracefully.
+      charmPoints: charmEntry ? Number(charmEntry.score) : null,
     };
 
     const valuation = await estimateCharacterValue(stats);

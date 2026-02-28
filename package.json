@@ -19,7 +19,9 @@
     "update:bids": "tsx scripts/update-bids.ts",
     "scrape:boosted": "tsx scripts/scrape-boosted.ts",
     "scrape:bans": "tsx scripts/scrape-bans.ts",
-    "scrape:transfers": "tsx scripts/scrape-transfers.ts"
+    "scrape:transfers": "tsx scripts/scrape-transfers.ts",
+    "scrape:deaths": "tsx scripts/scrape-deaths.ts",
+    "refresh:stats": "tsx scripts/refresh-market-stats.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",
