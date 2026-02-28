@@ -17,18 +17,11 @@ export async function GET() {
     const monthAgo = new Date(today.getTime() - 30 * 86400000);
     const twoWeeksAgo = new Date(today.getTime() - 14 * 86400000);
 
-    // First, get admin visitor IDs (visitors who have ever visited /admin pages)
-    const adminVisitorRows = await prisma.$queryRaw<{ visitor_id: string }[]>`
-      SELECT DISTINCT visitor_id FROM analytics_events WHERE page_path LIKE '/admin%'`;
-    const adminVisitorIds = adminVisitorRows.map(r => r.visitor_id);
-
-    // Build the exclusion clause
-    const excludeAdmin = adminVisitorIds.length > 0
-      ? Prisma.sql`AND visitor_id NOT IN (${Prisma.join(adminVisitorIds)})`
-      : Prisma.empty;
-    const excludeAdminSession = adminVisitorIds.length > 0
-      ? Prisma.sql`AND visitor_id NOT IN (${Prisma.join(adminVisitorIds)})`
-      : Prisma.empty;
+    // Subquery to exclude admin visitors (those who ever visited /admin pages)
+    // Using a raw SQL fragment since visitor_id is UUID type
+    const adminExclude = Prisma.sql`AND visitor_id NOT IN (SELECT DISTINCT visitor_id FROM analytics_events WHERE page_path LIKE '/admin%')`;
+    const excludeAdmin = adminExclude;
+    const excludeAdminSession = adminExclude;
 
     const [
       // Traffic (all exclude admin visitors)
