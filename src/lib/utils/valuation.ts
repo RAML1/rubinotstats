@@ -95,39 +95,15 @@ function computeItemBonus(displayItems: string | null, baseEstimate: number): nu
   }
 }
 
-// ── Display items similarity scoring ─────────────────────────────────
-
-function computeDisplayItemPoints(displayItems: string | null): number {
-  if (!displayItems) return 0;
-  try {
-    const parsed = JSON.parse(displayItems);
-    if (!Array.isArray(parsed)) return 0;
-    let points = 0;
-    for (const item of parsed) {
-      if (typeof item === 'string') continue;
-      const { name, tier } = item as DisplayItem;
-      if (tier && tier > 0) points += TIER_VALUES[tier] ?? tier * 10;
-      if (name) {
-        const lower = name.toLowerCase();
-        if (HIGH_VALUE_KEYWORDS.some((kw) => lower.includes(kw))) points += 10;
-      }
-    }
-    return points;
-  } catch {
-    return 0;
-  }
-}
-
 // ── Similarity scoring ───────────────────────────────────────────────
 
 const WEIGHTS = {
-  level: 0.30,
+  level: 0.35,
   magicLevel: 0.15,
   primarySkill: 0.15,
   charm: 0.10,
   quests: 0.10,
-  storeItems: 0.10,
-  displayItems: 0.10,
+  storeItems: 0.15,
 };
 
 function clamp(value: number, min: number, max: number): number {
@@ -140,7 +116,6 @@ function proximityScore(a: number | null | undefined, b: number | null | undefin
 }
 
 interface SoldAuctionRow {
-  external_id: string;
   level: number;
   vocation: string;
   sold_price: number;
@@ -156,7 +131,6 @@ interface SoldAuctionRow {
   soul_war_available: boolean | null;
   sanguine_blood_available: boolean | null;
   store_items_count: number | null;
-  display_items: string | null;
 }
 
 interface AuctionInput {
@@ -222,19 +196,13 @@ function computeSimilarity(target: AuctionInput, sold: SoldAuctionRow): number {
   // Store items proximity
   const storeScore = proximityScore(target.storeItemsCount, sold.store_items_count, 50);
 
-  // Display items similarity (point-based)
-  const targetItemPts = computeDisplayItemPoints(target.displayItems ?? null);
-  const soldItemPts = computeDisplayItemPoints(sold.display_items);
-  const itemScore = proximityScore(targetItemPts, soldItemPts, 100);
-
   return (
     WEIGHTS.level * levelScore +
     WEIGHTS.magicLevel * mlScore +
     WEIGHTS.primarySkill * primaryScore +
     WEIGHTS.charm * charmScore +
     WEIGHTS.quests * questScore +
-    WEIGHTS.storeItems * storeScore +
-    WEIGHTS.displayItems * itemScore
+    WEIGHTS.storeItems * storeScore
   );
 }
 
@@ -249,12 +217,13 @@ export async function computeValuations(
   auctions: AuctionInput[]
 ): Promise<Record<number, ValuationData>> {
   // Fetch ALL sold auctions with relevant fields (grouped processing in-memory)
+  // Note: display_items excluded from sold query to keep data size small (~10k rows)
   const soldRows = await prisma.$queryRaw<SoldAuctionRow[]>`
     SELECT
-      external_id, level, vocation, sold_price,
+      level, vocation, sold_price,
       magic_level, fist, club, sword, axe, distance, shielding,
       charm_points, primal_ordeal_available, soul_war_available,
-      sanguine_blood_available, store_items_count, display_items
+      sanguine_blood_available, store_items_count
     FROM auctions
     WHERE auction_status = 'sold'
       AND sold_price > 0
@@ -296,7 +265,6 @@ export async function computeValuations(
     const scored = candidates.map((s) => ({
       soldPrice: s.sold_price,
       similarity: computeSimilarity(auction, s),
-      displayItems: s.display_items,
     }));
 
     // Filter by minimum similarity and take top 30
