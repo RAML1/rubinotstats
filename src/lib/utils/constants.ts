@@ -85,7 +85,7 @@ export const DAILY_PROFESSIONS: (keyof typeof HIGHSCORE_PROFESSIONS)[] = [
 ];
 
 /** Core categories for daily scrape (exp + all combat skills + charm).
- *  NOTE: Charm Points uses HTML scraping fallback (not supported by /api/highscores). */
+ *  Charm Points uses API param 'charmtotalpoints'. */
 export const DAILY_CATEGORIES: (keyof typeof HIGHSCORE_CATEGORIES)[] = [
   'Experience Points',
   'Magic Level',

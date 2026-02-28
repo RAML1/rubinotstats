@@ -565,13 +565,21 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Calculate daily gains — look back to last snapshot with valid data
+    // (handles gaps where a category wasn't scraped for some days)
+    let lastExpIdx = snapshots[0]?.experience != null ? 0 : -1;
+    let lastLevelIdx = snapshots[0]?.level != null ? 0 : -1;
+
     for (let i = 1; i < snapshots.length; i++) {
-      if (snapshots[i].experience != null && snapshots[i - 1].experience != null) {
-        snapshots[i].expGained = snapshots[i].experience - snapshots[i - 1].experience;
+      if (snapshots[i].experience != null && lastExpIdx >= 0) {
+        snapshots[i].expGained = snapshots[i].experience - snapshots[lastExpIdx].experience;
       }
-      if (snapshots[i].level != null && snapshots[i - 1].level != null) {
-        snapshots[i].levelsGained = snapshots[i].level - snapshots[i - 1].level;
+      if (snapshots[i].experience != null) lastExpIdx = i;
+
+      if (snapshots[i].level != null && lastLevelIdx >= 0) {
+        snapshots[i].levelsGained = snapshots[i].level - snapshots[lastLevelIdx].level;
       }
+      if (snapshots[i].level != null) lastLevelIdx = i;
     }
 
     // 4. Get vocation averages by level range across all worlds
