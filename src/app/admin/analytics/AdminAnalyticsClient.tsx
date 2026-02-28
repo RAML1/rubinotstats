@@ -159,7 +159,7 @@ function timeAgo(dateStr: string) {
 }
 
 function formatDay(day: string): string {
-  return new Date(day + 'T12:00:00').toLocaleDateString('en', { month: 'short', day: 'numeric' });
+  return new Date(day + 'T12:00:00Z').toLocaleDateString('en', { month: 'short', day: 'numeric', timeZone: 'America/Mexico_City' });
 }
 
 const countryNames = new Intl.DisplayNames(['en'], { type: 'region' });

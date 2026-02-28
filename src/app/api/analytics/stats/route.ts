@@ -11,8 +11,13 @@ export async function GET() {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 403 });
     }
 
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    // Use America/Mexico_City (CST, UTC-6) so "today" matches the admin's local time
+    // Get current date parts in MX timezone, then build midnight-MX as a UTC timestamp
+    const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City', year: 'numeric', month: '2-digit', day: '2-digit' });
+    const mxDateStr = formatter.format(new Date()); // "2026-02-27"
+    const [y, m, d] = mxDateStr.split('-').map(Number);
+    // Midnight in MX (UTC-6) = 06:00 UTC
+    const today = new Date(`${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}T06:00:00.000Z`);
     const weekAgo = new Date(today.getTime() - 7 * 86400000);
     const monthAgo = new Date(today.getTime() - 30 * 86400000);
     const twoWeeksAgo = new Date(today.getTime() - 14 * 86400000);
