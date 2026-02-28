@@ -8,7 +8,8 @@
     "bans": "Baneos",
     "transfers": "Transferencias",
     "premium": "Premium",
-    "featureRequests": "Sugerencias"
+    "featureRequests": "Sugerencias",
+    "pvp": "PvP"
   },
   "auth": {
     "signIn": "Iniciar sesión",
@@ -260,7 +261,7 @@
       "itemNamePlaceholder": "ej: Sanguine Bow",
       "fieldTier": "Tier (opcional)",
       "tierPlaceholder": "0-10",
-      "fieldPrice": "Precio (RC) *",
+      "fieldPrice": "Precio (Gold Coins) *",
       "pricePlaceholder": "500",
       "fieldQuantity": "Cantidad",
       "fieldCharacterName": "Nombre del Personaje *",
@@ -279,7 +280,7 @@
     },
     "priceTooltip": {
       "approximateValue": "Valor Aproximado",
-      "basedOn": "Basado en 1 RC ≈ R$ {rate}"
+      "basedOn": "Basado en 1 Gold Coin ≈ R$ {rate}"
     }
   },
   "progression": {
@@ -530,10 +531,10 @@
     },
     "tiers": {
       "legacyTitle": "Apoyo Legado",
-      "legacyPrice": "Vitalicio",
-      "legacyDesc": "Pago único en RC. Acceso a todas las funciones premium para siempre.",
+      "legacyPrice": "300 RC",
+      "legacyDesc": "Pago único. Acceso a todas las funciones premium para siempre. Limitado a 20 personas.",
       "soldOut": "AGOTADO — Las {limit} plazas están ocupadas",
-      "spotsClaimed": "{count}/{limit} plazas ocupadas — {remaining} restantes",
+      "spotsClaimed": "Limitado a {limit} personas",
       "subscriberTitle": "Suscriptor",
       "subscriberPrice": "Mensual",
       "subscriberDesc": "Pago mensual en RC. Todas las funciones premium mientras esté activo."
@@ -544,16 +545,16 @@
     "allFeaturesUnlocked": "Todas las funciones premium están desbloqueadas.",
     "instructions": {
       "heading": "Cómo obtener premium:",
-      "step1": "Envía la cantidad de RC al personaje <strong>Super Bonk Lee</strong> en el juego",
-      "step2": "Completa el formulario con el nombre de tu personaje",
+      "step1": "Envía <strong>300 RC</strong> al personaje <strong>Super Bonk Lee</strong> en el juego",
+      "step2": "Completa el formulario con el nombre del personaje desde el que enviaste y la fecha",
       "step3": "Verificaremos el pago y activaremos tu premium en <strong>24 horas</strong>"
     },
     "pendingReview": "Solicitud en revisión",
     "form": {
       "characterNameLabel": "Nombre de tu personaje",
       "characterNamePlaceholder": "ej: Super Bonk Lee",
-      "rcAmountLabel": "Cantidad de RC enviada",
-      "rcAmountPlaceholder": "Cantidad de RC enviada",
+      "rcAmountLabel": "RC enviadas",
+      "rcAmountPlaceholder": "300",
       "transactionDateLabel": "Fecha del pago",
       "submitButton": "Enviar Solicitud Premium",
       "networkError": "Error de red. Inténtalo de nuevo.",
@@ -721,5 +722,33 @@
     "submitButton": "Enviar Mensaje",
     "thankYou": "¡Mensaje enviado!",
     "weWillReach": "Te contactaremos pronto."
+  },
+  "pvp": {
+    "heading": "Ranking PvP",
+    "subheading": "Rastrea kills, top peleadores y actividad PvP en todos los mundos",
+    "totalKills": "Total de Kills",
+    "uniqueKillers": "Killers Únicos",
+    "uniqueVictims": "Víctimas Únicas",
+    "mostActiveWorld": "Mundo Más Activo",
+    "topKillers": "Top Killers",
+    "topVictims": "Más Muertes",
+    "killsByWorld": "Kills por Mundo",
+    "killsOverTime": "Kills a lo Largo del Tiempo",
+    "recentKills": "Kills Recientes",
+    "killer": "Killer",
+    "victim": "Víctima",
+    "level": "Nivel",
+    "world": "Mundo",
+    "time": "Hora",
+    "kills": "kills",
+    "deaths": "muertes",
+    "allWorlds": "Todos los Mundos",
+    "allTime": "Todo el Período",
+    "last24h": "Últimas 24h",
+    "last7d": "Últimos 7 días",
+    "last30d": "Últimos 30 días",
+    "searchPlaceholder": "Buscar jugador...",
+    "noKills": "Ninguna kill PvP registrada aún",
+    "noKillsDescription": "Las kills PvP aparecerán aquí cuando el scraper recopile datos"
   }
 }

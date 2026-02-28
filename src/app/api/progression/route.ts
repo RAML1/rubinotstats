@@ -489,8 +489,17 @@ export async function GET(request: NextRequest) {
           distance: null,
           shielding: null,
           fishing: null,
+          charmPoints: null,
           expRank: null,
           mlRank: null,
+          fistRank: null,
+          clubRank: null,
+          swordRank: null,
+          axeRank: null,
+          distanceRank: null,
+          shieldingRank: null,
+          fishingRank: null,
+          charmRank: null,
           expGained: 0,
           levelsGained: 0,
         });
@@ -512,18 +521,28 @@ export async function GET(request: NextRequest) {
         snapshot.mlRank = entry.rank;
       } else if (cat === 'Fist Fighting') {
         snapshot.fist = score;
+        snapshot.fistRank = entry.rank;
       } else if (cat === 'Club Fighting') {
         snapshot.club = score;
+        snapshot.clubRank = entry.rank;
       } else if (cat === 'Sword Fighting') {
         snapshot.sword = score;
+        snapshot.swordRank = entry.rank;
       } else if (cat === 'Axe Fighting') {
         snapshot.axe = score;
+        snapshot.axeRank = entry.rank;
       } else if (cat === 'Distance Fighting') {
         snapshot.distance = score;
+        snapshot.distanceRank = entry.rank;
       } else if (cat === 'Shielding') {
         snapshot.shielding = score;
+        snapshot.shieldingRank = entry.rank;
       } else if (cat === 'Fishing') {
         snapshot.fishing = score;
+        snapshot.fishingRank = entry.rank;
+      } else if (cat === 'Charm Points') {
+        snapshot.charmPoints = score;
+        snapshot.charmRank = entry.rank;
       }
     }
 
@@ -531,6 +550,20 @@ export async function GET(request: NextRequest) {
     let snapshots: any[] = Array.from(dateMap.values()).sort(
       (a: any, b: any) => new Date(a.capturedDate).getTime() - new Date(b.capturedDate).getTime()
     );
+
+    // If no snapshot has Experience Points data, estimate EXP from levels
+    // using the standard Tibia formula: EXP(lvl) = (50/3) * (lvl^3 - 6*lvl^2 + 17*lvl - 12)
+    const hasExpData = snapshots.some(s => s.experience != null);
+    if (!hasExpData) {
+      const levelToExp = (lvl: number) =>
+        Math.round((50 / 3) * (lvl * lvl * lvl - 6 * lvl * lvl + 17 * lvl - 12));
+      for (const s of snapshots) {
+        if (s.level > 0) {
+          s.experience = levelToExp(s.level);
+          s.estimatedExp = true;
+        }
+      }
+    }
 
     for (let i = 1; i < snapshots.length; i++) {
       if (snapshots[i].experience != null && snapshots[i - 1].experience != null) {
@@ -541,10 +574,10 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 4. Get vocation averages by level range (+/- 10 levels) across all worlds
+    // 4. Get vocation averages by level range across all worlds
+    // Use progressively wider ranges to ensure we find comparison data
     let vocationAverages = null;
     if (char.vocation) {
-      // Determine character level from latest snapshot or highscores
       let charLevel = 0;
       if (snapshots.length > 0) {
         charLevel = (snapshots[snapshots.length - 1] as any).level || 0;
@@ -552,42 +585,93 @@ export async function GET(request: NextRequest) {
         charLevel = Math.max(...highscores.map((h: any) => h.level || 0));
       }
 
-      const levelMin = Math.max(1, charLevel - 100);
-      const levelMax = charLevel + 100;
+      // Try progressively wider ranges: ±100, ±250, ±500, then top 200 auctions
+      const ranges = [100, 250, 500];
+      let usedRange = '';
 
-      const auctionStats = await prisma.auction.groupBy({
-        by: ['vocation'],
-        where: {
-          vocation: char.vocation,
-          level: { gte: levelMin, lte: levelMax },
-        },
-        _avg: {
-          level: true,
-          magicLevel: true,
-          fist: true,
-          club: true,
-          sword: true,
-          axe: true,
-          distance: true,
-          shielding: true,
-          fishing: true,
-        },
-      });
+      for (const range of ranges) {
+        const levelMin = Math.max(1, charLevel - range);
+        const levelMax = charLevel + range;
 
-      if (auctionStats.length > 0) {
-        vocationAverages = {
-          vocation: char.vocation,
-          levelRange: `${levelMin}-${levelMax}`,
-          avgLevel: auctionStats[0]._avg.level,
-          avgMagicLevel: auctionStats[0]._avg.magicLevel,
-          avgFist: auctionStats[0]._avg.fist,
-          avgClub: auctionStats[0]._avg.club,
-          avgSword: auctionStats[0]._avg.sword,
-          avgAxe: auctionStats[0]._avg.axe,
-          avgDistance: auctionStats[0]._avg.distance,
-          avgShielding: auctionStats[0]._avg.shielding,
-          avgFishing: auctionStats[0]._avg.fishing,
-        };
+        const auctionStats = await prisma.auction.groupBy({
+          by: ['vocation'],
+          where: {
+            vocation: char.vocation,
+            level: { gte: levelMin, lte: levelMax },
+          },
+          _avg: {
+            level: true,
+            magicLevel: true,
+            fist: true,
+            club: true,
+            sword: true,
+            axe: true,
+            distance: true,
+            shielding: true,
+            fishing: true,
+          },
+        });
+
+        if (auctionStats.length > 0) {
+          usedRange = `${levelMin}-${levelMax}`;
+          vocationAverages = {
+            vocation: char.vocation,
+            levelRange: usedRange,
+            avgLevel: auctionStats[0]._avg.level,
+            avgMagicLevel: auctionStats[0]._avg.magicLevel,
+            avgFist: auctionStats[0]._avg.fist,
+            avgClub: auctionStats[0]._avg.club,
+            avgSword: auctionStats[0]._avg.sword,
+            avgAxe: auctionStats[0]._avg.axe,
+            avgDistance: auctionStats[0]._avg.distance,
+            avgShielding: auctionStats[0]._avg.shielding,
+            avgFishing: auctionStats[0]._avg.fishing,
+          };
+          break;
+        }
+      }
+
+      // Final fallback: use top 200 highest-level auctions for this vocation
+      if (!vocationAverages) {
+        const topAuctions = await prisma.auction.findMany({
+          where: { vocation: char.vocation },
+          orderBy: { level: 'desc' },
+          take: 200,
+          select: {
+            level: true,
+            magicLevel: true,
+            fist: true,
+            club: true,
+            sword: true,
+            axe: true,
+            distance: true,
+            shielding: true,
+            fishing: true,
+          },
+        });
+
+        if (topAuctions.length > 0) {
+          const count = topAuctions.length;
+          const sum = (key: keyof typeof topAuctions[0]) =>
+            topAuctions.reduce((acc, a) => acc + ((a[key] as number) || 0), 0);
+
+          const minLevel = topAuctions[topAuctions.length - 1].level || 0;
+          const maxLevel = topAuctions[0].level || 0;
+
+          vocationAverages = {
+            vocation: char.vocation,
+            levelRange: `${minLevel}-${maxLevel}`,
+            avgLevel: sum('level') / count,
+            avgMagicLevel: sum('magicLevel') / count,
+            avgFist: sum('fist') / count,
+            avgClub: sum('club') / count,
+            avgSword: sum('sword') / count,
+            avgAxe: sum('axe') / count,
+            avgDistance: sum('distance') / count,
+            avgShielding: sum('shielding') / count,
+            avgFishing: sum('fishing') / count,
+          };
+        }
       }
     }
 
@@ -596,6 +680,41 @@ export async function GET(request: NextRequest) {
 
     // 6. Derive milestones
     const milestones = deriveMilestones(snapshots);
+
+    // 7. Build skill ranks by walking backwards through snapshots to find latest non-null rank for each skill
+    const rankKeys = [
+      ['experience', 'expRank'],
+      ['magicLevel', 'mlRank'],
+      ['fist', 'fistRank'],
+      ['club', 'clubRank'],
+      ['sword', 'swordRank'],
+      ['axe', 'axeRank'],
+      ['distance', 'distanceRank'],
+      ['shielding', 'shieldingRank'],
+      ['fishing', 'fishingRank'],
+      ['charmPoints', 'charmRank'],
+    ] as const;
+
+    let skillRanks: Record<string, number | null> | null = null;
+    if (snapshots.length > 0) {
+      skillRanks = {};
+      for (const [outputKey, snapshotKey] of rankKeys) {
+        for (let i = snapshots.length - 1; i >= 0; i--) {
+          const val = (snapshots[i] as any)[snapshotKey];
+          if (val != null) {
+            skillRanks[outputKey] = val;
+            break;
+          }
+        }
+        if (!(outputKey in skillRanks)) {
+          skillRanks[outputKey] = null;
+        }
+      }
+      // If all ranks are null, set to null
+      if (Object.values(skillRanks).every((v) => v === null)) {
+        skillRanks = null;
+      }
+    }
 
     // Serialize BigInt values
     const response = {
@@ -607,6 +726,8 @@ export async function GET(request: NextRequest) {
         vocationAverages: serializeBigInt(vocationAverages),
         kpis: serializeBigInt(kpis),
         milestones: serializeBigInt(milestones),
+        skillRanks: serializeBigInt(skillRanks),
+        estimatedExp: !hasExpData,
       },
     };
 

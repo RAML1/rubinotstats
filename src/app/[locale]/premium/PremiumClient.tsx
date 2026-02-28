@@ -195,9 +195,7 @@ export function PremiumClient() {
             <div className={`mt-2 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${
               legacyCount.isFull
                 ? "bg-red-500/15 text-red-400 border border-red-500/20"
-                : legacyCount.remaining <= 5
-                  ? "bg-amber-500/15 text-amber-400 border border-amber-500/20"
-                  : "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20"
+                : "bg-amber-500/15 text-amber-400 border border-amber-500/20"
             }`}>
               {legacyCount.isFull ? (
                 <>
@@ -207,7 +205,7 @@ export function PremiumClient() {
               ) : (
                 <>
                   <Flame className="h-3 w-3" />
-                  {t("tiers.spotsClaimed", { count: legacyCount.count, limit: legacyCount.limit, remaining: legacyCount.remaining })}
+                  {t("tiers.spotsClaimed", { limit: legacyCount.limit })}
                 </>
               )}
             </div>

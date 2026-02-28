@@ -154,7 +154,7 @@ function PriceTooltip({ coins }: { coins: number }) {
           </div>
           <div className="mt-2 pt-2" style={{ borderTop: '1px solid #3a3858' }}>
             <p className="text-[10px] text-center" style={{ color: '#7a7690' }}>
-              Based on 1 RC ≈ R$ {BRL_PER_COIN}
+              Based on 1 Gold Coin ≈ R$ {BRL_PER_COIN}
             </p>
           </div>
         </div>
@@ -273,7 +273,7 @@ function ItemListingCard({
             <div className="flex items-center gap-0.5">
               <Coins className="h-3 w-3" style={{ color: '#4ade80' }} />
               <span className="text-xs font-bold" style={{ color: '#4ade80' }}>
-                {formatNumber(listing.price)} RC
+                {formatNumber(listing.price)} Gold Coins
               </span>
               <PriceTooltip coins={listing.price} />
             </div>
@@ -498,7 +498,7 @@ function CreateListingForm({
 
         <div>
           <label className="text-[10px] font-semibold uppercase tracking-wider mb-1 block" style={{ color: '#7a7690' }}>
-            Price (RC) *
+            Price (Gold Coins) *
           </label>
           <input
             type="number"

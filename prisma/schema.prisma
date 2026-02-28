@@ -611,3 +611,24 @@ model Transfer {
   @@index([transferDate])
   @@map("transfers")
 }
+
+// ── PvP Deaths ──────────────────────────────────────────────────────────
+
+model PvpKill {
+  id                 Int      @id @default(autoincrement())
+  killerName         String   @map("killer_name") @db.VarChar(255)
+  victimName         String   @map("victim_name") @db.VarChar(255)
+  victimLevel        Int?     @map("victim_level")
+  mostDamageBy       String?  @map("most_damage_by") @db.VarChar(255)
+  mostDamageIsPlayer Boolean  @default(false) @map("most_damage_is_player")
+  world              String   @db.VarChar(100)
+  killedAt           DateTime @map("killed_at")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  @@unique([killerName, victimName, killedAt])
+  @@index([killerName])
+  @@index([victimName])
+  @@index([world])
+  @@index([killedAt])
+  @@map("pvp_kills")
+}

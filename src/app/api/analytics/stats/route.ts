@@ -125,14 +125,14 @@ export async function GET() {
         FROM analytics_sessions
         WHERE referrer IS NOT NULL AND referrer != '' AND started_at >= ${monthAgo} ${excludeAdminSession}
         GROUP BY referrer ORDER BY count DESC LIMIT 20`,
-      prisma.$queryRaw<{ day: Date; views: bigint; visitors: bigint }[]>`
+      prisma.$queryRaw<{ day: string; views: bigint; visitors: bigint }[]>`
         SELECT
-          DATE(created_at) as day,
+          TO_CHAR(created_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/Mexico_City', 'YYYY-MM-DD') as day,
           COUNT(*) as views,
           COUNT(DISTINCT visitor_id) as visitors
         FROM analytics_events
         WHERE event_type = 'page_view' AND created_at >= ${twoWeeksAgo} ${excludeAdmin}
-        GROUP BY DATE(created_at)
+        GROUP BY day
         ORDER BY day ASC`,
       prisma.$queryRaw<{ search_query: string; page_path: string; created_at: Date }[]>`
         SELECT search_query, page_path, created_at
@@ -144,7 +144,7 @@ export async function GET() {
         FROM analytics_events
         WHERE event_type = 'search' AND search_query IS NOT NULL ${excludeAdmin}
         GROUP BY LOWER(search_query)
-        ORDER BY search_count DESC LIMIT 15`,
+        ORDER BY search_count DESC LIMIT 10`,
 
       // -- Auctions --
       prisma.auction.count(),
@@ -169,11 +169,11 @@ export async function GET() {
         GROUP BY vocation
         ORDER BY total DESC
         LIMIT 10`,
-      prisma.$queryRaw<{ day: Date; count: bigint }[]>`
-        SELECT DATE(created_at) as day, COUNT(*) as count
+      prisma.$queryRaw<{ day: string; count: bigint }[]>`
+        SELECT TO_CHAR(created_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/Mexico_City', 'YYYY-MM-DD') as day, COUNT(*) as count
         FROM auctions
         WHERE created_at >= ${twoWeeksAgo}
-        GROUP BY DATE(created_at)
+        GROUP BY day
         ORDER BY day ASC`,
       prisma.$queryRaw<{ world: string; count: bigint }[]>`
         SELECT world, COUNT(*) as count
@@ -238,7 +238,7 @@ export async function GET() {
           languages: languagesRaw.map(r => ({ language: r.language, visitors: Number(r.count) })),
           referrers: referrersRaw.map(r => ({ referrer: r.referrer, visitors: Number(r.count) })),
           daily: dailyTrafficRaw.map(r => ({
-            day: r.day.toISOString().split('T')[0],
+            day: r.day,
             views: Number(r.views),
             visitors: Number(r.visitors),
           })),
@@ -264,7 +264,7 @@ export async function GET() {
             avgPrice: Math.round(Number(r.avg_price)),
           })),
           dailyNew: dailyAuctionsRaw.map(r => ({
-            day: r.day.toISOString().split('T')[0],
+            day: r.day,
             count: Number(r.count),
           })),
           worldDistribution: worldDistributionRaw.map(r => ({

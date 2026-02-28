@@ -16,6 +16,7 @@ import {
   Crown,
   Ban,
   ArrowRightLeft,
+  Swords,
 } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
 import { MobileNav } from "./MobileNav";
@@ -31,6 +32,7 @@ const navItems = [
   { href: "/calculator", labelKey: "skillCalculator", icon: Calculator },
   { href: "/bans", labelKey: "bans", icon: Ban },
   { href: "/transfers", labelKey: "transfers", icon: ArrowRightLeft },
+  { href: "/pvp", labelKey: "pvp", icon: Swords },
   { href: "/insights", labelKey: "premium", icon: Crown },
   { href: "/feature-requests", labelKey: "featureRequests", icon: Lightbulb },
 ] as const;

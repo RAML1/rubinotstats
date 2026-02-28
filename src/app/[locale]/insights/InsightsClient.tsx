@@ -270,6 +270,55 @@ export function InsightsClient() {
         <StatCard label="Highest Sale" value={`${formatNumber(data.overallStats.highest_sale)} TC`} accent />
       </div>
 
+      {/* ── Best Deals ─────────────────────────────────────── */}
+      <Section icon={TrendingDown} title="Best Deals Right Now" subtitle="Current auctions below estimated value" iconColor="#4ade80">
+        {data.bestDeals.length > 0 ? (
+          <div className="space-y-2">
+            {data.bestDeals.map((deal) => {
+              const color = VOCATION_COLORS[deal.vocation] || "#888";
+              const Icon = getVocIcon(deal.vocation);
+              return (
+                <a
+                  key={deal.externalId}
+                  href={`https://rubinot.com.br/?currentcharactertrades/${deal.externalId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 rounded-lg border border-border/50 px-4 py-3 hover:bg-accent/30 transition-colors group"
+                >
+                  <Icon className="h-4 w-4 shrink-0" style={{ color }} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium truncate">{deal.characterName}</span>
+                      <span className="text-xs text-muted-foreground">Lv. {deal.level}</span>
+                      <span className="text-[10px] font-medium" style={{ color }}>{deal.vocation}</span>
+                    </div>
+                    <div className="flex items-center gap-3 mt-0.5">
+                      <span className="text-xs">
+                        Current: <span className="font-semibold" style={{ color: "#fbbf24" }}>{formatNumber(deal.currentBid)} TC</span>
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        Est. value: {formatNumber(deal.estimatedValue)} TC
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span
+                      className="rounded-full px-2 py-0.5 text-xs font-bold"
+                      style={{ backgroundColor: "#1a3a1a", color: "#4ade80", border: "1px solid #2a5a2a" }}
+                    >
+                      -{deal.discount}%
+                    </span>
+                    <ExternalLink className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                </a>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground py-8 text-center">No significant deals found right now</p>
+        )}
+      </Section>
+
       {/* ── Row: Price Trends + Vocation Market Share ──────── */}
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
@@ -650,55 +699,6 @@ export function InsightsClient() {
           )}
         </Section>
       </div>
-
-      {/* ── Best Deals ─────────────────────────────────────── */}
-      <Section icon={TrendingDown} title="Best Deals Right Now" subtitle="Current auctions below estimated value" iconColor="#4ade80">
-        {data.bestDeals.length > 0 ? (
-          <div className="space-y-2">
-            {data.bestDeals.map((deal) => {
-              const color = VOCATION_COLORS[deal.vocation] || "#888";
-              const Icon = getVocIcon(deal.vocation);
-              return (
-                <a
-                  key={deal.externalId}
-                  href={`https://rubinot.com.br/?currentcharactertrades/${deal.externalId}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-3 rounded-lg border border-border/50 px-4 py-3 hover:bg-accent/30 transition-colors group"
-                >
-                  <Icon className="h-4 w-4 shrink-0" style={{ color }} />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium truncate">{deal.characterName}</span>
-                      <span className="text-xs text-muted-foreground">Lv. {deal.level}</span>
-                      <span className="text-[10px] font-medium" style={{ color }}>{deal.vocation}</span>
-                    </div>
-                    <div className="flex items-center gap-3 mt-0.5">
-                      <span className="text-xs">
-                        Current: <span className="font-semibold" style={{ color: "#fbbf24" }}>{formatNumber(deal.currentBid)} TC</span>
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        Est. value: {formatNumber(deal.estimatedValue)} TC
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span
-                      className="rounded-full px-2 py-0.5 text-xs font-bold"
-                      style={{ backgroundColor: "#1a3a1a", color: "#4ade80", border: "1px solid #2a5a2a" }}
-                    >
-                      -{deal.discount}%
-                    </span>
-                    <ExternalLink className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </div>
-                </a>
-              );
-            })}
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground py-8 text-center">No significant deals found right now</p>
-        )}
-      </Section>
     </div>
   );
 }
