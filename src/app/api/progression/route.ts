@@ -45,12 +45,15 @@ function serializeBigInt<T>(obj: T): T {
   return obj;
 }
 
-// Helper to calculate date ranges for month comparisons
-function getMonthRanges() {
-  const now = new Date();
-  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+// Helper to calculate date ranges for month comparisons.
+// Uses the latest snapshot date as reference so "this month" aligns with the
+// most recent data, not the server clock (avoids UTC midnight rollover issues
+// where Feb 28 data appears as "last month" when the server is already March 1 UTC).
+function getMonthRanges(referenceDate?: Date) {
+  const ref = referenceDate ?? new Date();
+  const currentMonthStart = new Date(Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth(), 1));
+  const lastMonthStart = new Date(Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth() - 1, 1));
+  const lastMonthEnd = new Date(Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth(), 0));
 
   return {
     currentMonthStart,
@@ -77,7 +80,8 @@ function calculateKPIs(snapshots: any[]) {
   }
 
   const latestSnapshot = snapshots[snapshots.length - 1];
-  const { currentMonthStart, lastMonthStart, lastMonthEnd } = getMonthRanges();
+  const latestDate = new Date(latestSnapshot.capturedDate);
+  const { currentMonthStart, lastMonthStart, lastMonthEnd } = getMonthRanges(latestDate);
 
   // Current level and ranks
   const currentLevel = latestSnapshot.level || 0;
