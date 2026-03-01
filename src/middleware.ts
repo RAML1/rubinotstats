@@ -128,6 +128,13 @@ export function middleware(request: NextRequest) {
       return response;
     }
 
+    // Public read-only endpoints — skip origin guard
+    if (pathname === '/api/boosted') {
+      const response = NextResponse.next();
+      setAnalyticsCookies(request, response);
+      return response;
+    }
+
     if (!isAllowedOrigin(request)) {
       return new NextResponse(
         JSON.stringify({ error: 'Forbidden' }),
