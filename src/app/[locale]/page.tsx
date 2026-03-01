@@ -211,19 +211,18 @@ async function HomeContent() {
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3">
-              {pvpLeader && (
-                <div className="flex items-center gap-2.5 px-3.5 py-3 border-b border-r border-border/10">
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-rose-500/15">
-                    <Swords className="h-3.5 w-3.5 text-rose-400" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium text-rose-400">{t('catPvp')}</p>
-                    <p className="text-sm font-semibold truncate">{pvpLeader.killer_name}</p>
-                    <p className="text-xs text-muted-foreground">{pvpLeader.kills} kills</p>
-                  </div>
-                </div>
-              )}
-              {categoryLeaders.map((leader) => {
+              {/* Ordered: Experience, skills, charms, pvp */}
+              {(() => {
+                const CATEGORY_ORDER = [
+                  'Experience Points', 'Sword Fighting', 'Axe Fighting', 'Club Fighting',
+                  'Magic Level', 'Distance Fighting', 'Fist Fighting', 'Charm Points',
+                ];
+                const sorted = [...categoryLeaders].sort((a, b) => {
+                  const ai = CATEGORY_ORDER.indexOf(a.category);
+                  const bi = CATEGORY_ORDER.indexOf(b.category);
+                  return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+                }).filter(l => CATEGORY_ORDER.includes(l.category));
+                return sorted.map((leader) => {
                 const cfg = CATEGORY_CONFIG[leader.category];
                 if (!cfg) return null;
                 return (
@@ -241,12 +240,25 @@ async function HomeContent() {
                       <div className="flex items-center gap-1 text-xs text-muted-foreground">
                         <span>{leader.world}</span>
                         <span className="text-foreground/30">·</span>
-                        <span className="font-medium">{leader.category === 'Experience Points' || leader.category === 'Charm Points' || leader.category === 'Bounty Points' ? formatNumber(leader.score) : leader.score}</span>
+                        <span className="font-medium">{leader.category === 'Experience Points' ? `${tc('levelAbbr')} ${leader.level}` : leader.category === 'Charm Points' || leader.category === 'Bounty Points' ? formatNumber(leader.score) : leader.score}</span>
                       </div>
                     </div>
                   </Link>
                 );
-              })}
+              });
+              })()}
+              {pvpLeader && (
+                <div className="flex items-center gap-2.5 px-3.5 py-3 border-b border-r border-border/10">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-rose-500/15">
+                    <Swords className="h-3.5 w-3.5 text-rose-400" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-medium text-rose-400">{t('catPvp')}</p>
+                    <p className="text-sm font-semibold truncate">{pvpLeader.killer_name}</p>
+                    <p className="text-xs text-muted-foreground">{pvpLeader.kills} kills</p>
+                  </div>
+                </div>
+              )}
             </div>
           </section>
         )}
