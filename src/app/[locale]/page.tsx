@@ -215,7 +215,7 @@ async function HomeContent() {
               {(() => {
                 const CATEGORY_ORDER = [
                   'Experience Points', 'Sword Fighting', 'Axe Fighting', 'Club Fighting',
-                  'Magic Level', 'Distance Fighting', 'Fist Fighting', 'Charm Points',
+                  'Magic Level', 'Distance Fighting', 'Fist Fighting', 'Charm Points', 'Bounty Points',
                 ];
                 const sorted = [...categoryLeaders].sort((a, b) => {
                   const ai = CATEGORY_ORDER.indexOf(a.category);
