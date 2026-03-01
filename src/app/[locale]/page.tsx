@@ -145,7 +145,7 @@ async function HomeContent() {
   };
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+    <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
       {/* Left column — Leaderboards */}
       <div className="space-y-6 min-w-0">
         {/* Top EXP Gainers */}
@@ -153,12 +153,12 @@ async function HomeContent() {
           <section className="rounded-xl border border-border/30 bg-card/40 overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-border/20">
               <div className="flex items-center gap-2">
-                <Flame className="h-4 w-4 text-amber-400" />
-                <h2 className="text-sm font-bold">{t('topGainersHeading')}</h2>
-                <span className="text-[10px] text-muted-foreground">{t('topGainersPeriod')}</span>
+                <Flame className="h-5 w-5 text-amber-400" />
+                <h2 className="text-base font-bold">{t('topGainersHeading')}</h2>
+                <span className="text-xs text-muted-foreground">{t('topGainersPeriod')}</span>
               </div>
-              <Link href="/progression" className="flex items-center gap-1 text-[10px] text-primary hover:underline">
-                {t('fullLeaderboard')} <ArrowRight className="h-2.5 w-2.5" />
+              <Link href="/progression" className="flex items-center gap-1 text-xs text-primary hover:underline">
+                {t('fullLeaderboard')} <ArrowRight className="h-3 w-3" />
               </Link>
             </div>
 
@@ -167,23 +167,23 @@ async function HomeContent() {
                 <Link
                   key={gainer.character_name}
                   href={`/progression?character=${encodeURIComponent(gainer.character_name)}`}
-                  className="group flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-white/[0.02]"
+                  className="group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-white/[0.02]"
                 >
-                  <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-xs font-bold ${
+                  <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold ${
                     i === 0 ? 'bg-amber-400/15 text-amber-400' :
                     i === 1 ? 'bg-slate-300/15 text-slate-300' :
                     i === 2 ? 'bg-amber-700/15 text-amber-600' :
                     'bg-secondary/30 text-muted-foreground'
                   }`}>
-                    {i === 0 ? <Crown className="h-3.5 w-3.5" /> : `#${i + 1}`}
+                    {i === 0 ? <Crown className="h-4 w-4" /> : `#${i + 1}`}
                   </div>
 
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold truncate group-hover:text-primary transition-colors">
                       {gainer.character_name}
                     </p>
-                    <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                      <Globe className="h-2.5 w-2.5" />
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Globe className="h-3 w-3" />
                       <span>{gainer.world}</span>
                       <span className="text-foreground/30">·</span>
                       <span>{tc('levelAbbr')} {gainer.current_level}</span>
@@ -191,10 +191,10 @@ async function HomeContent() {
                   </div>
 
                   <div className="shrink-0 text-right">
-                    <p className="text-xs font-bold text-emerald-400">
+                    <p className="text-sm font-bold text-emerald-400">
                       {formatNumber(gainer.exp_gained)}
                     </p>
-                    <p className="text-[9px] text-muted-foreground">{tc('expSuffix')}</p>
+                    <p className="text-[10px] text-muted-foreground">{tc('expSuffix')}</p>
                   </div>
                 </Link>
               ))}
@@ -202,24 +202,24 @@ async function HomeContent() {
           </section>
         )}
 
-        {/* Server Leaders */}
+        {/* Top — category leaders */}
         {categoryLeaders.length > 0 && (
           <section className="rounded-xl border border-border/30 bg-card/40 overflow-hidden">
             <div className="flex items-center gap-2 px-4 py-3 border-b border-border/20">
-              <Trophy className="h-4 w-4 text-amber-400" />
-              <h2 className="text-sm font-bold">{t('topPlayersHeading')}</h2>
+              <Trophy className="h-5 w-5 text-amber-400" />
+              <h2 className="text-base font-bold">{t('topPlayersHeading')}</h2>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3">
               {pvpLeader && (
-                <div className="flex items-center gap-2 px-3 py-2.5 border-b border-r border-border/10">
-                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-rose-500/15">
-                    <Swords className="h-3 w-3 text-rose-400" />
+                <div className="flex items-center gap-2.5 px-3.5 py-3 border-b border-r border-border/10">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-rose-500/15">
+                    <Swords className="h-3.5 w-3.5 text-rose-400" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-[10px] font-medium text-rose-400">{t('catPvp')}</p>
-                    <p className="text-[11px] font-semibold truncate">{pvpLeader.killer_name}</p>
-                    <p className="text-[10px] text-muted-foreground">{pvpLeader.kills} kills</p>
+                    <p className="text-xs font-medium text-rose-400">{t('catPvp')}</p>
+                    <p className="text-sm font-semibold truncate">{pvpLeader.killer_name}</p>
+                    <p className="text-xs text-muted-foreground">{pvpLeader.kills} kills</p>
                   </div>
                 </div>
               )}
@@ -230,15 +230,15 @@ async function HomeContent() {
                   <Link
                     key={leader.category}
                     href={`/progression?character=${encodeURIComponent(leader.character_name)}`}
-                    className="group flex items-center gap-2 px-3 py-2.5 border-b border-r border-border/10 transition-colors hover:bg-white/[0.02]"
+                    className="group flex items-center gap-2.5 px-3.5 py-3 border-b border-r border-border/10 transition-colors hover:bg-white/[0.02]"
                   >
-                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-secondary/30">
-                      <Crown className={`h-3 w-3 ${cfg.color}`} />
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-secondary/30">
+                      <Crown className={`h-3.5 w-3.5 ${cfg.color}`} />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className={`text-[10px] font-medium ${cfg.color}`}>{cfg.label}</p>
-                      <p className="text-[11px] font-semibold truncate group-hover:text-primary transition-colors">{leader.character_name}</p>
-                      <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                      <p className={`text-xs font-medium ${cfg.color}`}>{cfg.label}</p>
+                      <p className="text-sm font-semibold truncate group-hover:text-primary transition-colors">{leader.character_name}</p>
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
                         <span>{leader.world}</span>
                         <span className="text-foreground/30">·</span>
                         <span className="font-medium">{leader.category === 'Experience Points' || leader.category === 'Charm Points' || leader.category === 'Bounty Points' ? formatNumber(leader.score) : leader.score}</span>
@@ -254,29 +254,29 @@ async function HomeContent() {
 
       {/* Right column — Feature navigation */}
       <div className="space-y-2">
-        <h2 className="text-sm font-bold text-muted-foreground px-1 mb-3">{t('exploreTitle')}</h2>
+        <h2 className="text-base font-bold text-muted-foreground px-1 mb-3">{t('exploreTitle')}</h2>
         {features.map(({ href, title, badge, icon: Icon, color, iconBg, stat, statLabel }) => (
           <Link
             key={href}
             href={href}
-            className="group flex items-center gap-3 rounded-xl border border-border/30 bg-card/40 px-3.5 py-3 transition-colors hover:bg-card hover:border-border/50"
+            className="group flex items-center gap-3 rounded-xl border border-border/30 bg-card/40 px-4 py-3.5 transition-colors hover:bg-card hover:border-border/50"
           >
-            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${iconBg}`}>
-              <Icon className={`h-4.5 w-4.5 ${color}`} />
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${iconBg}`}>
+              <Icon className={`h-5 w-5 ${color}`} />
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
                 <p className="text-sm font-semibold truncate group-hover:text-primary transition-colors">{title}</p>
-                {badge && <span className="shrink-0 rounded-full bg-amber-500/15 px-1.5 py-px text-[9px] font-semibold text-amber-400">{badge}</span>}
+                {badge && <span className="shrink-0 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-400">{badge}</span>}
               </div>
               {stat !== null && (
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   <span className={`font-bold ${color}`}>{formatNumber(stat)}</span>{' '}
                   {statLabel}
                 </p>
               )}
             </div>
-            <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/40 transition-all group-hover:translate-x-0.5 group-hover:text-foreground" />
+            <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground/40 transition-all group-hover:translate-x-0.5 group-hover:text-foreground" />
           </Link>
         ))}
       </div>
@@ -286,27 +286,27 @@ async function HomeContent() {
 
 function HomeSkeleton() {
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+    <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
       <div className="space-y-6">
         <div className="rounded-xl border border-border/30 bg-card/40 p-4">
-          <Skeleton className="h-5 w-40 mb-4" />
+          <Skeleton className="h-6 w-44 mb-4" />
           {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-12 w-full mb-2 rounded-lg" />
+            <Skeleton key={i} className="h-14 w-full mb-2 rounded-lg" />
           ))}
         </div>
         <div className="rounded-xl border border-border/30 bg-card/40 p-4">
-          <Skeleton className="h-5 w-36 mb-4" />
+          <Skeleton className="h-6 w-36 mb-4" />
           <div className="grid grid-cols-3 gap-2">
             {Array.from({ length: 9 }).map((_, i) => (
-              <Skeleton key={i} className="h-16 rounded-lg" />
+              <Skeleton key={i} className="h-[72px] rounded-lg" />
             ))}
           </div>
         </div>
       </div>
       <div className="space-y-2">
-        <Skeleton className="h-4 w-20 mb-3" />
+        <Skeleton className="h-5 w-24 mb-3" />
         {Array.from({ length: 9 }).map((_, i) => (
-          <Skeleton key={i} className="h-14 rounded-xl" />
+          <Skeleton key={i} className="h-16 rounded-xl" />
         ))}
       </div>
     </div>
@@ -333,10 +333,10 @@ export default async function HomePage() {
             <span className="text-amber-400">Stats</span>
           </h1>
         </div>
-        <p className="text-xs text-muted-foreground">
+        <p className="text-sm text-muted-foreground">
           {t('tagline')}
         </p>
-        <p className="text-[10px] text-muted-foreground/50 italic">
+        <p className="text-xs text-muted-foreground/50 italic">
           {t('subTagline')}
         </p>
       </section>
