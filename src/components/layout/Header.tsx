@@ -71,11 +71,8 @@ export function Header() {
             </div>
           </div>
 
-          {/* Right side — boosted + locale + tip + auth + mobile menu */}
+          {/* Right side — locale + tip + auth + boosted + mobile menu */}
           <div className="ml-auto flex items-center gap-3">
-            {/* Boosted creature & boss */}
-            <BoostedBanner />
-
             {/* Tip message */}
             <div className="hidden lg:flex items-center gap-1.5 rounded-full bg-white/10 border border-white/20 px-3 py-1 backdrop-blur-sm">
               <Heart className="h-3 w-3 text-white fill-white" />
@@ -90,6 +87,9 @@ export function Header() {
 
             {/* User auth menu */}
             <UserMenu />
+
+            {/* Boosted creature & boss */}
+            <BoostedBanner />
 
             {/* Mobile menu button */}
             <button

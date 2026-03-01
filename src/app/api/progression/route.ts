@@ -357,24 +357,25 @@ export async function GET(request: NextRequest) {
         vocation: c.vocation,
       }));
 
-      // Also search highscore entries for characters not in the characters table
+      // Also search highscore entries for characters not in the characters table.
+      // Use the LATEST entry per character to get the current vocation
+      // (names can be reused by different characters over time).
       if (results.length < 10) {
         const characterNames = new Set(results.map(r => r.name.toLowerCase()));
-        const highscoreChars = await prisma.highscoreEntry.findMany({
-          where: {
-            characterName: {
-              contains: searchQuery,
-              mode: 'insensitive',
-            },
-          },
-          distinct: ['characterName', 'world'],
-          select: {
-            characterName: true,
-            world: true,
-            vocation: true,
-          },
-          take: 10,
-        });
+        const highscoreChars: { characterName: string; world: string; vocation: string }[] = await prisma.$queryRaw`
+          SELECT "characterName", world, vocation FROM (
+            SELECT DISTINCT ON (character_name, world)
+              character_name AS "characterName", world, vocation
+            FROM highscore_entries
+            WHERE character_name ILIKE ${'%' + searchQuery + '%'}
+            ORDER BY character_name, world, captured_date DESC
+          ) sub
+          ORDER BY
+            CASE WHEN LOWER("characterName") = LOWER(${searchQuery}) THEN 0 ELSE 1 END,
+            LENGTH("characterName"),
+            "characterName"
+          LIMIT 10
+        `;
 
         for (const h of highscoreChars) {
           if (!characterNames.has(h.characterName.toLowerCase()) && results.length < 10) {
@@ -473,6 +474,17 @@ export async function GET(request: NextRequest) {
     const toDateKey = (d: Date) =>
       `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
+    // Normalize vocation to base type for name-reuse detection
+    const baseVocation = (voc: string): string => {
+      const v = voc.toLowerCase();
+      if (v.includes('knight')) return 'knight';
+      if (v.includes('paladin')) return 'paladin';
+      if (v.includes('sorcerer')) return 'sorcerer';
+      if (v.includes('druid')) return 'druid';
+      if (v.includes('monk')) return 'monk';
+      return v;
+    };
+
     const dateMap = new Map<string, any>();
 
     for (const entry of highscores) {
@@ -494,6 +506,8 @@ export async function GET(request: NextRequest) {
           shielding: null,
           fishing: null,
           charmPoints: null,
+          bountyPoints: null,
+          bountyRank: null,
           expRank: null,
           mlRank: null,
           fistRank: null,
@@ -506,12 +520,17 @@ export async function GET(request: NextRequest) {
           charmRank: null,
           expGained: 0,
           levelsGained: 0,
+          vocation: entry.vocation,
         });
       }
 
       const snapshot = dateMap.get(dateKey)!;
       if (entry.level && entry.level > (snapshot.level || 0)) {
         snapshot.level = entry.level;
+      }
+      // Update vocation to the latest entry for this date
+      if (entry.vocation) {
+        snapshot.vocation = entry.vocation;
       }
 
       const cat = entry.category;
@@ -547,6 +566,9 @@ export async function GET(request: NextRequest) {
       } else if (cat === 'Charm Points') {
         snapshot.charmPoints = score;
         snapshot.charmRank = entry.rank;
+      } else if (cat === 'Bounty Points') {
+        snapshot.bountyPoints = score;
+        snapshot.bountyRank = entry.rank;
       }
     }
 
@@ -555,18 +577,54 @@ export async function GET(request: NextRequest) {
       (a: any, b: any) => new Date(a.capturedDate).getTime() - new Date(b.capturedDate).getTime()
     );
 
-    // Detect character name reuse: if EXP drops by >50% between consecutive
-    // snapshots with EXP data, a different character has taken this name.
+    // Detect character name reuse: a different player has taken this name.
+    // Indicators:
+    //   (1) EXP drops >30%
+    //   (2) Vocation change + EXP change >15% in either direction
+    //   (3) Level jump >50 for chars above level 500 (max legit daily gain is ~31)
+    // Note: vocation change ALONE is NOT name reuse — RubinOT allows
+    // legitimate vocation changes (e.g., Paladin → Druid with rising EXP).
     // Discard everything before the last such breakpoint.
     let lastBreakpoint = 0;
     let prevExpVal: number | null = null;
+    let prevLevel: number | null = null;
+    let prevBaseVoc: string | null = null;
     for (let i = 0; i < snapshots.length; i++) {
+      const curBaseVoc = snapshots[i].vocation ? baseVocation(snapshots[i].vocation) : null;
+      const curLevel = snapshots[i].level || null;
+
+      // Vocation change + any significant EXP change = name reuse.
+      // Legitimate vocation changes keep EXP nearly identical (±10%).
+      if (curBaseVoc && prevBaseVoc && curBaseVoc !== prevBaseVoc) {
+        if (snapshots[i].experience != null && prevExpVal !== null) {
+          const ratio = snapshots[i].experience / prevExpVal;
+          if (ratio < 0.9 || ratio > 1.15) {
+            lastBreakpoint = i;
+          }
+        }
+      }
+
       if (snapshots[i].experience != null) {
-        if (prevExpVal !== null && snapshots[i].experience < prevExpVal * 0.5) {
-          lastBreakpoint = i;
+        if (prevExpVal !== null) {
+          // Significant EXP drop (>30%) = likely name reuse
+          if (snapshots[i].experience < prevExpVal * 0.7) {
+            lastBreakpoint = i;
+          }
         }
         prevExpVal = snapshots[i].experience;
       }
+
+      // Level jump >50 at high levels = name reuse.
+      // Max legit daily gain is ~31 levels even for the most active players.
+      // Use 50 as threshold for safety margin.
+      if (curLevel && prevLevel && prevLevel >= 500) {
+        if (curLevel - prevLevel > 50) {
+          lastBreakpoint = i;
+        }
+      }
+      if (curLevel) prevLevel = curLevel;
+
+      if (curBaseVoc) prevBaseVoc = curBaseVoc;
     }
     if (lastBreakpoint > 0) {
       snapshots = snapshots.slice(lastBreakpoint);
@@ -725,6 +783,7 @@ export async function GET(request: NextRequest) {
       ['shielding', 'shieldingRank'],
       ['fishing', 'fishingRank'],
       ['charmPoints', 'charmRank'],
+      ['bountyPoints', 'bountyRank'],
     ] as const;
 
     let skillRanks: Record<string, number | null> | null = null;
@@ -745,6 +804,15 @@ export async function GET(request: NextRequest) {
       // If all ranks are null, set to null
       if (Object.values(skillRanks).every((v) => v === null)) {
         skillRanks = null;
+      }
+    }
+
+    // Update character vocation from latest snapshot (in case of name reuse,
+    // the character table may have stale vocation from the old character)
+    if (snapshots.length > 0) {
+      const latestVoc = snapshots[snapshots.length - 1].vocation;
+      if (latestVoc) {
+        (char as any).vocation = latestVoc;
       }
     }
 

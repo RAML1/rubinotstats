@@ -3,11 +3,8 @@ import prisma from '@/lib/db/prisma';
 
 export async function GET() {
   try {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const boosted = await prisma.boostedDaily.findUnique({
-      where: { date: today },
+    const boosted = await prisma.boostedDaily.findFirst({
+      orderBy: { date: 'desc' },
     });
 
     if (!boosted) {

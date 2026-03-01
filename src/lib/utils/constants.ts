@@ -97,6 +97,7 @@ export const DAILY_CATEGORIES: (keyof typeof HIGHSCORE_CATEGORIES)[] = [
   'Shielding',
   'Fishing',
   'Charm Points',
+  'Bounty Points',
 ];
 
 /**

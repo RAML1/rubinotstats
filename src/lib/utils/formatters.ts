@@ -14,9 +14,10 @@ import { DEAL_SCORE } from './constants';
 import type { DealScoreVariant } from './constants';
 
 /**
- * Format large numbers with abbreviated suffixes (K, M, B)
- * @example formatNumber(1500000) -> "1.5M"
- * @example formatNumber(1500) -> "1.5K"
+ * Format large numbers with Tibia-style suffixes (k, kk, kkk)
+ * @example formatNumber(1500000) -> "1.50kk"
+ * @example formatNumber(1500) -> "1.50k"
+ * @example formatNumber(2500000000) -> "2.50kkk"
  */
 export function formatNumber(num: number): string {
   if (num === 0) return '0';
@@ -25,13 +26,13 @@ export function formatNumber(num: number): string {
   const sign = num < 0 ? '-' : '';
 
   if (absNum >= 1_000_000_000) {
-    return `${sign}${(absNum / 1_000_000_000).toFixed(2)}B`;
+    return `${sign}${(absNum / 1_000_000_000).toFixed(2)}kkk`;
   }
   if (absNum >= 1_000_000) {
-    return `${sign}${(absNum / 1_000_000).toFixed(2)}M`;
+    return `${sign}${(absNum / 1_000_000).toFixed(2)}kk`;
   }
   if (absNum >= 1_000) {
-    return `${sign}${(absNum / 1_000).toFixed(2)}K`;
+    return `${sign}${(absNum / 1_000).toFixed(2)}k`;
   }
 
   return `${sign}${Math.floor(absNum)}`;

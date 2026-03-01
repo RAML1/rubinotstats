@@ -34,6 +34,7 @@ const API_CATEGORY_PARAM: Record<string, string> = {
   'Shielding': 'shielding',
   'Fishing': 'fishing',
   'Charm Points': 'charmtotalpoints',
+  'Bounty Points': 'bountytask',
 };
 
 // ── Types ──────────────────────────────────────────────────────────────
@@ -96,6 +97,19 @@ const VOCATION_TO_PROFESSION: Record<string, string> = {
   'Elder Druid': 'Druids',
   'Monk': 'Monks',
   'None': 'All',
+};
+
+/**
+ * Map profession filter → promoted vocation name.
+ * The RubinOT API's vocation ID field is unreliable (changed mapping ~Feb 25 2026),
+ * so we derive vocation from the profession filter used for the request instead.
+ */
+const PROFESSION_DEFAULT_VOCATION: Record<string, string> = {
+  'Knights': 'Elite Knight',
+  'Paladins': 'Royal Paladin',
+  'Sorcerers': 'Master Sorcerer',
+  'Druids': 'Elder Druid',
+  'Monks': 'Exalted Monk',
 };
 
 // ── Categories that need HTML scraping (not supported by API) ─────
@@ -394,21 +408,19 @@ export async function scrapeHighscores(
     }
 
     // Convert API response to our format
-    for (const player of data.players) {
-      const vocationName = typeof player.vocation === 'number'
-        ? (VOCATION_ID_TO_NAME[player.vocation] ?? `Unknown(${player.vocation})`)
-        : String(player.vocation);
-      const playerProfession = VOCATION_TO_PROFESSION[vocationName] ?? 'All';
+    // Use profession filter to derive vocation (API vocation IDs are unreliable)
+    const derivedVocation = PROFESSION_DEFAULT_VOCATION[profession] || 'Unknown';
 
+    for (const player of data.players) {
       const entry: ScrapedHighscoreEntry = {
         rank: player.rank,
         characterName: player.name,
-        vocation: vocationName,
+        vocation: derivedVocation,
         world,
         level: player.level,
         score: BigInt(player.value),
         category,
-        profession: playerProfession,
+        profession,
       };
       if (opts.onEntry) await opts.onEntry(entry);
       allEntries.push(entry);

@@ -50,6 +50,8 @@ interface APIResponse {
       shielding: number | null;
       fishing: number | null;
       charmPoints: number | null;
+      bountyPoints: number | null;
+      bountyRank: number | null;
       expRank: number | null;
       mlRank: number | null;
       fistRank: number | null;
@@ -100,6 +102,7 @@ interface APIResponse {
       shielding: number | null;
       fishing: number | null;
       charmPoints: number | null;
+      bountyPoints: number | null;
     } | null;
     milestones: Array<{
       type: 'level' | 'skill' | 'rank';
@@ -889,6 +892,7 @@ export default function ProgressionClient() {
                     { key: 'shielding', label: 'Shielding', color: 'text-blue-400' },
                     { key: 'fishing', label: 'Fishing', color: 'text-cyan-400' },
                     { key: 'charmPoints', label: 'Charm Points', color: 'text-pink-400' },
+                    { key: 'bountyPoints', label: 'Bounty Points', color: 'text-lime-400' },
                   ];
                   const ranks = data.skillRanks;
                   const rankedSkills = ranks
