@@ -551,6 +551,23 @@ export async function GET(request: NextRequest) {
       (a: any, b: any) => new Date(a.capturedDate).getTime() - new Date(b.capturedDate).getTime()
     );
 
+    // Detect character name reuse: if EXP drops by >50% between consecutive
+    // snapshots with EXP data, a different character has taken this name.
+    // Discard everything before the last such breakpoint.
+    let lastBreakpoint = 0;
+    let prevExpVal: number | null = null;
+    for (let i = 0; i < snapshots.length; i++) {
+      if (snapshots[i].experience != null) {
+        if (prevExpVal !== null && snapshots[i].experience < prevExpVal * 0.5) {
+          lastBreakpoint = i;
+        }
+        prevExpVal = snapshots[i].experience;
+      }
+    }
+    if (lastBreakpoint > 0) {
+      snapshots = snapshots.slice(lastBreakpoint);
+    }
+
     // If no snapshot has Experience Points data, estimate EXP from levels
     // using the standard Tibia formula: EXP(lvl) = (50/3) * (lvl^3 - 6*lvl^2 + 17*lvl - 12)
     const hasExpData = snapshots.some(s => s.experience != null);
@@ -567,17 +584,20 @@ export async function GET(request: NextRequest) {
 
     // Calculate daily gains — look back to last snapshot with valid data
     // (handles gaps where a category wasn't scraped for some days)
+    // Clamp negative expGained to 0 (PvP death penalties shouldn't distort charts)
     let lastExpIdx = snapshots[0]?.experience != null ? 0 : -1;
     let lastLevelIdx = snapshots[0]?.level != null ? 0 : -1;
 
     for (let i = 1; i < snapshots.length; i++) {
       if (snapshots[i].experience != null && lastExpIdx >= 0) {
-        snapshots[i].expGained = snapshots[i].experience - snapshots[lastExpIdx].experience;
+        const diff = snapshots[i].experience - snapshots[lastExpIdx].experience;
+        snapshots[i].expGained = Math.max(0, diff);
       }
       if (snapshots[i].experience != null) lastExpIdx = i;
 
       if (snapshots[i].level != null && lastLevelIdx >= 0) {
-        snapshots[i].levelsGained = snapshots[i].level - snapshots[lastLevelIdx].level;
+        const diff = snapshots[i].level - snapshots[lastLevelIdx].level;
+        snapshots[i].levelsGained = Math.max(0, diff);
       }
       if (snapshots[i].level != null) lastLevelIdx = i;
     }

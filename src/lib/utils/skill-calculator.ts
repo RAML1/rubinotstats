@@ -114,8 +114,8 @@ const VOCATION_CONSTANTS: Record<Vocation, Record<SkillCategory, number>> = {
 
 export const WEAPON_TYPES = [
   { name: 'Regular', charges: 500, rcCost: 40 },
-  { name: 'Durable', charges: 2000, rcCost: 80 },
-  { name: 'Lasting', charges: 15000, rcCost: 190 },
+  { name: 'Durable', charges: 1800, rcCost: 80 },
+  { name: 'Lasting', charges: 14400, rcCost: 190 },
   { name: 'Lasting (Daily Reward)', charges: 5000, rcCost: 0 },
   { name: 'Daily', charges: 45000, rcCost: 390 },
 ] as const;
@@ -307,17 +307,9 @@ export function calculateSkillGain(
     }
   }
 
-  if (remainingPoints <= 0 && skill === currentSkill + (pctToGo < 100 ? 0 : 1)) {
-    // Didn't advance past initial level-up
-  }
-
-  const finalPercent = skill > currentSkill + (percentToGo === 100 ? 0 : 0)
-    ? Math.round(pctToGo * 100) / 100
-    : Math.round(pctToGo * 100) / 100;
-
   return {
     finalSkill: skill,
-    finalPercent: Math.max(0, finalPercent),
+    finalPercent: Math.max(0, Math.round(pctToGo * 100) / 100),
     levelsGained: skill - currentSkill,
   };
 }
