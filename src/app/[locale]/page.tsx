@@ -113,7 +113,7 @@ const getHomeData = unstable_cache(async () => {
     : null;
 
   return { liveAuctions, trackedCharacters, topGainers, activeBans, totalTransfers, pvpKills, categoryLeaders, pvpLeader };
-}, ['home-data'], { revalidate: 300 }); // cache for 5 minutes
+}, ['home-data'], { revalidate: 300 });
 
 async function HomeContent() {
   const t = await getTranslations('home');
@@ -121,299 +121,195 @@ async function HomeContent() {
   const { liveAuctions, trackedCharacters, topGainers, activeBans, totalTransfers, pvpKills, categoryLeaders, pvpLeader } = await getHomeData();
 
   const features = [
-    {
-      href: '/current-auctions' as const,
-      title: t('auctionMarketTitle'),
-      icon: Zap,
-      gradient: 'from-amber-500/20 via-orange-500/10 to-transparent',
-      iconBg: 'bg-amber-500/15',
-      color: 'text-amber-400',
-      accentBorder: 'border-l-amber-500',
-      description: t('auctionMarketDesc'),
-      stat: liveAuctions,
-      statLabel: t('auctionMarketStat'),
-    },
-    {
-      href: '/progression' as const,
-      title: t('progressionTitle'),
-      icon: TrendingUp,
-      gradient: 'from-emerald-500/20 via-emerald-500/10 to-transparent',
-      iconBg: 'bg-emerald-500/15',
-      color: 'text-emerald-400',
-      accentBorder: 'border-l-emerald-500',
-      description: t('progressionDesc'),
-      stat: trackedCharacters,
-      statLabel: t('progressionStat'),
-    },
-    {
-      href: '/calculator' as const,
-      title: t('calculatorTitle'),
-      icon: Calculator,
-      gradient: 'from-sky-500/20 via-sky-500/10 to-transparent',
-      iconBg: 'bg-sky-500/15',
-      color: 'text-sky-400',
-      accentBorder: 'border-l-sky-500',
-      description: t('calculatorDesc'),
-      stat: null as number | null,
-      statLabel: null as string | null,
-    },
-    {
-      href: '/item-market' as const,
-      title: t('itemMarketTitle'),
-      icon: Store,
-      gradient: 'from-violet-500/20 via-violet-500/10 to-transparent',
-      iconBg: 'bg-violet-500/15',
-      color: 'text-violet-400',
-      accentBorder: 'border-l-violet-500',
-      description: t('itemMarketDesc'),
-      stat: null as number | null,
-      statLabel: null as string | null,
-    },
-    {
-      href: '/bans' as const,
-      title: t('bansTitle'),
-      icon: Ban,
-      gradient: 'from-red-500/20 via-red-500/10 to-transparent',
-      iconBg: 'bg-red-500/15',
-      color: 'text-red-400',
-      accentBorder: 'border-l-red-500',
-      description: t('bansDesc'),
-      stat: activeBans,
-      statLabel: t('bansStat'),
-    },
-    {
-      href: '/transfers' as const,
-      title: t('transfersTitle'),
-      icon: ArrowRightLeft,
-      gradient: 'from-cyan-500/20 via-cyan-500/10 to-transparent',
-      iconBg: 'bg-cyan-500/15',
-      color: 'text-cyan-400',
-      accentBorder: 'border-l-cyan-500',
-      description: t('transfersDesc'),
-      stat: totalTransfers,
-      statLabel: t('transfersStat'),
-    },
-    {
-      href: '/pvp' as const,
-      title: t('pvpTitle'),
-      icon: Swords,
-      gradient: 'from-rose-500/20 via-rose-500/10 to-transparent',
-      iconBg: 'bg-rose-500/15',
-      color: 'text-rose-400',
-      accentBorder: 'border-l-rose-500',
-      description: t('pvpDesc'),
-      stat: pvpKills,
-      statLabel: t('pvpStat'),
-    },
-    {
-      href: '/premium' as const,
-      title: t('premiumTitle'),
-      badge: t('comingSoon'),
-      icon: Crown,
-      gradient: 'from-amber-500/20 via-amber-500/10 to-transparent',
-      iconBg: 'bg-amber-500/15',
-      color: 'text-amber-400',
-      accentBorder: 'border-l-amber-500',
-      description: t('premiumDesc'),
-      stat: null as number | null,
-      statLabel: null as string | null,
-    },
-    {
-      href: '/feature-requests' as const,
-      title: t('featureRequestsTitle'),
-      icon: Lightbulb,
-      gradient: 'from-yellow-500/20 via-yellow-500/10 to-transparent',
-      iconBg: 'bg-yellow-500/15',
-      color: 'text-yellow-400',
-      accentBorder: 'border-l-yellow-500',
-      description: t('featureRequestsDesc'),
-      stat: null as number | null,
-      statLabel: null as string | null,
-    },
+    { href: '/current-auctions' as const, title: t('auctionMarketTitle'), icon: Zap, color: 'text-amber-400', iconBg: 'bg-amber-500/15', stat: liveAuctions, statLabel: t('auctionMarketStat') },
+    { href: '/progression' as const, title: t('progressionTitle'), icon: TrendingUp, color: 'text-emerald-400', iconBg: 'bg-emerald-500/15', stat: trackedCharacters, statLabel: t('progressionStat') },
+    { href: '/calculator' as const, title: t('calculatorTitle'), icon: Calculator, color: 'text-sky-400', iconBg: 'bg-sky-500/15', stat: null as number | null, statLabel: null as string | null },
+    { href: '/item-market' as const, title: t('itemMarketTitle'), icon: Store, color: 'text-violet-400', iconBg: 'bg-violet-500/15', stat: null as number | null, statLabel: null as string | null },
+    { href: '/bans' as const, title: t('bansTitle'), icon: Ban, color: 'text-red-400', iconBg: 'bg-red-500/15', stat: activeBans, statLabel: t('bansStat') },
+    { href: '/transfers' as const, title: t('transfersTitle'), icon: ArrowRightLeft, color: 'text-cyan-400', iconBg: 'bg-cyan-500/15', stat: totalTransfers, statLabel: t('transfersStat') },
+    { href: '/pvp' as const, title: t('pvpTitle'), icon: Swords, color: 'text-rose-400', iconBg: 'bg-rose-500/15', stat: pvpKills, statLabel: t('pvpStat') },
+    { href: '/premium' as const, title: t('premiumTitle'), badge: t('comingSoon'), icon: Crown, color: 'text-amber-400', iconBg: 'bg-amber-500/15', stat: null as number | null, statLabel: null as string | null },
+    { href: '/feature-requests' as const, title: t('featureRequestsTitle'), icon: Lightbulb, color: 'text-yellow-400', iconBg: 'bg-yellow-500/15', stat: null as number | null, statLabel: null as string | null },
   ];
 
-  const CATEGORY_CONFIG: Record<string, { label: string; color: string; icon: string }> = {
-    'Experience Points': { label: t('catExp'), color: 'text-emerald-400', icon: 'exp' },
-    'Sword Fighting': { label: t('catSword'), color: 'text-red-400', icon: 'sword' },
-    'Axe Fighting': { label: t('catAxe'), color: 'text-orange-400', icon: 'axe' },
-    'Club Fighting': { label: t('catClub'), color: 'text-amber-400', icon: 'club' },
-    'Magic Level': { label: t('catMagic'), color: 'text-purple-400', icon: 'magic' },
-    'Distance Fighting': { label: t('catDistance'), color: 'text-yellow-400', icon: 'distance' },
-    'Fist Fighting': { label: t('catFist'), color: 'text-orange-300', icon: 'fist' },
-    'Charm Points': { label: t('catCharms'), color: 'text-pink-400', icon: 'charms' },
-    'Bounty Points': { label: t('catBounty'), color: 'text-lime-400', icon: 'bounty' },
+  const CATEGORY_CONFIG: Record<string, { label: string; color: string }> = {
+    'Experience Points': { label: t('catExp'), color: 'text-emerald-400' },
+    'Sword Fighting': { label: t('catSword'), color: 'text-red-400' },
+    'Axe Fighting': { label: t('catAxe'), color: 'text-orange-400' },
+    'Club Fighting': { label: t('catClub'), color: 'text-amber-400' },
+    'Magic Level': { label: t('catMagic'), color: 'text-purple-400' },
+    'Distance Fighting': { label: t('catDistance'), color: 'text-yellow-400' },
+    'Fist Fighting': { label: t('catFist'), color: 'text-orange-300' },
+    'Charm Points': { label: t('catCharms'), color: 'text-pink-400' },
+    'Bounty Points': { label: t('catBounty'), color: 'text-lime-400' },
   };
 
   return (
-    <>
-      {/* Top EXP Gainers — mini leaderboard */}
-      {topGainers.length > 0 && (
-        <section>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Flame className="h-5 w-5 text-amber-400" />
-              <h2 className="text-lg font-bold">{t('topGainersHeading')}</h2>
-              <span className="text-xs text-muted-foreground">{t('topGainersPeriod')}</span>
-            </div>
-            <Link href="/progression" className="flex items-center gap-1 text-xs text-primary hover:underline">
-              {t('fullLeaderboard')} <ArrowRight className="h-3 w-3" />
-            </Link>
-          </div>
-
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-            {topGainers.map((gainer, i) => (
-              <Link
-                key={gainer.character_name}
-                href={`/progression?character=${encodeURIComponent(gainer.character_name)}`}
-                className="group flex items-center gap-3 rounded-xl border border-border/30 bg-card/50 p-3 transition-colors hover:bg-card hover:border-border/60"
-              >
-                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold ${
-                  i === 0 ? 'bg-amber-400/15 text-amber-400' :
-                  i === 1 ? 'bg-slate-300/15 text-slate-300' :
-                  i === 2 ? 'bg-amber-700/15 text-amber-600' :
-                  'bg-secondary/50 text-muted-foreground'
-                }`}>
-                  {i === 0 ? <Crown className="h-4 w-4" /> : `#${i + 1}`}
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold truncate group-hover:text-primary transition-colors">
-                    {gainer.character_name}
-                  </p>
-                  <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                    <Globe className="h-2.5 w-2.5" />
-                    <span>{gainer.world}</span>
-                    <span className="text-foreground/30">·</span>
-                    <span>{tc('levelAbbr')} {gainer.current_level}</span>
-                  </div>
-                </div>
-
-                <div className="shrink-0 text-right">
-                  <p className="text-xs font-bold text-emerald-400">
-                    {formatNumber(gainer.exp_gained)}
-                  </p>
-                  <p className="text-[9px] text-muted-foreground">{tc('expSuffix')}</p>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Top #1 Players per Category */}
-      {categoryLeaders.length > 0 && (
-        <section>
-          <div className="flex items-center gap-2 mb-4">
-            <Trophy className="h-5 w-5 text-amber-400" />
-            <h2 className="text-lg font-bold">{t('topPlayersHeading')}</h2>
-          </div>
-
-          <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
-            {pvpLeader && (
-              <div className="flex items-center gap-2.5 rounded-xl border border-border/30 bg-card/50 p-2.5">
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-rose-500/15">
-                  <Swords className="h-3.5 w-3.5 text-rose-400" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[10px] font-medium text-rose-400">{t('catPvp')}</p>
-                  <p className="text-xs font-semibold truncate">{pvpLeader.killer_name}</p>
-                  <p className="text-[10px] text-muted-foreground">{pvpLeader.kills} kills</p>
-                </div>
+    <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+      {/* Left column — Leaderboards */}
+      <div className="space-y-6 min-w-0">
+        {/* Top EXP Gainers */}
+        {topGainers.length > 0 && (
+          <section className="rounded-xl border border-border/30 bg-card/40 overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border/20">
+              <div className="flex items-center gap-2">
+                <Flame className="h-4 w-4 text-amber-400" />
+                <h2 className="text-sm font-bold">{t('topGainersHeading')}</h2>
+                <span className="text-[10px] text-muted-foreground">{t('topGainersPeriod')}</span>
               </div>
-            )}
-            {categoryLeaders.map((leader) => {
-              const cfg = CATEGORY_CONFIG[leader.category];
-              if (!cfg) return null;
-              return (
+              <Link href="/progression" className="flex items-center gap-1 text-[10px] text-primary hover:underline">
+                {t('fullLeaderboard')} <ArrowRight className="h-2.5 w-2.5" />
+              </Link>
+            </div>
+
+            <div className="divide-y divide-border/15">
+              {topGainers.map((gainer, i) => (
                 <Link
-                  key={leader.category}
-                  href={`/progression?character=${encodeURIComponent(leader.character_name)}`}
-                  className="group flex items-center gap-2.5 rounded-xl border border-border/30 bg-card/50 p-2.5 transition-colors hover:bg-card hover:border-border/60"
+                  key={gainer.character_name}
+                  href={`/progression?character=${encodeURIComponent(gainer.character_name)}`}
+                  className="group flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-white/[0.02]"
                 >
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-secondary/50">
-                    <Crown className={`h-3.5 w-3.5 ${cfg.color}`} />
+                  <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-xs font-bold ${
+                    i === 0 ? 'bg-amber-400/15 text-amber-400' :
+                    i === 1 ? 'bg-slate-300/15 text-slate-300' :
+                    i === 2 ? 'bg-amber-700/15 text-amber-600' :
+                    'bg-secondary/30 text-muted-foreground'
+                  }`}>
+                    {i === 0 ? <Crown className="h-3.5 w-3.5" /> : `#${i + 1}`}
                   </div>
+
                   <div className="min-w-0 flex-1">
-                    <p className={`text-[10px] font-medium ${cfg.color}`}>{cfg.label}</p>
-                    <p className="text-xs font-semibold truncate group-hover:text-primary transition-colors">{leader.character_name}</p>
-                    <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                      <span>{leader.world}</span>
+                    <p className="text-sm font-semibold truncate group-hover:text-primary transition-colors">
+                      {gainer.character_name}
+                    </p>
+                    <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                      <Globe className="h-2.5 w-2.5" />
+                      <span>{gainer.world}</span>
                       <span className="text-foreground/30">·</span>
-                      <span className="font-medium">{leader.category === 'Experience Points' || leader.category === 'Charm Points' || leader.category === 'Bounty Points' ? formatNumber(leader.score) : leader.score}</span>
+                      <span>{tc('levelAbbr')} {gainer.current_level}</span>
                     </div>
                   </div>
+
+                  <div className="shrink-0 text-right">
+                    <p className="text-xs font-bold text-emerald-400">
+                      {formatNumber(gainer.exp_gained)}
+                    </p>
+                    <p className="text-[9px] text-muted-foreground">{tc('expSuffix')}</p>
+                  </div>
                 </Link>
-              );
-            })}
-          </div>
-        </section>
-      )}
-
-      {/* Feature Cards */}
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {features.map(({ href, title, badge, icon: Icon, gradient, iconBg, color, accentBorder, description, stat, statLabel }) => (
-          <Link key={href} href={href} className="group">
-            <div className={`relative h-full overflow-hidden rounded-xl border border-border/50 border-l-4 ${accentBorder} bg-card transition-all duration-200 group-hover:border-border group-hover:shadow-lg group-hover:shadow-black/20`}>
-              <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-50 group-hover:opacity-80 transition-opacity`} />
-
-              <div className="relative flex flex-col gap-3 p-5">
-                <div className="flex items-start justify-between">
-                  <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${iconBg}`}>
-                    <Icon className={`h-5 w-5 ${color}`} />
-                  </div>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground/50 transition-all group-hover:translate-x-1 group-hover:text-foreground" />
-                </div>
-
-                <div>
-                  <h2 className="text-lg font-bold">
-                    {title}
-                    {badge && <span className="ml-2 inline-block rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-400 align-middle">{badge}</span>}
-                  </h2>
-                  <p className="mt-1 text-sm text-muted-foreground leading-relaxed">{description}</p>
-                </div>
-
-                {stat !== null && (
-                  <div className="mt-auto flex items-baseline gap-1.5 pt-3 border-t border-border/30">
-                    <span className={`text-xl font-bold ${color}`}>
-                      {formatNumber(stat)}
-                    </span>
-                    <span className="text-xs text-muted-foreground">{statLabel}</span>
-                  </div>
-                )}
-              </div>
+              ))}
             </div>
+          </section>
+        )}
+
+        {/* Server Leaders */}
+        {categoryLeaders.length > 0 && (
+          <section className="rounded-xl border border-border/30 bg-card/40 overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-border/20">
+              <Trophy className="h-4 w-4 text-amber-400" />
+              <h2 className="text-sm font-bold">{t('topPlayersHeading')}</h2>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3">
+              {pvpLeader && (
+                <div className="flex items-center gap-2 px-3 py-2.5 border-b border-r border-border/10">
+                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-rose-500/15">
+                    <Swords className="h-3 w-3 text-rose-400" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] font-medium text-rose-400">{t('catPvp')}</p>
+                    <p className="text-[11px] font-semibold truncate">{pvpLeader.killer_name}</p>
+                    <p className="text-[10px] text-muted-foreground">{pvpLeader.kills} kills</p>
+                  </div>
+                </div>
+              )}
+              {categoryLeaders.map((leader) => {
+                const cfg = CATEGORY_CONFIG[leader.category];
+                if (!cfg) return null;
+                return (
+                  <Link
+                    key={leader.category}
+                    href={`/progression?character=${encodeURIComponent(leader.character_name)}`}
+                    className="group flex items-center gap-2 px-3 py-2.5 border-b border-r border-border/10 transition-colors hover:bg-white/[0.02]"
+                  >
+                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-secondary/30">
+                      <Crown className={`h-3 w-3 ${cfg.color}`} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className={`text-[10px] font-medium ${cfg.color}`}>{cfg.label}</p>
+                      <p className="text-[11px] font-semibold truncate group-hover:text-primary transition-colors">{leader.character_name}</p>
+                      <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                        <span>{leader.world}</span>
+                        <span className="text-foreground/30">·</span>
+                        <span className="font-medium">{leader.category === 'Experience Points' || leader.category === 'Charm Points' || leader.category === 'Bounty Points' ? formatNumber(leader.score) : leader.score}</span>
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </section>
+        )}
+      </div>
+
+      {/* Right column — Feature navigation */}
+      <div className="space-y-2">
+        <h2 className="text-sm font-bold text-muted-foreground px-1 mb-3">{t('exploreTitle')}</h2>
+        {features.map(({ href, title, badge, icon: Icon, color, iconBg, stat, statLabel }) => (
+          <Link
+            key={href}
+            href={href}
+            className="group flex items-center gap-3 rounded-xl border border-border/30 bg-card/40 px-3.5 py-3 transition-colors hover:bg-card hover:border-border/50"
+          >
+            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${iconBg}`}>
+              <Icon className={`h-4.5 w-4.5 ${color}`} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <p className="text-sm font-semibold truncate group-hover:text-primary transition-colors">{title}</p>
+                {badge && <span className="shrink-0 rounded-full bg-amber-500/15 px-1.5 py-px text-[9px] font-semibold text-amber-400">{badge}</span>}
+              </div>
+              {stat !== null && (
+                <p className="text-[11px] text-muted-foreground">
+                  <span className={`font-bold ${color}`}>{formatNumber(stat)}</span>{' '}
+                  {statLabel}
+                </p>
+              )}
+            </div>
+            <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/40 transition-all group-hover:translate-x-0.5 group-hover:text-foreground" />
           </Link>
         ))}
-      </section>
-
-    </>
+      </div>
+    </div>
   );
 }
 
 function HomeSkeleton() {
   return (
-    <>
-      <section>
-        <Skeleton className="h-6 w-40 mb-4" />
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+    <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+      <div className="space-y-6">
+        <div className="rounded-xl border border-border/30 bg-card/40 p-4">
+          <Skeleton className="h-5 w-40 mb-4" />
           {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-16 rounded-xl" />
+            <Skeleton key={i} className="h-12 w-full mb-2 rounded-lg" />
           ))}
         </div>
-      </section>
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {Array.from({ length: 9 }).map((_, i) => (
-          <div key={i} className="rounded-xl border border-border/50 border-l-4 border-l-border bg-card p-5">
-            <Skeleton className="h-10 w-10 rounded-lg mb-3" />
-            <Skeleton className="h-5 w-28 mb-2" />
-            <Skeleton className="h-10 w-full mb-3" />
-            <div className="pt-3 border-t border-border/30">
-              <Skeleton className="h-6 w-20" />
-            </div>
+        <div className="rounded-xl border border-border/30 bg-card/40 p-4">
+          <Skeleton className="h-5 w-36 mb-4" />
+          <div className="grid grid-cols-3 gap-2">
+            {Array.from({ length: 9 }).map((_, i) => (
+              <Skeleton key={i} className="h-16 rounded-lg" />
+            ))}
           </div>
+        </div>
+      </div>
+      <div className="space-y-2">
+        <Skeleton className="h-4 w-20 mb-3" />
+        {Array.from({ length: 9 }).map((_, i) => (
+          <Skeleton key={i} className="h-14 rounded-xl" />
         ))}
-      </section>
-    </>
+      </div>
+    </div>
   );
 }
 
@@ -421,25 +317,26 @@ export default async function HomePage() {
   const t = await getTranslations('home');
 
   return (
-    <div className="container mx-auto space-y-8 px-4 py-8">
-      {/* Hero — logo with ambient glow */}
-      <section className="flex flex-col items-center space-y-3 text-center">
-        <div
-          className="relative"
-          style={{
-            filter: 'drop-shadow(0 0 24px rgba(245,158,11,0.3)) drop-shadow(0 0 48px rgba(245,158,11,0.15))',
-          }}
-        >
-          <LogoIcon size={56} className="text-white" />
+    <div className="container mx-auto px-4 py-6">
+      {/* Compact hero */}
+      <section className="flex flex-col items-center gap-1 text-center mb-6">
+        <div className="flex items-center gap-2.5">
+          <div
+            style={{
+              filter: 'drop-shadow(0 0 16px rgba(245,158,11,0.25))',
+            }}
+          >
+            <LogoIcon size={36} className="text-white" />
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight">
+            <span className="text-foreground">RubinOT</span>{' '}
+            <span className="text-amber-400">Stats</span>
+          </h1>
         </div>
-        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-          <span className="text-foreground">RubinOT</span>{' '}
-          <span className="text-amber-400">Stats</span>
-        </h1>
-        <p className="max-w-lg text-sm text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           {t('tagline')}
         </p>
-        <p className="text-xs text-muted-foreground/60 italic">
+        <p className="text-[10px] text-muted-foreground/50 italic">
           {t('subTagline')}
         </p>
       </section>
