@@ -208,6 +208,7 @@ async function HomeContent() {
     {
       href: '/premium' as const,
       title: t('premiumTitle'),
+      badge: t('comingSoon'),
       icon: Crown,
       gradient: 'from-amber-500/20 via-amber-500/10 to-transparent',
       iconBg: 'bg-amber-500/15',
@@ -350,7 +351,7 @@ async function HomeContent() {
 
       {/* Feature Cards */}
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {features.map(({ href, title, icon: Icon, gradient, iconBg, color, accentBorder, description, stat, statLabel }) => (
+        {features.map(({ href, title, badge, icon: Icon, gradient, iconBg, color, accentBorder, description, stat, statLabel }) => (
           <Link key={href} href={href} className="group">
             <div className={`relative h-full overflow-hidden rounded-xl border border-border/50 border-l-4 ${accentBorder} bg-card transition-all duration-200 group-hover:border-border group-hover:shadow-lg group-hover:shadow-black/20`}>
               <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-50 group-hover:opacity-80 transition-opacity`} />
@@ -364,7 +365,10 @@ async function HomeContent() {
                 </div>
 
                 <div>
-                  <h2 className="text-lg font-bold">{title}</h2>
+                  <h2 className="text-lg font-bold">
+                    {title}
+                    {badge && <span className="ml-2 inline-block rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-400 align-middle">{badge}</span>}
+                  </h2>
                   <p className="mt-1 text-sm text-muted-foreground leading-relaxed">{description}</p>
                 </div>
 
